@@ -200,7 +200,15 @@ def run(
         cfg.targets.computer_targets = [
             l.strip() for l in computer_file.read_text().splitlines() if l.strip()
         ]
+    # ---------- TARGET MODE VALIDATION ----------
+    has_unc = bool(cfg.targets.path_targets)
+    has_computers = bool(cfg.targets.computer_targets)
 
+    if has_unc == has_computers:
+        raise typer.BadParameter(
+            "Specify exactly one target mode: "
+            "--unc OR --computer/--computer-file"
+        )
     # ---------- SCANNING ----------
     cfg.scanning.interest_level = min_interest
     cfg.scanning.max_size_to_grep = max_grep_size
