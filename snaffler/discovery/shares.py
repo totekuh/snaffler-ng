@@ -171,7 +171,6 @@ class ShareFinder:
                 continue
 
             unc_path = f"//{computer}/{share.name}"
-            logger.info(f"Found share: {unc_path}")
 
             # --- SYSVOL / NETLOGON handling ---
             apply_classifiers = True
@@ -201,10 +200,10 @@ class ShareFinder:
             share.readable = self.is_share_readable(computer, share.name)
 
             if share.readable:
-                logger.info(f"Share is readable: {unc_path}")
+                logger.info(f"Readable share: {unc_path}")
                 results.append((unc_path, share))
             else:
-                logger.debug(f"Share is not readable: {unc_path}")
+                logger.debug(f"Unreadable share: {unc_path}")
 
         return results
 

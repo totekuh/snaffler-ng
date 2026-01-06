@@ -58,8 +58,6 @@ class SharePipeline:
             logger.warning("No readable shares found")
             return []
 
-        logger.info(f"Found total of {len(all_shares)} readable shares")
-
         if self.shares_only:
             logger.info("Shares-only mode enabled, skipping file enumeration")
             return []

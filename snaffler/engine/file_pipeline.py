@@ -44,15 +44,12 @@ class FilePipeline:
                 try:
                     files = future.result()
                     all_files.extend(files)
-                    logger.info(f"Found {len(files)} files in {path}")
                 except Exception as e:
                     logger.debug(f"Error walking {path}: {e}")
 
         if not all_files:
             logger.warning("No files found")
             return 0
-
-        logger.info(f"Found total of {len(all_files)} files, beginning scan")
 
         # ---------- File scanning ----------
         results_count = 0
