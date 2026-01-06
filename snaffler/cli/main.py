@@ -233,18 +233,6 @@ def run(
     has_computers = bool(cfg.targets.computer_targets)
     has_domain = bool(cfg.auth.domain)
 
-    # UNC is exclusive
-    if has_unc and (has_computers or has_domain):
-        raise typer.BadParameter(
-            "--unc cannot be combined with --computer/--computer-file or --domain"
-        )
-
-    # Computer list is exclusive
-    if has_computers and has_domain:
-        raise typer.BadParameter(
-            "--computer/--computer-file cannot be combined with --domain"
-        )
-
     # At least one targeting mode must be selected
     if not (has_unc or has_computers or has_domain):
         raise typer.BadParameter(
