@@ -30,6 +30,9 @@ class TargetingConfig:
     shares_only: bool = False
     domain_users: bool = False
 
+    scan_sysvol: bool = True
+    scan_netlogon: bool = True
+
     ldap_filter: str = "(objectClass=computer)"
     exclusions: List[str] = field(default_factory=list)
 

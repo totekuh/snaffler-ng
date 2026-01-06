@@ -236,10 +236,15 @@ class ShareFinder:
 
         try:
             smb = self._get_smb(computer)
-            smb.listPath(share_name, '/*')
+
+            # Tree connect is the correct readability check
+            tid = smb.connectTree(share_name)
+            smb.disconnectTree(tid)
+
             return True
 
-        except SessionError:
+        except SessionError as e:
+            logger.debug(f"Cannot access share {computer}\\{share_name}: {e}")
             return False
         except Exception as e:
             logger.debug(f"Error testing share {computer}\\{share_name}: {e}")
