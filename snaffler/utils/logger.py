@@ -9,6 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+class DataOnlyFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return getattr(record, "is_data", False)
+
 # Color codes for console output
 class Colors:
     BLACK = '\033[90m'
@@ -123,12 +127,16 @@ def setup_logging(
 
     # File handler
     if log_to_file and log_file_path:
-        # Create log directory if it doesn't exist
         log_path = Path(log_file_path)
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
         file_handler = logging.FileHandler(log_file_path, mode='a')
-        file_handler.setLevel(logging.DEBUG)  # Log everything to file
+
+        if log_level == "data":
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.addFilter(DataOnlyFilter())
+        else:
+            file_handler.setLevel(level)
 
         if log_type == 'json':
             file_formatter = SnafflerJSONFormatter()
@@ -137,6 +145,7 @@ def setup_logging(
 
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
+
 
     return logger
 
@@ -197,6 +206,7 @@ def log_file_result(
         'file_path': file_path,
         'triage': triage,
         'rule_name': rule_name,
+        'is_data': True,
     }
 
     if match:

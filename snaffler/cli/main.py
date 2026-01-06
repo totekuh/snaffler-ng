@@ -4,12 +4,10 @@ from typing import Optional, List
 
 import click
 import typer
-import logging
+
 from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.engine.runner import SnafflerRunner
 from snaffler.utils.logger import setup_logging
-
-logger = logging.getLogger("snaffler")
 
 app = typer.Typer(
     add_completion=False,
@@ -96,7 +94,7 @@ def run(
         ),
         log_level: str = typer.Option(
             "info", "--log-level",
-            help="Log level: trace | debug | info | data",
+            help="Log level: debug | info | data",
             rich_help_panel="Output",
             click_type=click.Choice(
                 ["debug", "info", "data"],
@@ -203,9 +201,12 @@ def run(
 
     # ---------- ADVANCED ----------
     cfg.advanced.max_threads = max_threads
-    cfg.advanced.share_threads = max_threads // 3
-    cfg.advanced.tree_threads = max_threads // 3
-    cfg.advanced.file_threads = max_threads // 3
+
+    per_bucket = max(1, max_threads // 3)
+    cfg.advanced.share_threads = per_bucket
+    cfg.advanced.tree_threads = per_bucket
+    cfg.advanced.file_threads = per_bucket
+
     cfg.advanced.rule_dir = str(rule_dir) if rule_dir else None
 
     # ---------- OUTPUT ----------
