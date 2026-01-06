@@ -3,6 +3,7 @@ Share enumeration using Impacket SMB client
 """
 
 import logging
+import threading
 from typing import List, Tuple
 
 from impacket.dcerpc.v5 import transport, srvs
@@ -48,10 +49,15 @@ class ShareFinder:
         if not self.cfg.auth.username and not self.cfg.auth.password:
             logger.warning("No creds provided - continuing with NULL session")
 
-        self._smb_cache = {}
+        self._thread_local = threading.local()
 
     def _get_smb(self, computer: str):
-        smb = self._smb_cache.get(computer)
+        if not hasattr(self._thread_local, "smb_cache"):
+            self._thread_local.smb_cache = {}
+
+        cache = self._thread_local.smb_cache
+
+        smb = cache.get(computer)
         if smb:
             try:
                 smb.getServerName()
@@ -61,19 +67,12 @@ class ShareFinder:
                     smb.logoff()
                 except Exception:
                     pass
-                self._smb_cache.pop(computer, None)
+                cache.pop(computer, None)
 
         smb = self.smb_transport.connect(computer, timeout=10)
-        self._smb_cache[computer] = smb
+        cache[computer] = smb
         return smb
 
-    def close(self):
-        for smb in self._smb_cache.values():
-            try:
-                smb.logoff()
-            except Exception:
-                pass
-        self._smb_cache.clear()
 
     def enumerate_shares_rpc(self, target: str) -> List[ShareInfo]:
         shares = []
