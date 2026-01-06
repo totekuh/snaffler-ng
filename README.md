@@ -2,42 +2,58 @@
 
 Linux port of [Snaffler](https://github.com/SnaffCon/Snaffler) using Impacket.
 
-## Description
+Snaffler Linux is a post-exploitation / red teaming tool designed to **discover readable SMB shares**, **walk directory trees**, and **identify credentials and sensitive data** on Windows systems from Linux.
 
-A tool for pentesters to find credentials and sensitive data on Windows shares from Linux. Discovers shares, walks file trees, and classifies files using regex rules.
+## Features
+
+- SMB share discovery via RPC or SMB
+- Recursive directory tree walking
+- File and content classification using regex-based rules
+- NTLM authentication (password or pass-the-hash)
+- Multithreaded scanning
+- Optional automatic file download (“snaffling”)
+- Compatible with custom TOML rule sets
+
+## Installation
+
+```bash
+pip install -e .
+```
+
 
 ## Quick Start
 
+Discover computers from Active Directory and scan their shares:
 ```bash
-# Install
-pip install -e .
-
-# Scan specific share
-snaffler -u AD_USERNAME -p AD_PASSWORD -i //192.168.1.10/Share -s
-
-# Auto-discover shares on targets
-snaffler -u AD_USERNAME -p AD_PASSWORD -n 192.168.1.10,192.168.1.11 -s -o results.log
-
-# Use NT hash (pass-the-hash)
-snaffler -u AD_USERNAME --hash NTHASH -d AD_DOMAIN -c DC_IP -s
+snaffler run \
+  -u USERNAME \
+  -p PASSWORD \
+  -d DOMAIN.LOCAL
 ```
 
-## Key Options
+Scan a specific UNC path (no discovery):
+```bash
+snaffler run \
+  -u USERNAME \
+  -p PASSWORD \
+  --unc //192.168.1.10/Share
+```
 
-- `-i/--unc` - Direct UNC paths (disables discovery)
-- `-n/--computers` - Target computers (comma-sep or file)
-- `-o/--output` - Output to file
-- `-a/--shares-only` - Only enumerate shares
-- `-b/--boring` - Interest threshold (0=all, 3=critical)
-- `-m/--snaffle-path` - Auto-download files
+Scan multiple computers (share discovery enabled):
+```bash
+snaffler run \
+  -u USERNAME \
+  -p PASSWORD \
+  --computer 192.168.1.10 \
+  --computer 192.168.1.11
+```
 
-## How It Works
-
-1. Discovers domain computers (optional) or uses provided targets
-2. Enumerates readable SMB shares
-3. Walks directory trees
-4. Classifies files using built-in rules (or custom TOML rules)
-5. Searches file contents for secrets (passwords, keys, tokens)
-
+Load target computers from file:
+```bash
+snaffler run \
+  -u USERNAME \
+  -p PASSWORD \
+  --computer-file targets.txt
+```
 
 
