@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from pathlib import Path
 from typing import Optional, List
+
+import click
 import typer
 import logging
 from snaffler.config.configuration import SnafflerConfiguration
@@ -32,7 +34,7 @@ def run(
         # ---------------- AUTH ----------------
         username: str = typer.Option(
             None, "-u", "--username",
-            help="Username for authentication (required)",
+            help="Username for authentication",
             rich_help_panel="Authentication",
         ),
         password: Optional[str] = typer.Option(
@@ -62,7 +64,7 @@ def run(
         ),
 
         unc_path: Optional[List[str]] = typer.Option(
-            None, "-i", "--unc",
+            None, "--unc",
             help="Direct UNC path(s) to scan (disables computer/share discovery)",
             rich_help_panel="Targeting",
         ),
@@ -96,6 +98,10 @@ def run(
             "info", "--log-level",
             help="Log level: trace | debug | info | data",
             rich_help_panel="Output",
+            click_type=click.Choice(
+                ["debug", "info", "data"],
+                case_sensitive=False,
+            ),
         ),
         log_type: str = typer.Option(
             "plain", "-t", "--log-type",

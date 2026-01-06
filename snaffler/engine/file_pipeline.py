@@ -71,5 +71,5 @@ class FilePipeline:
                 except Exception as e:
                     logger.debug(f"Error scanning {file_path}: {e}")
 
-        logger.info(f"Scan complete! Found {results_count} interesting files")
+        logger.info(f"Scan completed: {results_count} files matched")
         return results_count
