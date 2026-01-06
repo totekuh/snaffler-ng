@@ -3,8 +3,7 @@ Share enumeration using Impacket SMB client
 """
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Tuple
+from typing import List, Tuple
 
 from impacket.dcerpc.v5 import transport, srvs
 from impacket.smbconnection import SessionError
@@ -48,6 +47,33 @@ class ShareFinder:
 
         if not self.cfg.auth.username and not self.cfg.auth.password:
             logger.warning("No creds provided - continuing with NULL session")
+
+        self._smb_cache = {}
+
+    def _get_smb(self, computer: str):
+        smb = self._smb_cache.get(computer)
+        if smb:
+            try:
+                smb.getServerName()
+                return smb
+            except Exception:
+                try:
+                    smb.logoff()
+                except Exception:
+                    pass
+                self._smb_cache.pop(computer, None)
+
+        smb = self.smb_transport.connect(computer, timeout=10)
+        self._smb_cache[computer] = smb
+        return smb
+
+    def close(self):
+        for smb in self._smb_cache.values():
+            try:
+                smb.logoff()
+            except Exception:
+                pass
+        self._smb_cache.clear()
 
     def enumerate_shares_rpc(self, target: str) -> List[ShareInfo]:
         shares = []
@@ -100,22 +126,21 @@ class ShareFinder:
     def enumerate_shares_smb(self, target: str) -> List[ShareInfo]:
         shares = []
         try:
-            smb = self.smb_transport.connect(target)
+            smb = self._get_smb(target)
             for share in smb.listShares():
-                share_name = share['shi1_netname'][:-1]  # Remove null terminator
+                share_name = share['shi1_netname'][:-1]
                 share_type = share['shi1_type']
                 share_remark = share['shi1_remark'][:-1] if share['shi1_remark'] else ""
 
-                share_info = ShareInfo(
+                shares.append(ShareInfo(
                     name=share_name,
                     share_type=share_type,
                     remark=share_remark
-                )
-                shares.append(share_info)
-            smb.logoff()
+                ))
         except Exception as e:
             logger.debug(f"Error enumerating shares on {target} via SMB: {e}")
         return shares
+
 
     def _classify_share(self, unc_path: str) -> bool:
         """
@@ -160,7 +185,6 @@ class ShareFinder:
         shares = self.enumerate_shares_rpc(computer)
         if not shares:
             shares = self.enumerate_shares_smb(computer)
-
         results: List[Tuple[str, ShareInfo]] = []
 
         for share in shares:
@@ -208,58 +232,17 @@ class ShareFinder:
         return results
 
     def is_share_readable(self, computer: str, share_name: str) -> bool:
-        """
-        Test if a share is readable using a unified SMB session
-        """
         if share_name.upper() in self.NEVER_SCAN:
             return False
 
         try:
-            smb = self.smb_transport.connect(computer, timeout=10)
-
-            # Minimal read test (same behavior as Impacket tools)
+            smb = self._get_smb(computer)
             smb.listPath(share_name, '/*')
-
-            smb.logoff()
             return True
 
-        except SessionError as e:
-            logger.debug(f"Access denied on {computer}\\{share_name}: {e}")
+        except SessionError:
             return False
         except Exception as e:
             logger.debug(f"Error testing share {computer}\\{share_name}: {e}")
             return False
 
-    def batch_enumerate_shares(self, computers: List[str], max_workers: int = 20) -> Dict[
-        str, List[Tuple[str, ShareInfo]]]:
-        """
-        Enumerate shares on multiple computers concurrently
-
-        Args:
-            computers: List of computer names or IPs
-            max_workers: Maximum number of concurrent threads
-
-        Returns:
-            Dictionary mapping computer names to their shares
-        """
-        results = {}
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks
-            future_to_computer = {
-                executor.submit(self.get_computer_shares, computer): computer
-                for computer in computers
-            }
-
-            # Collect results as they complete
-            for future in as_completed(future_to_computer):
-                computer = future_to_computer[future]
-                try:
-                    shares = future.result()
-                    if shares:
-                        results[computer] = shares
-                        logger.info(f"Found {len(shares)} readable shares on {computer}")
-                except Exception as e:
-                    logger.error(f"Exception processing {computer}: {e}")
-
-        return results

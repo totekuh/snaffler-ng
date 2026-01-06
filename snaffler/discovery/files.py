@@ -4,6 +4,7 @@ File scanning and classification
 
 import logging
 import re
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -50,6 +51,31 @@ class FileScanner:
         self.cert_checker = CertificateChecker(
             custom_passwords=self.cfg.scanning.cert_passwords
         )
+
+        self._smb_cache = {}
+        self._thread_local = threading.local()
+
+    def _get_smb(self, server: str):
+        if not hasattr(self._thread_local, "smb_cache"):
+            self._thread_local.smb_cache = {}
+
+        cache = self._thread_local.smb_cache
+
+        smb = cache.get(server)
+        if smb:
+            try:
+                smb.getServerName()
+                return smb
+            except Exception:
+                try:
+                    smb.logoff()
+                except Exception:
+                    pass
+                cache.pop(server, None)
+
+        smb = self.smb_transport.connect(server)
+        cache[server] = smb
+        return smb
 
     def scan_file(self, unc_path: str, file_info) -> Optional[FileResult]:
         try:
@@ -328,18 +354,18 @@ class FileScanner:
 
     def _can_read_file(self, server: str, share: str, file_path: str) -> bool:
         try:
-            smb = self.smb_transport.connect(server, timeout=10)
+            smb = self._get_smb(server)
 
             from io import BytesIO
             file_obj = BytesIO()
             smb.getFile(share, file_path, file_obj.write, 0, 1)
 
-            smb.logoff()
             return True
 
         except Exception as e:
             logger.debug(f"Cannot access file {server}/{share}/{file_path}: {e}")
             return False
+
 
     def _check_certificate(self, server: str, share: str, file_path: str,
                            unc_path: str, file_size: int, modified_time: datetime) -> Optional[FileResult]:
@@ -405,18 +431,18 @@ class FileScanner:
 
     def _read_file_smb(self, server: str, share: str, file_path: str) -> Optional[bytes]:
         try:
-            smb = self.smb_transport.connect(server, timeout=30)
+            smb = self._get_smb(server)
 
             from io import BytesIO
             file_obj = BytesIO()
             smb.getFile(share, file_path, file_obj.write)
 
-            smb.logoff()
             return file_obj.getvalue()
 
         except Exception as e:
             logger.debug(f"Cannot read file {server}/{share}/{file_path}: {e}")
             return None
+
 
     def _snaffle_file(self, server: str, share: str, file_path: str, unc_path: str):
         """

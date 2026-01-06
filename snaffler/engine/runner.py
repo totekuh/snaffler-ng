@@ -122,6 +122,11 @@ class SnafflerRunner:
         except KeyboardInterrupt:
             logger.warning("Interrupted by user")
             raise
+        finally:
+            try:
+                self.share_finder.close()
+            except Exception as e:
+                logger.debug(f"Error closing SMB sessions: {e}")
 
     def _print_completion_stats(self):
         """Print completion statistics"""

@@ -3,7 +3,6 @@ Directory tree walking over SMB
 """
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple, Any
 
 from impacket.smbconnection import SessionError
