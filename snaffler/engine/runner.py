@@ -123,12 +123,26 @@ class SnafflerRunner:
 
     def _print_completion_stats(self):
         """Print completion statistics"""
-        if self.start_time:
-            end_time = datetime.now()
-            duration = end_time - self.start_time
+        if not self.start_time:
+            return
 
-            logger.info("-" * 60)
-            logger.info(f"Started:  {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-            logger.info(f"Finished: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
-            logger.info(f"Duration: {duration}")
-            logger.info("-" * 60)
+        end_time = datetime.now()
+        duration = end_time - self.start_time
+
+        total_seconds = int(duration.total_seconds())
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        logger.info("-" * 60)
+        logger.info(f"Started:  {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"Finished: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        if hours > 0:
+            logger.info(f"Duration: {hours}h {minutes}m {seconds}s")
+        elif minutes > 0:
+            logger.info(f"Duration: {minutes}m {seconds}s")
+        else:
+            logger.info(f"Duration: {seconds}s")
+
+        logger.info("-" * 60)
+

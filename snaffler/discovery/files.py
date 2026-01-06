@@ -459,9 +459,10 @@ class FileScanner:
 
         try:
             # Create local path maintaining directory structure
-            local_base = Path(self.cfg.snaffle_path)
-            relative_path = Path(server) / share / file_path
-            local_path = local_base / relative_path
+            clean_file_path = file_path.lstrip("\\/")
+
+            relative_path = Path(server) / share / clean_file_path
+            local_path = Path(self.cfg.scanning.snaffle_path) / relative_path
 
             # Create directories
             local_path.parent.mkdir(parents=True, exist_ok=True)
