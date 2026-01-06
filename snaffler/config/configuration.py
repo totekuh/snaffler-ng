@@ -42,8 +42,8 @@ class TargetingConfig:
 @dataclass
 class ScanningConfig:
     interest_level: int = 0
-    max_size_to_grep: int = 1_000_000
-    max_size_to_snaffle: int = 10_000_000
+    max_size_to_grep: int = 2_097_152      # 2 MB
+    max_size_to_snaffle: int = 10_485_760  # 10 MB
     snaffle: bool = False
     snaffle_path: Optional[str] = None
     match_context_bytes: int = 200

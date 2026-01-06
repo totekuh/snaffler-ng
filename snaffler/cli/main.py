@@ -14,6 +14,27 @@ app = typer.Typer(
     help="Snaffler Linux – Find credentials and sensitive data on Windows SMB shares"
 )
 
+# ---------------- DEFAULTS ----------------
+
+MB = 1024 * 1024
+
+# Scanning
+DEFAULT_MIN_INTEREST = 0
+DEFAULT_MAX_GREP_SIZE = 2 * MB        # 2 MB
+DEFAULT_MAX_SNAFFLE_SIZE = 10 * MB    # 10 MB
+DEFAULT_MATCH_CONTEXT = 200           # bytes
+
+# Auth
+DEFAULT_TIMEOUT_MINUTES = 5
+
+# Threads
+DEFAULT_MAX_THREADS = 60
+
+# Output
+DEFAULT_LOG_LEVEL = "info"
+DEFAULT_LOG_TYPE = "plain"
+
+
 
 def banner():
     typer.echo(r"""
@@ -56,7 +77,8 @@ def run(
             rich_help_panel="Authentication",
         ),
         timeout: int = typer.Option(
-            5, "-e", "--timeout",
+            DEFAULT_TIMEOUT_MINUTES,
+            "-e", "--timeout",
             help="LDAP timeout / status update interval in minutes",
             rich_help_panel="Authentication",
         ),
@@ -99,7 +121,8 @@ def run(
             rich_help_panel="Output",
         ),
         log_level: str = typer.Option(
-            "info", "--log-level",
+            DEFAULT_LOG_LEVEL,
+            "--log-level",
             help="Log level: debug | info | data",
             rich_help_panel="Output",
             click_type=click.Choice(
@@ -108,7 +131,8 @@ def run(
             ),
         ),
         log_type: str = typer.Option(
-            "plain", "-t", "--log-type",
+            DEFAULT_LOG_TYPE,
+            "-t", "--log-type",
             help="Log format: plain | json",
             rich_help_panel="Output",
         ),
@@ -120,37 +144,41 @@ def run(
         ),
 
         min_interest: int = typer.Option(
-            0, "-b", "--min-interest",
+            DEFAULT_MIN_INTEREST,
+            "-b", "--min-interest",
             help="Minimum interest level to report (0=all, 3=high only)",
             rich_help_panel="Scanning",
             min=0,
             max=3,
         ),
-
         max_grep_size: int = typer.Option(
-            500_000, "-r", "--max-grep-size",
-            help="Max file size (bytes) to search inside",
+            DEFAULT_MAX_GREP_SIZE,
+            "-r", "--max-grep-size",
+            help="Max file size to search inside (default: 2 MB)",
             rich_help_panel="Scanning",
         ),
         max_snaffle_size: int = typer.Option(
-            10_000_000, "-l", "--max-snaffle-size",
-            help="Max file size (bytes) to download",
+            DEFAULT_MAX_SNAFFLE_SIZE,
+            "-l", "--max-snaffle-size",
+            help="Max file size to download (default: 10 MB)",
             rich_help_panel="Scanning",
         ),
+
         snaffle_path: Optional[Path] = typer.Option(
             None, "-m", "--snaffle-path",
             help="Directory to copy interesting files into",
             rich_help_panel="Scanning",
         ),
         context: int = typer.Option(
-            200, "-j", "--context",
-            help="Bytes of context around matched strings",
+            DEFAULT_MATCH_CONTEXT,
+            "-j", "--context",
+            help=f"Bytes of context around matched strings (default: {DEFAULT_MATCH_CONTEXT})",
             rich_help_panel="Scanning",
         ),
-
         max_threads: int = typer.Option(
-            60, "-x", "--max-threads",
-            help="Maximum total worker threads",
+            DEFAULT_MAX_THREADS,
+            "-x", "--max-threads",
+            help=f"Maximum total worker threads (default: {DEFAULT_MAX_THREADS})",
             rich_help_panel="Advanced",
         ),
         config_file: Optional[Path] = typer.Option(
@@ -203,11 +231,25 @@ def run(
     # ---------- TARGET MODE VALIDATION ----------
     has_unc = bool(cfg.targets.path_targets)
     has_computers = bool(cfg.targets.computer_targets)
+    has_domain = bool(cfg.auth.domain)
 
-    if has_unc == has_computers:
+    # UNC is exclusive
+    if has_unc and (has_computers or has_domain):
         raise typer.BadParameter(
-            "Specify exactly one target mode: "
-            "--unc OR --computer/--computer-file"
+            "--unc cannot be combined with --computer/--computer-file or --domain"
+        )
+
+    # Computer list is exclusive
+    if has_computers and has_domain:
+        raise typer.BadParameter(
+            "--computer/--computer-file cannot be combined with --domain"
+        )
+
+    # At least one targeting mode must be selected
+    if not (has_unc or has_computers or has_domain):
+        raise typer.BadParameter(
+            "No targets specified. Use one of: "
+            "--unc, --computer/--computer-file, or --domain"
         )
     # ---------- SCANNING ----------
     cfg.scanning.interest_level = min_interest
