@@ -46,6 +46,9 @@ class ShareFinder:
         self.smb_transport = SMBTransport(cfg)
         self.share_classifiers = cfg.rules.share
 
+        if not self.cfg.auth.username and not self.cfg.auth.password:
+            logger.warning("No creds provided - continuing with NULL session")
+
     def enumerate_shares_rpc(self, target: str) -> List[ShareInfo]:
         shares = []
 

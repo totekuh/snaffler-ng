@@ -2,10 +2,12 @@
 from pathlib import Path
 from typing import Optional, List
 import typer
-
+import logging
 from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.engine.runner import SnafflerRunner
 from snaffler.utils.logger import setup_logging
+
+logger = logging.getLogger("snaffler")
 
 app = typer.Typer(
     add_completion=False,
@@ -91,8 +93,8 @@ def run(
             rich_help_panel="Output",
         ),
         log_level: str = typer.Option(
-            "info", "-v", "--verbose",
-            help="Log verbosity: trace | debug | info | data",
+            "info", "--log-level",
+            help="Log level: trace | debug | info | data",
             rich_help_panel="Output",
         ),
         log_type: str = typer.Option(
@@ -150,9 +152,9 @@ def run(
 ):
     banner()
 
-    if not stdout and not output_file:
-        typer.secho("[-] Either --stdout or --output must be specified", fg=typer.colors.RED)
-        raise typer.Exit(1)
+    # Default to stdout if no output file is specified
+    if output_file is None:
+        stdout = True
 
     # ---------- load configuration ----------
     cfg = SnafflerConfiguration()
@@ -210,7 +212,6 @@ def run(
 
     # ---------- validate ----------
     cfg.validate()
-
 
     # ---------- logging ----------
     setup_logging(

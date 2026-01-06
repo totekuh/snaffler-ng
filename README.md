@@ -26,11 +26,10 @@ snaffler -u AD_USERNAME --hash NTHASH -d AD_DOMAIN -c DC_IP -s
 
 - `-i/--unc` - Direct UNC paths (disables discovery)
 - `-n/--computers` - Target computers (comma-sep or file)
-- `-s/--stdout` / `-o/--output` - Output to stdout/file
+- `-o/--output` - Output to file
 - `-a/--shares-only` - Only enumerate shares
 - `-b/--boring` - Interest threshold (0=all, 3=critical)
 - `-m/--snaffle-path` - Auto-download files
-- `-v/--verbose` - Log level: trace/debug/info/data
 
 ## How It Works
 
