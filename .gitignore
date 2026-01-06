@@ -1,0 +1,4 @@
+venv
+.idea
+snaffler_linux.egg-info
+__pycache__
