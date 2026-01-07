@@ -108,17 +108,24 @@ class FileScanner:
             best_result = None
 
             for rule in self.file_rules:
-                match = self.rules_evaluator.match_file_rule(rule, unc_path, file_name, file_ext, size)
-                if not match:
+                decision = self.rules_evaluator.evaluate_file_rule(
+                    rule,
+                    unc_path,
+                    file_name,
+                    file_ext,
+                    size,
+                )
+
+                if not decision:
                     continue
 
-                action = rule.match_action
+                action = decision.action
 
                 if action == MatchAction.DISCARD:
                     return None
 
                 if action == MatchAction.RELAY:
-                    relay_targets.extend(rule.relay_targets)
+                    relay_targets.extend(decision.relay_targets or [])
                     continue
 
                 if action == MatchAction.CHECK_FOR_KEYS:
@@ -146,7 +153,7 @@ class FileScanner:
                     modified,
                     rule.triage,
                     rule.rule_name,
-                    match if isinstance(match, str) else match.group(0),
+                    decision.match,
                 )
 
                 result = self._finalize_result(result, server, share, smb_path)
