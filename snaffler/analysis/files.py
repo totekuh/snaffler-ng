@@ -4,14 +4,13 @@ File scanning and classification
 
 import logging
 import re
-import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from snaffler.accessors.file_accessor import FileAccessor
 from snaffler.analysis.certificates import CertificateChecker
 from snaffler.classifiers.rules import ClassifierRule, MatchLocation, MatchAction, Triage
-from snaffler.transport.smb import SMBTransport
 from snaffler.utils.logger import log_file_result
 from snaffler.utils.path_utils import parse_unc_path, get_modified_time
 
@@ -30,9 +29,9 @@ class FileResult:
 
 
 class FileScanner:
-    def __init__(self, cfg):
+    def __init__(self, cfg, file_accessor: FileAccessor):
         self.cfg = cfg
-        self.smb_transport = SMBTransport(cfg)
+        self.files = file_accessor
 
         self.file_rules = cfg.rules.file
         self.content_rules = cfg.rules.content
@@ -45,50 +44,6 @@ class FileScanner:
         self.cert_checker = CertificateChecker(
             custom_passwords=cfg.scanning.cert_passwords
         )
-
-        self._thread_local = threading.local()
-
-    # ------------------------------------------------------------------ SMB
-
-    def _get_smb(self, server: str):
-        cache = getattr(self._thread_local, "smb_cache", {})
-        self._thread_local.smb_cache = cache
-
-        smb = cache.get(server)
-        if smb:
-            try:
-                smb.getServerName()
-                return smb
-            except Exception:
-                try:
-                    smb.logoff()
-                except Exception:
-                    pass
-                cache.pop(server, None)
-
-        smb = self.smb_transport.connect(server)
-        cache[server] = smb
-        return smb
-
-    def _read_file_smb(self, server: str, share: str, path: str) -> Optional[bytes]:
-        try:
-            smb = self._get_smb(server)
-            from io import BytesIO
-            buf = BytesIO()
-            smb.getFile(share, path, buf.write)
-            return buf.getvalue()
-        except Exception:
-            return None
-
-    def _can_read_file(self, server: str, share: str, path: str) -> bool:
-        try:
-            smb = self._get_smb(server)
-            from io import BytesIO
-            buf = BytesIO()
-            smb.getFile(share, path, buf.write, 0, 1)
-            return True
-        except Exception:
-            return False
 
     # -------------------------------------------------------------- Results
 
@@ -118,7 +73,12 @@ class FileScanner:
                 self.cfg.scanning.snaffle
                 and result.size <= self.cfg.scanning.max_size_to_snaffle
         ):
-            self._snaffle_file(server, share, smb_path, result.file_path)
+            self.files.copy_to_local(
+                server,
+                share,
+                smb_path,
+                self.cfg.scanning.snaffle_path,
+            )
 
         return result
 
@@ -185,7 +145,7 @@ class FileScanner:
                 if self._postmatch_discard(unc_path, file_name):
                     return None
 
-                if not self._can_read_file(server, share, smb_path):
+                if not self.files.can_read(server, share, smb_path):
                     continue
 
                 result = self._build_result(
@@ -263,7 +223,7 @@ class FileScanner:
             relay_rule_names: Optional[list],
     ) -> Optional[FileResult]:
 
-        data = self._read_file_smb(server, share, smb_path)
+        data = self.files.read(server, share, smb_path)
         if not data:
             return None
 
@@ -318,7 +278,7 @@ class FileScanner:
             modified: datetime,
     ) -> Optional[FileResult]:
 
-        data = self._read_file_smb(server, share, smb_path)
+        data = self.files.read(server, share, smb_path)
         if not data:
             return None
 
@@ -335,20 +295,3 @@ class FileScanner:
             Path(unc_path).name,
             ", ".join(reasons),
         )
-
-    # -------------------------------------------------------------- Snaffle
-
-    def _snaffle_file(self, server: str, share: str, smb_path: str, unc_path: str):
-        if not self.cfg.scanning.snaffle_path:
-            return
-
-        try:
-            clean = smb_path.lstrip("\\/")
-            local = Path(self.cfg.scanning.snaffle_path) / server / share / clean
-            local.parent.mkdir(parents=True, exist_ok=True)
-
-            data = self._read_file_smb(server, share, smb_path)
-            if data:
-                local.write_bytes(data)
-        except Exception:
-            pass
