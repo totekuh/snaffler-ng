@@ -6,11 +6,30 @@ from snaffler.classifiers.rules import Triage
 
 
 class FileResult:
-    def __init__(self, file_path: str, size: int = 0, modified: datetime = None):
+    __slots__ = (
+        "file_path",
+        "size",
+        "modified",
+        "triage",
+        "rule_name",
+        "match",
+        "context",
+    )
+
+    def __init__(
+            self,
+            file_path: str,
+            size: int,
+            modified: Optional[datetime],
+            triage: Triage,
+            rule_name: str,
+            match: str,
+            context: Optional[str] = None,
+    ):
         self.file_path = file_path
         self.size = size
         self.modified = modified
-        self.triage: Optional[Triage] = None
-        self.rule_name: Optional[str] = None
-        self.match: Optional[str] = None
-        self.context: Optional[str] = None
+        self.triage = triage
+        self.rule_name = rule_name
+        self.match = match
+        self.context = context

@@ -63,6 +63,8 @@ class Triage(Enum):
     def below(self, min_level: int) -> bool:
         return self.level < min_level
 
+    def more_severe_than(self, other: "Triage") -> bool:
+        return self.level > other.level
 
 @dataclass
 class ClassifierRule:

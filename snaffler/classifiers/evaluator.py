@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
+from snaffler.analysis.file_context import FileContext
 from snaffler.classifiers.rules import MatchLocation, MatchAction
 
 
@@ -8,7 +9,7 @@ from snaffler.classifiers.rules import MatchLocation, MatchAction
 class RuleDecision:
     action: MatchAction
     match: Optional[str] = None
-    relay_targets: Optional[list] = None
+    relay_targets: Optional[List[str]] = None
 
 
 class RuleEvaluator:
@@ -18,40 +19,41 @@ class RuleEvaluator:
         self.postmatch_rules = postmatch_rules
 
         self.content_rules_by_name = {
-            r.rule_name: r for r in self.content_rules
+            r.rule_name: r for r in content_rules
         }
 
-    def evaluate_file_rule(self, rule, full_path, name, ext, size):
-        match = None
-
+    def evaluate_file_rule(self, rule, ctx: FileContext) -> Optional[RuleDecision]:
         if rule.match_location == MatchLocation.FILE_PATH:
-            match = rule.matches(full_path)
+            match = rule.matches(ctx.unc_path)
         elif rule.match_location == MatchLocation.FILE_NAME:
-            match = rule.matches(name)
+            match = rule.matches(ctx.name)
         elif rule.match_location == MatchLocation.FILE_EXTENSION:
-            match = rule.matches(ext)
+            match = rule.matches(ctx.ext)
         elif rule.match_location == MatchLocation.FILE_LENGTH:
-            match = f"size == {size}" if rule.match_length == size else None
+            match = f"size == {ctx.size}" if rule.match_length == ctx.size else None
+        else:
+            match = None
 
         if not match:
             return None
 
-        # 🔥 normalize HERE
-        if hasattr(match, "group"):
-            match = match.group(0)
-
         return RuleDecision(
             action=rule.match_action,
-            match=match.group(0) if hasattr(match, "group") else match,
-            relay_targets=rule.relay_targets if rule.match_action == MatchAction.RELAY else None,
+            match=match if isinstance(match, str) else match.group(0),
+            relay_targets=rule.relay_targets,
         )
 
-    def should_discard(self, unc_path, name) -> bool:
+    def should_discard(self, ctx: FileContext) -> bool:
         for rule in self.postmatch_rules:
             if rule.match_action != MatchAction.DISCARD:
                 continue
 
-            text = unc_path if rule.match_location == MatchLocation.FILE_PATH else name
+            text = (
+                ctx.unc_path
+                if rule.match_location == MatchLocation.FILE_PATH
+                else ctx.name
+            )
+
             if rule.matches(text):
                 return True
 

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
 import logging
-import re
+import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from snaffler.accessors.file_accessor import FileAccessor
 from snaffler.analysis.certificates import CertificateChecker
+from snaffler.analysis.file_context import FileContext
 from snaffler.analysis.file_result import FileResult
 from snaffler.classifiers.evaluator import RuleEvaluator
 from snaffler.classifiers.rules import MatchLocation, MatchAction, Triage
@@ -18,9 +19,12 @@ logger = logging.getLogger("snaffler")
 
 
 class FileScanner:
-    def __init__(self, cfg,
-                 file_accessor: FileAccessor,
-                 rule_evaluator: RuleEvaluator):
+    def __init__(
+            self,
+            cfg,
+            file_accessor: FileAccessor,
+            rule_evaluator: RuleEvaluator,
+    ):
         self.cfg = cfg
         self.file_accessor = file_accessor
         self.rule_evaluator = rule_evaluator
@@ -50,7 +54,9 @@ class FileScanner:
             result.match,
             result.context,
             result.size,
-            result.modified.strftime("%Y-%m-%d %H:%M:%S") if result.modified else None,
+            result.modified.strftime("%Y-%m-%d %H:%M:%S")
+            if result.modified
+            else None,
         )
 
         if (
@@ -66,24 +72,6 @@ class FileScanner:
 
         return result
 
-    def _build_result(
-            self,
-            unc_path: str,
-            size: int,
-            modified: datetime,
-            triage: Triage,
-            rule_name: str,
-            match: str,
-            context: Optional[str] = None,
-    ) -> FileResult:
-
-        r = FileResult(unc_path, size, modified)
-        r.triage = triage
-        r.rule_name = rule_name
-        r.match = match
-        r.context = context
-        return r
-
     # -------------------------------------------------------------- Scanning
 
     def scan_file(self, unc_path: str, file_info) -> Optional[FileResult]:
@@ -91,24 +79,29 @@ class FileScanner:
             parsed = parse_unc_path(unc_path)
             if not parsed:
                 return None
+
             logger.debug(f"Scanning {unc_path}")
 
             server, share, smb_path, file_name, file_ext = parsed
             size = getattr(file_info, "get_filesize", lambda: 0)()
             modified = get_modified_time(file_info)
 
-            relay_targets = []
-            best_result = None
+            if not self.file_accessor.can_read(server, share, smb_path):
+                return None
 
+            ctx = FileContext(
+                unc_path=unc_path,
+                name=file_name,
+                ext=file_ext,
+                size=size,
+            )
+
+            relay_rule_names: List[str] = []
+            best_result: Optional[FileResult] = None
+
+            # ---------------- File rules
             for rule in self.rule_evaluator.file_rules:
-                decision = self.rule_evaluator.evaluate_file_rule(
-                    rule,
-                    unc_path,
-                    file_name,
-                    file_ext,
-                    size,
-                )
-
+                decision = self.rule_evaluator.evaluate_file_rule(rule, ctx)
                 if not decision:
                     continue
 
@@ -118,7 +111,8 @@ class FileScanner:
                     return None
 
                 if action == MatchAction.RELAY:
-                    relay_targets.extend(decision.relay_targets or [])
+                    if decision.relay_targets:
+                        relay_rule_names.extend(decision.relay_targets)
                     continue
 
                 if action == MatchAction.CHECK_FOR_KEYS:
@@ -126,74 +120,97 @@ class FileScanner:
                         server, share, smb_path, unc_path, size, modified
                     )
                     if cert:
-                        cert = self._finalize_result(cert, server, share, smb_path)
-                        if cert and not best_result:
+                        cert = self._finalize_result(
+                            cert, server, share, smb_path
+                        )
+                        if cert and (
+                                not best_result
+                                or cert.triage.more_severe_than(best_result.triage)
+                        ):
                             best_result = cert
                     continue
 
                 if action != MatchAction.SNAFFLE:
                     continue
 
-                if self.rule_evaluator.should_discard(unc_path, file_name):
+                if self.rule_evaluator.should_discard(ctx):
                     return None
 
-                if not self.file_accessor.can_read(server, share, smb_path):
-                    continue
-
-                result = self._build_result(
-                    unc_path,
-                    size,
-                    modified,
-                    rule.triage,
-                    rule.rule_name,
-                    decision.match,
+                result = FileResult(
+                    file_path=unc_path,
+                    size=size,
+                    modified=modified,
+                    triage=rule.triage,
+                    rule_name=rule.rule_name,
+                    match=decision.match,
                 )
 
-                result = self._finalize_result(result, server, share, smb_path)
-                if result and not best_result:
+                result = self._finalize_result(
+                    result, server, share, smb_path
+                )
+                if result and (
+                        not best_result
+                        or result.triage.more_severe_than(best_result.triage)
+                ):
                     best_result = result
 
+            # ---------------- Content rules
             if size <= self.cfg.scanning.max_size_to_grep:
                 content_result = self._scan_file_contents(
+                    ctx,
                     server,
                     share,
                     smb_path,
-                    unc_path,
                     size,
                     modified,
-                    relay_targets or None,
+                    relay_rule_names or None,
                 )
-                return content_result or best_result
+
+                if content_result and (
+                        not best_result
+                        or content_result.triage.more_severe_than(
+                    best_result.triage
+                )
+                ):
+                    return content_result
 
             return best_result
 
-        except Exception as e:
-            logger.debug(f"Error scanning file {unc_path}: {e}")
+        except Exception:
+            logger.debug(
+                "Unhandled exception while scanning %s\n%s",
+                unc_path,
+                traceback.format_exc(),
+            )
             return None
 
     def _scan_file_contents(
             self,
+            ctx: FileContext,
             server: str,
             share: str,
             smb_path: str,
-            unc_path: str,
             size: int,
             modified: datetime,
-            relay_rule_names: Optional[list],
+            relay_rule_names: Optional[List[str]],
     ) -> Optional[FileResult]:
 
         data = self.file_accessor.read(server, share, smb_path)
         if not data:
             return None
 
+        # Honest decode: one pass, no dead branches
         try:
-            text = data.decode("utf-8", errors="ignore")
-        except Exception:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
             text = data.decode("latin-1", errors="ignore")
 
         rules = (
-            [self.rule_evaluator.content_rules_by_name[n] for n in relay_rule_names if
-             n in self.rule_evaluator.content_rules_by_name]
+            [
+                self.rule_evaluator.content_rules_by_name[n]
+                for n in relay_rule_names
+                if n in self.rule_evaluator.content_rules_by_name
+            ]
             if relay_rule_names
             else self.rule_evaluator.content_rules
         )
@@ -206,23 +223,31 @@ class FileScanner:
             if not match:
                 continue
 
-            if self.rule_evaluator.should_discard(unc_path, Path(unc_path).name):
+            if self.rule_evaluator.should_discard(ctx):
                 continue
 
-            start = max(0, match.start() - self.cfg.scanning.match_context_bytes)
-            end = min(len(text), match.end() + self.cfg.scanning.match_context_bytes)
-
-            result = self._build_result(
-                unc_path,
-                size,
-                modified,
-                rule.triage,
-                rule.rule_name,
-                match.group(0),
-                re.escape(text[start:end]),
+            start = max(
+                0,
+                match.start() - self.cfg.scanning.match_context_bytes,
+            )
+            end = min(
+                len(text),
+                match.end() + self.cfg.scanning.match_context_bytes,
             )
 
-            return self._finalize_result(result, server, share, smb_path)
+            result = FileResult(
+                file_path=ctx.unc_path,
+                size=size,
+                modified=modified,
+                triage=rule.triage,
+                rule_name=rule.rule_name,
+                match=match.group(0),
+                context=text[start:end],
+            )
+
+            return self._finalize_result(
+                result, server, share, smb_path
+            )
 
         return None
 
@@ -242,11 +267,13 @@ class FileScanner:
         if not data:
             return None
 
-        reasons = self.cert_checker.check_certificate(data, Path(unc_path).name)
+        reasons = self.cert_checker.check_certificate(
+            data, Path(unc_path).name
+        )
         if not reasons or "HasPrivateKey" not in reasons:
             return None
 
-        return self._build_result(
+        return FileResult.build(
             unc_path,
             size,
             modified,
