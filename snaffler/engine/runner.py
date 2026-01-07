@@ -30,9 +30,6 @@ class SnafflerRunner:
 
         self.share_finder = ShareFinder(cfg=self.cfg)
 
-        self.tree_walker = TreeWalker(self.cfg)
-        self.file_scanner = FileScanner(self.cfg)
-
         # ---------- Pipelines ----------
         self.share_pipeline = SharePipeline(
             share_finder=self.share_finder,
@@ -40,12 +37,7 @@ class SnafflerRunner:
             shares_only=targets.shares_only,
         )
 
-        self.file_pipeline = FilePipeline(
-            tree_walker=self.tree_walker,
-            file_scanner=self.file_scanner,
-            tree_threads=adv.tree_threads,
-            file_threads=adv.file_threads,
-        )
+        self.file_pipeline = FilePipeline(cfg=cfg)
 
     def _load_rules(self):
         if self.cfg.rules.rule_dir:

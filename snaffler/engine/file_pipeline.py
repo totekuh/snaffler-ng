@@ -1,6 +1,9 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
+from snaffler.config.configuration import SnafflerConfiguration
+from snaffler.discovery.tree import TreeWalker
+from snaffler.discovery.files import FileScanner
 
 logger = logging.getLogger("snaffler")
 
@@ -12,11 +15,15 @@ class FilePipeline:
     - Scans files with FileScanner
     """
 
-    def __init__(self, tree_walker, file_scanner, tree_threads: int, file_threads: int):
-        self.tree_walker = tree_walker
-        self.file_scanner = file_scanner
-        self.tree_threads = tree_threads
-        self.file_threads = file_threads
+    def __init__(self, cfg: SnafflerConfiguration):
+        self.cfg = cfg
+
+        self.tree_threads = self.cfg.advanced.tree_threads
+        self.file_threads = self.cfg.advanced.file_threads
+
+        # internal workers
+        self.tree_walker = TreeWalker(cfg)
+        self.file_scanner = FileScanner(cfg)
 
     def run(self, paths: List[str]) -> int:
         """
