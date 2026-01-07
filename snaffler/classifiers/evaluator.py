@@ -43,7 +43,7 @@ class RuleEvaluator:
             relay_targets=rule.relay_targets,
         )
 
-    def should_discard(self, ctx: FileContext) -> bool:
+    def should_discard_postmatch(self, ctx: FileContext) -> bool:
         for rule in self.postmatch_rules:
             if rule.match_action != MatchAction.DISCARD:
                 continue

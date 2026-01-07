@@ -133,7 +133,7 @@ class FileScanner:
                 if action != MatchAction.SNAFFLE:
                     continue
 
-                if self.rule_evaluator.should_discard(ctx):
+                if self.rule_evaluator.should_discard_postmatch(ctx):
                     return None
 
                 result = FileResult(
@@ -223,7 +223,7 @@ class FileScanner:
             if not match:
                 continue
 
-            if self.rule_evaluator.should_discard(ctx):
+            if self.rule_evaluator.should_discard_postmatch(ctx):
                 continue
 
             start = max(
