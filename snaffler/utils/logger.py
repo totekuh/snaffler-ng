@@ -211,6 +211,32 @@ def log_file_result(
 
     logger.warning(message, extra=extra)
 
+def print_completion_stats(start_time):
+    """Print completion statistics"""
+    if not start_time:
+        return
+
+    logger = logging.getLogger('snaffler')
+    end_time = datetime.now()
+    duration = end_time - start_time
+
+    total_seconds = int(duration.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    logger.info("-" * 60)
+    logger.info(f"Started:  {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"Finished: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    if hours > 0:
+        logger.info(f"Duration: {hours}h {minutes}m {seconds}s")
+    elif minutes > 0:
+        logger.info(f"Duration: {minutes}m {seconds}s")
+    else:
+        logger.info(f"Duration: {seconds}s")
+
+    logger.info("-" * 60)
+
 
 def format_size(size_bytes: int) -> str:
     """Format size in bytes to human-readable format"""

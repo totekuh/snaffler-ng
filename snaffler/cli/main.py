@@ -5,6 +5,7 @@ from typing import Optional, List
 import click
 import typer
 
+from snaffler.classifiers.loader import RuleLoader
 from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.engine.runner import SnafflerRunner
 from snaffler.utils.logger import setup_logging
@@ -252,6 +253,9 @@ def run(
 
     # ---------- validate ----------
     cfg.validate()
+
+    # ---------- load classification rules ----------
+    RuleLoader.load(cfg)
 
     # ---------- logging ----------
     setup_logging(

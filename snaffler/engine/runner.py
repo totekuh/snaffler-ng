@@ -4,12 +4,11 @@ Main Snaffler controller - orchestrates all components
 import logging
 from datetime import datetime
 
-from snaffler.classifiers.default_rules import get_default_rules
-from snaffler.classifiers.rules import load_rules_from_directory, EnumerationScope
 from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.engine.domain_pipeline import DomainPipeline
 from snaffler.engine.file_pipeline import FilePipeline
 from snaffler.engine.share_pipeline import SharePipeline
+from snaffler.utils.logger import print_completion_stats
 
 logger = logging.getLogger('snaffler')
 
@@ -19,43 +18,9 @@ class SnafflerRunner:
         self.cfg = cfg
         self.start_time = None
 
-        # rules must be loaded before any pipeline or scanner is instantiated
-        self._load_rules()
-
         # ---------- Pipelines ----------
         self.share_pipeline = SharePipeline(cfg=cfg)
         self.file_pipeline = FilePipeline(cfg=cfg)
-
-    def _load_rules(self):
-        if self.cfg.rules.rule_dir:
-            logger.info(f"Loading custom rules from: {self.cfg.rules.rule_dir}")
-            rules = load_rules_from_directory(self.cfg.rules.rule_dir)
-        else:
-            logger.info("Loading default classification rules")
-            rules = get_default_rules()
-
-        self.cfg.rules.share = [
-            r for r in rules if r.enumeration_scope == EnumerationScope.SHARE_ENUMERATION
-        ]
-        self.cfg.rules.directory = [
-            r for r in rules if r.enumeration_scope == EnumerationScope.DIRECTORY_ENUMERATION
-        ]
-        self.cfg.rules.file = [
-            r for r in rules if r.enumeration_scope == EnumerationScope.FILE_ENUMERATION
-        ]
-        self.cfg.rules.content = [
-            r for r in rules if r.enumeration_scope == EnumerationScope.CONTENTS_ENUMERATION
-        ]
-        self.cfg.rules.postmatch = [
-            r for r in rules if r.enumeration_scope == EnumerationScope.POST_MATCH
-        ]
-
-        logger.info(f"Loaded {len(rules)} classification rules")
-        logger.info(f"  Share rules: {len(self.cfg.rules.share)}")
-        logger.info(f"  Directory rules: {len(self.cfg.rules.directory)}")
-        logger.info(f"  File rules: {len(self.cfg.rules.file)}")
-        logger.info(f"  Content rules: {len(self.cfg.rules.content)}")
-        logger.info(f"  Post match rules: {len(self.cfg.rules.postmatch)}")
 
     def execute(self):
         self.start_time = datetime.now()
@@ -86,33 +51,8 @@ class SnafflerRunner:
                 logger.error("No targets specified")
                 return
 
-            self._print_completion_stats()
+            print_completion_stats(start_time=self.start_time)
 
         except KeyboardInterrupt:
             logger.warning("Interrupted by user")
             raise
-
-    def _print_completion_stats(self):
-        """Print completion statistics"""
-        if not self.start_time:
-            return
-
-        end_time = datetime.now()
-        duration = end_time - self.start_time
-
-        total_seconds = int(duration.total_seconds())
-        hours, remainder = divmod(total_seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-
-        logger.info("-" * 60)
-        logger.info(f"Started:  {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info(f"Finished: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
-
-        if hours > 0:
-            logger.info(f"Duration: {hours}h {minutes}m {seconds}s")
-        elif minutes > 0:
-            logger.info(f"Duration: {minutes}m {seconds}s")
-        else:
-            logger.info(f"Duration: {seconds}s")
-
-        logger.info("-" * 60)
