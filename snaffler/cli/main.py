@@ -76,10 +76,10 @@ def run(
             help="Domain controller IP",
             rich_help_panel="Authentication",
         ),
-        timeout: int = typer.Option(
+        smb_timeout: int = typer.Option(
             DEFAULT_TIMEOUT_MINUTES,
             "-e", "--timeout",
-            help="LDAP timeout / status update interval in minutes",
+            help="SMB timeout in seconds",
             rich_help_panel="Authentication",
         ),
 
@@ -197,10 +197,10 @@ def run(
     cfg.auth.nthash = nthash
     cfg.auth.domain = domain
     cfg.auth.dc_ip = dc_ip
-    cfg.auth.timeout = timeout
+    cfg.auth.smb_timeout = smb_timeout
 
     # ---------- TARGETING ----------
-    cfg.targets.path_targets = unc_path or []
+    cfg.targets.unc_targets = unc_path or []
     cfg.targets.shares_only = shares_only
 
     if computer and computer_file:
@@ -214,7 +214,7 @@ def run(
             l.strip() for l in computer_file.read_text().splitlines() if l.strip()
         ]
     # ---------- TARGET MODE VALIDATION ----------
-    has_unc = bool(cfg.targets.path_targets)
+    has_unc = bool(cfg.targets.unc_targets)
     has_computers = bool(cfg.targets.computer_targets)
     has_domain = bool(cfg.auth.domain)
 

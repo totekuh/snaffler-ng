@@ -13,7 +13,9 @@ class SMBTransport:
         self.domain = self.auth.domain or ""
         self.lmhash = ""
 
-    def connect(self, target: str, timeout: int = 30) -> SMBConnection:
+    def connect(self, target: str, timeout: int = None) -> SMBConnection:
+        if not timeout:
+            timeout = self.auth.smb_timeout
         smb = SMBConnection(
             remoteName=target,
             remoteHost=target,

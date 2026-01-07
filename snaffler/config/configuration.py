@@ -18,14 +18,14 @@ class AuthConfig:
     nthash: Optional[str] = None
     domain: Optional[str] = None
     dc_ip: Optional[str] = None
-    timeout: int = 5
+    smb_timeout: int = 5
 
 
 # ---------------- TARGETING ----------------
 
 @dataclass
 class TargetingConfig:
-    path_targets: List[str] = field(default_factory=list)
+    unc_targets: List[str] = field(default_factory=list)
     computer_targets: List[str] = field(default_factory=list)
 
     shares_only: bool = False
@@ -105,7 +105,7 @@ class SnafflerConfiguration:
     # ---------- validation ----------
 
     def validate(self):
-        if self.targets.path_targets and self.targets.computer_targets:
+        if self.targets.unc_targets and self.targets.computer_targets:
             raise ValueError("Cannot mix path targets and computer targets")
 
         if self.rules.rule_dir:

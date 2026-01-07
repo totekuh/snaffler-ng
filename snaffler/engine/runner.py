@@ -18,7 +18,6 @@ class SnafflerRunner:
         self.cfg = cfg
         self.start_time = None
 
-        # ---------- Pipelines ----------
         self.share_pipeline = SharePipeline(cfg=cfg)
         self.file_pipeline = FilePipeline(cfg=cfg)
 
@@ -28,8 +27,8 @@ class SnafflerRunner:
 
         try:
             # ---------- Direct UNC paths ----------
-            if self.cfg.targets.path_targets:
-                self.file_pipeline.run(self.cfg.targets.path_targets)
+            if self.cfg.targets.unc_targets:
+                self.file_pipeline.run(self.cfg.targets.unc_targets)
 
             # ---------- Explicit computer list ----------
             elif self.cfg.targets.computer_targets:
