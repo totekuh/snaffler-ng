@@ -47,6 +47,35 @@ class FileScanner:
 
         self._thread_local = threading.local()
 
+    def _finalize_result(
+            self,
+            result: FileResult,
+            server: str,
+            share: str,
+            file_path: str,
+    ):
+        if result.triage.below(self.cfg.scanning.min_interest):
+            return None
+
+        log_file_result(
+            logger,
+            result.file_path,
+            result.triage.label,
+            result.rule_name,
+            result.match,
+            result.context,
+            result.size,
+            result.modified.strftime('%Y-%m-%d %H:%M:%S') if result.modified else None
+        )
+
+        if (
+                self.cfg.scanning.snaffle
+                and result.size <= self.cfg.scanning.max_size_to_snaffle
+        ):
+            self._snaffle_file(server, share, file_path, result.file_path)
+
+        return result
+
     def _get_smb(self, server: str):
         if not hasattr(self._thread_local, "smb_cache"):
             self._thread_local.smb_cache = {}
@@ -120,8 +149,15 @@ class FileScanner:
                     cert = self._check_certificate(
                         server, share, file_path, unc_path, file_size, modified_time
                     )
-                    if cert and not best_result:
-                        best_result = cert
+                    if cert:
+                        cert = self._finalize_result(
+                            cert,
+                            server,
+                            share,
+                            file_path
+                        )
+                        if cert and not best_result:
+                            best_result = cert
                     continue
 
                 if rule.match_action != MatchAction.SNAFFLE:
@@ -135,30 +171,17 @@ class FileScanner:
 
                 result = FileResult(unc_path, file_size, modified_time)
                 result.triage = rule.triage
-
-                if result.triage.below(self.cfg.scanning.min_interest):
-                    continue
-
                 result.rule_name = rule.rule_name
                 result.match = match if isinstance(match, str) else match.group(0)
 
-                log_file_result(
-                    logger,
-                    unc_path,
-                    result.triage.label,
-                    result.rule_name,
-                    result.match,
-                    size=file_size,
-                    modified=modified_time.strftime('%Y-%m-%d %H:%M:%S') if modified_time else None
+                result = self._finalize_result(
+                    result,
+                    server,
+                    share,
+                    file_path,
                 )
 
-                if (
-                        self.cfg.scanning.snaffle
-                        and file_size <= self.cfg.scanning.max_size_to_snaffle
-                ):
-                    self._snaffle_file(server, share, file_path, unc_path)
-
-                if not best_result:
+                if result and not best_result:
                     best_result = result
 
             if file_size <= self.cfg.scanning.max_size_to_grep:
@@ -260,10 +283,6 @@ class FileScanner:
 
                 result = FileResult(unc_path, file_size, modified_time)
                 result.triage = rule.triage
-
-                if result.triage.below(self.cfg.scanning.min_interest):
-                    continue
-
                 result.rule_name = rule.rule_name
                 result.match = match.group(0)
 
@@ -271,24 +290,12 @@ class FileScanner:
                 end = min(len(text), match.end() + self.cfg.scanning.match_context_bytes)
                 result.context = re.escape(text[start:end])
 
-                log_file_result(
-                    logger,
-                    unc_path,
-                    result.triage.label,
-                    result.rule_name,
-                    result.match,
-                    result.context,
-                    file_size,
-                    modified_time.strftime('%Y-%m-%d %H:%M:%S') if modified_time else None
+                return self._finalize_result(
+                    result,
+                    server,
+                    share,
+                    file_path,
                 )
-
-                if (
-                        self.cfg.scanning.snaffle
-                        and file_size <= self.cfg.scanning.max_size_to_snaffle
-                ):
-                    self._snaffle_file(server, share, file_path, unc_path)
-
-                return result
 
             return None
 
@@ -317,49 +324,23 @@ class FileScanner:
             modified_time: datetime
     ) -> Optional[FileResult]:
 
-        try:
-            data = self._read_file_smb(server, share, file_path)
-            if not data:
-                return None
-
-            filename = Path(unc_path).name
-            reasons = self.cert_checker.check_certificate(data, filename)
-
-            if not reasons or "HasPrivateKey" not in reasons:
-                return None
-
-            result = FileResult(unc_path, file_size, modified_time)
-            result.triage = Triage.RED
-
-            if result.triage.below(self.cfg.scanning.min_interest):
-                return None
-
-            result.rule_name = "RelayCertByExtension"
-            result.match = filename
-            result.context = ", ".join(reasons)
-
-            log_file_result(
-                logger,
-                unc_path,
-                result.triage.label,
-                result.rule_name,
-                result.match,
-                context=result.context,
-                size=file_size,
-                modified=modified_time.strftime('%Y-%m-%d %H:%M:%S') if modified_time else None
-            )
-
-            if (
-                    self.cfg.scanning.snaffle
-                    and file_size <= self.cfg.scanning.max_size_to_snaffle
-            ):
-                self._snaffle_file(server, share, file_path, unc_path)
-
-            return result
-
-        except Exception as e:
-            logger.debug(f"Error checking certificate {unc_path}: {e}")
+        data = self._read_file_smb(server, share, file_path)
+        if not data:
             return None
+
+        filename = Path(unc_path).name
+        reasons = self.cert_checker.check_certificate(data, filename)
+
+        if not reasons or "HasPrivateKey" not in reasons:
+            return None
+
+        result = FileResult(unc_path, file_size, modified_time)
+        result.triage = Triage.RED
+        result.rule_name = "RelayCertByExtension"
+        result.match = filename
+        result.context = ", ".join(reasons)
+
+        return result
 
     def _read_file_smb(self, server: str, share: str, file_path: str) -> Optional[bytes]:
         try:
