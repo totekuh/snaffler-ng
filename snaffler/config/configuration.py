@@ -3,6 +3,7 @@ Configuration management for Snaffler Linux
 """
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List, Optional, Any
 
 import toml
@@ -106,6 +107,13 @@ class SnafflerConfiguration:
     def validate(self):
         if self.targets.path_targets and self.targets.computer_targets:
             raise ValueError("Cannot mix path targets and computer targets")
+
+        if self.rules.rule_dir:
+            p = Path(self.rules.rule_dir)
+            if not p.exists():
+                raise ValueError(f"rule_dir does not exist: {p}")
+            if not p.is_dir():
+                raise ValueError(f"rule_dir is not a directory: {p}")
 
     # ---------- TOML ----------
 

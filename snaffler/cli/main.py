@@ -241,7 +241,8 @@ def run(
     cfg.advanced.tree_threads = per_bucket
     cfg.advanced.file_threads = per_bucket
 
-    cfg.advanced.rule_dir = str(rule_dir) if rule_dir else None
+    if rule_dir:
+        cfg.rules.rule_dir = f"{rule_dir}"
 
     # ---------- OUTPUT ----------
     cfg.output.to_file = output_file is not None
