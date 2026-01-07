@@ -184,10 +184,6 @@ def run(
     if not no_banner:
         banner()
 
-    # Default to stdout if no output file is specified
-    if output_file is None:
-        stdout = True
-
     # ---------- load configuration ----------
     cfg = SnafflerConfiguration()
 
@@ -261,7 +257,7 @@ def run(
         log_level=cfg.output.log_level,
         log_to_file=cfg.output.to_file,
         log_file_path=cfg.output.output_file,
-        log_to_console=cfg.output.to_stdout,
+        log_to_console=not cfg.output.to_file,
         log_type=cfg.output.log_type,
     )
 

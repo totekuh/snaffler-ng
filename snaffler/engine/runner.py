@@ -48,13 +48,6 @@ class SnafflerRunner:
             shares_only=targets.shares_only,
         )
 
-        self.file_pipeline = FilePipeline(
-            tree_walker=self.tree_walker,
-            file_scanner=self.file_scanner,
-            tree_threads=adv.tree_threads,
-            file_threads=adv.file_threads,
-        )
-
     def _load_rules(self):
         if self.cfg.rules.rule_dir:
             logger.info(f"Loading custom rules from: {self.cfg.rules.rule_dir}")
@@ -145,4 +138,3 @@ class SnafflerRunner:
             logger.info(f"Duration: {seconds}s")
 
         logger.info("-" * 60)
-
