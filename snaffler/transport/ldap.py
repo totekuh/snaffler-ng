@@ -12,7 +12,7 @@ class LDAPTransport:
         if not self.auth.domain:
             raise ValueError("LDAP connection requires a domain")
 
-        target = self.auth.dc_ip or self.auth.domain
+        target = self.auth.dc_host or self.auth.domain
 
         ldap = LDAPConnection(
             f"ldap://{target}",
@@ -27,7 +27,7 @@ class LDAPTransport:
                 domain=self.auth.domain,
                 lmhash="",
                 nthash=self.auth.nthash or "",
-                kdcHost=self.auth.dc_ip,
+                kdcHost=self.auth.dc_host,
                 useCache=self.auth.use_kcache,
             )
             return ldap

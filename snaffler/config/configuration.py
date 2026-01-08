@@ -18,7 +18,7 @@ class AuthConfig:
     password: Optional[str] = None
     nthash: Optional[str] = None
     domain: Optional[str] = None
-    dc_ip: Optional[str] = None
+    dc_host: Optional[str] = None
     smb_timeout: int = 5
 
     # Kerberos

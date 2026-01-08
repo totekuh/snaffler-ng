@@ -71,9 +71,15 @@ def run(
             help="Target Active Directory domain / Kerberos realm (e.g. CORP.LOCAL)",
             rich_help_panel="Authentication",
         ),
-        dc_ip: Optional[str] = typer.Option(
-            None, "-c", "--dc-ip",
-            help="Domain controller IP",
+        dc_host: Optional[str] = typer.Option(
+            None,
+            "--dc-host",
+            "--dc-ip",   # backward-compatible alias
+            help=(
+                    "Domain controller hostname or FQDN. "
+                    "Required for Kerberos LDAP. "
+                    "(IPs may work for transport but hostnames are recommended.)"
+            ),
             rich_help_panel="Authentication",
         ),
         smb_timeout: int = typer.Option(
@@ -210,7 +216,7 @@ def run(
     cfg.auth.password = password
     cfg.auth.nthash = nthash
     cfg.auth.domain = domain
-    cfg.auth.dc_ip = dc_ip
+    cfg.auth.dc_host = dc_host
     cfg.auth.smb_timeout = smb_timeout
     cfg.auth.kerberos = kerberos
     cfg.auth.use_kcache = use_kcache

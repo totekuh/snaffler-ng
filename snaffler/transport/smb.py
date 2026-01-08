@@ -27,7 +27,7 @@ class SMBTransport:
                 lmhash="",
                 nthash=self.auth.nthash or "",
                 aesKey=None,
-                kdcHost=self.auth.dc_ip,
+                kdcHost=self.auth.dc_host,
                 useCache=self.auth.use_kcache,
             )
             return smb
