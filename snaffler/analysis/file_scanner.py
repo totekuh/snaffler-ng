@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
-import traceback
 from datetime import datetime
-from pathlib import Path
 from typing import Optional, List
 
 from snaffler.accessors.file_accessor import FileAccessor
@@ -173,12 +171,8 @@ class FileScanner:
 
             return best_result
 
-        except Exception:
-            logger.debug(
-                "Unhandled exception while scanning %s\n%s",
-                unc_path,
-                traceback.format_exc(),
-            )
+        except Exception as e:
+            logger.debug(f"Unhandled exception while scanning {unc_path}: {e}")
             return None
 
     def _scan_file_contents(
@@ -195,7 +189,6 @@ class FileScanner:
         if not data:
             return None
 
-        # Honest decode: one pass, no dead branches
         try:
             text = data.decode("utf-8")
         except UnicodeDecodeError:
@@ -258,24 +251,22 @@ class FileScanner:
             modified: datetime,
     ) -> Optional[FileResult]:
 
-        unc_path = ctx.name
-        size = ctx.size
         data = self.file_accessor.read(server, share, smb_path)
         if not data:
             return None
 
         reasons = self.cert_checker.check_certificate(
-            data, Path(ctx.name).name
+            data, ctx.name
         )
         if not reasons or "HasPrivateKey" not in reasons:
             return None
 
-        return FileResult.build(
-            unc_path,
-            size,
-            modified,
-            Triage.RED,
-            "RelayCertByExtension",
-            Path(unc_path).name,
-            ", ".join(reasons),
+        return FileResult(
+            file_path=ctx.unc_path,
+            size=ctx.size,
+            modified=modified,
+            triage=Triage.RED,
+            rule_name="RelayCertByExtension",
+            match=ctx.name,
+            context=", ".join(reasons),
         )
