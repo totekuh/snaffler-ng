@@ -2,3 +2,4 @@ venv
 .idea
 snaffler_ng.egg-info
 __pycache__
+snaffler.db
