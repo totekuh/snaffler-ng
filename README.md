@@ -6,13 +6,16 @@ Impacket port of [Snaffler](https://github.com/SnaffCon/Snaffler).
 
 ## Features
 
-- SMB share discovery via RPC or SMB
+- SMB share discovery (RPC / SMB)
 - Recursive directory tree walking
-- File and content classification using regex-based rules
+- Regex-based file and content classification
 - NTLM authentication (password or pass-the-hash)
-- Multithreaded scanning
-- Optional automatic file download (“snaffling”)
-- Compatible with custom TOML rule sets
+- Kerberos authentication
+- Multithreaded scanning (share / tree / file stages)
+- Optional file download (“snaffling”)
+- Resume support via SQLite state database
+- Compatible with original and custom TOML rule sets
+- Deterministic, ingestion-friendly logging (plain / JSON / TSV)
 
 ## Installation
 
@@ -23,13 +26,36 @@ pip install -e .
 
 ## Quick Start
 
-Discover computers from Active Directory and scan their shares:
+### Full Domain Discovery
+
+Providing only a domain triggers full domain discovery:
+
 ```bash
 snaffler run \
   -u USERNAME \
   -p PASSWORD \
   -d DOMAIN.LOCAL
 ```
+
+This will automatically:
+
+- Query Active Directory for computer objects
+- Enumerate SMB shares on discovered hosts
+- Scan all readable shares
+
+When using Kerberos, set `KRB5CCNAME` to a valid ticket cache and use hostnames/FQDNs:
+
+```bash
+snaffler run \
+-k \
+--use-kcache \
+-d DOMAIN.LOCAL \
+--dc-host CORP-DC02
+```
+
+---
+
+### Targeted Scans
 
 Scan a specific UNC path (no discovery):
 ```bash
@@ -56,4 +82,35 @@ snaffler run \
   --computer-file targets.txt
 ```
 
+## Logging & Output Formats
 
+snaffler-ng supports three output formats, each with a distinct purpose:
+
+- `Plain` (default, human-readable)
+
+- `JSON` (structured, SIEM-friendly)
+
+- `TSV` (flat, ingestion-friendly)
+
+## Resume Support
+
+Large environments are expected.
+
+You can resume interrupted scans using the `--resume` argument:
+
+```bash
+snaffler run \
+-u USERNAME \
+-p PASSWORD \
+--computer-file targets.txt \
+--resume
+```
+
+State tracks processed shares, directories, and files to avoid re-scanning.
+
+## Authentication Options
+
+- NTLM username/password
+- NTLM pass-the-hash (`--hash`)
+- Kerberos (`-k`)
+- Kerberos via existing ccache (`--use-kcache`)
