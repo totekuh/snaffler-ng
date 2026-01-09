@@ -119,11 +119,7 @@ class FileScanner:
                         cert = self._finalize_result(
                             cert, server, share, smb_path
                         )
-                        if cert and (
-                                not best_result
-                                or cert.triage.more_severe_than(best_result.triage)
-                        ):
-                            best_result = cert
+                        best_result = FileResult.pick_best(best_result, cert)
                     continue
 
                 if action != MatchAction.SNAFFLE:
@@ -144,11 +140,7 @@ class FileScanner:
                 result = self._finalize_result(
                     result, server, share, smb_path
                 )
-                if result and (
-                        not best_result
-                        or result.triage.more_severe_than(best_result.triage)
-                ):
-                    best_result = result
+                best_result = FileResult.pick_best(best_result, result)
 
             # ---------------- Content rules
             if size <= self.cfg.scanning.max_size_to_grep:
@@ -160,20 +152,13 @@ class FileScanner:
                     modified,
                     relay_rule_names or None,
                 )
-
-                if content_result and (
-                        not best_result
-                        or content_result.triage.more_severe_than(
-                    best_result.triage
-                )
-                ):
-                    return content_result
+                return FileResult.pick_best(best_result, content_result)
 
             return best_result
 
         except Exception as e:
             logger.debug(f"Unhandled exception while scanning {unc_path}: {e}")
-            return None
+            return
 
     def _scan_file_contents(
             self,

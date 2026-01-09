@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional
 
@@ -33,3 +35,16 @@ class FileResult:
         self.rule_name = rule_name
         self.match = match
         self.context = context
+
+    @staticmethod
+    def pick_best(
+            current: Optional[FileResult],
+            candidate: Optional[FileResult],
+    ) -> Optional[FileResult]:
+        if not candidate:
+            return current
+        if not current:
+            return candidate
+        if candidate.triage.more_severe_than(current.triage):
+            return candidate
+        return current
