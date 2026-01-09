@@ -68,7 +68,7 @@ class FilePipeline:
             all_files = [
                 (file_path, file_info)
                 for file_path, file_info in all_files
-                if not self.state.should_skip(file_path)
+                if not self.state.should_skip_file(file_path)
             ]
             skipped = before - len(all_files)
             if skipped:
@@ -95,7 +95,7 @@ class FilePipeline:
                     result = future.result()
 
                     if self.state:
-                        self.state.mark_done(file_path)
+                        self.state.mark_file_done(file_path)
 
                     if result:
                         results_count += 1
