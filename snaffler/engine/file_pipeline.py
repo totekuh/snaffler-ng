@@ -24,7 +24,8 @@ class FilePipeline:
         self.tree_threads = cfg.advanced.tree_threads
         self.file_threads = cfg.advanced.file_threads
 
-        self.tree_walker = TreeWalker(cfg)
+        self.tree_walker = TreeWalker(cfg,
+                                      state=state)
 
         file_accessor = SMBFileAccessor(cfg)
         rule_evaluator = RuleEvaluator(
