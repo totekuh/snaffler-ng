@@ -5,6 +5,7 @@ Logging utilities for Snaffler Linux
 import json
 import logging
 import sys
+import hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -15,7 +16,6 @@ class DataOnlyFilter(logging.Filter):
         return getattr(record, "is_data", False)
 
 
-# Color codes for console output
 class Colors:
     BLACK = '\033[90m'
     RED = '\033[91m'
@@ -31,8 +31,6 @@ def _logger_has_file_handler(logger: logging.Logger) -> bool:
 
 
 class SnafflerFormatter(logging.Formatter):
-    """Custom formatter for Snaffler output"""
-
     LEVEL_COLORS = {
         'DEBUG': Colors.GRAY,
         'INFO': Colors.GREEN,
@@ -63,31 +61,30 @@ class SnafflerFormatter(logging.Formatter):
                 f"{Colors.GRAY}[{timestamp}]{Colors.RESET} "
                 f"{color}[{level}]{Colors.RESET} {message}"
             )
-        else:
-            return f"[{timestamp}] [{level}] {message}"
-
+        return f"[{timestamp}] [{level}] {message}"
 
 
 class SnafflerJSONFormatter(logging.Formatter):
-    """JSON formatter for file output"""
-
-    def format(self, record):
-        log_data = {
-            'timestamp': datetime.fromtimestamp(record.created).isoformat(),
-            'level': record.levelname,
-            'message': record.getMessage(),
+    def format(self, record: logging.LogRecord) -> str:
+        data = {
+            "timestamp": datetime.fromtimestamp(record.created).isoformat(),
+            "level": record.levelname,
+            "message": record.getMessage(),
         }
 
-        if hasattr(record, 'file_path'):
-            log_data['file_path'] = record.file_path
-        if hasattr(record, 'triage'):
-            log_data['triage'] = record.triage
-        if hasattr(record, 'rule_name'):
-            log_data['rule_name'] = record.rule_name
-        if hasattr(record, 'match_context'):
-            log_data['match_context'] = record.match_context
+        for field in (
+                "file_path",
+                "triage",
+                "rule_name",
+                "match_context",
+                "size",
+                "mtime",
+                "finding_id",
+        ):
+            if hasattr(record, field):
+                data[field] = getattr(record, field)
 
-        return json.dumps(log_data)
+        return json.dumps(data)
 
 
 def setup_logging(
@@ -99,31 +96,27 @@ def setup_logging(
 ) -> logging.Logger:
 
     level_map = {
-        'trace': logging.DEBUG,
-        'debug': logging.DEBUG,
-        'info': logging.INFO,
-        'data': logging.WARNING,
+        "trace": logging.DEBUG,
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "data": logging.WARNING,
     }
 
     level = level_map.get(log_level.lower(), logging.INFO)
 
-    logger = logging.getLogger('snaffler')
+    logger = logging.getLogger("snaffler")
     logger.setLevel(logging.DEBUG)
     logger.handlers.clear()
 
-    # ---------- console ----------
     if log_to_console:
         ch = logging.StreamHandler(sys.stdout)
         ch.setLevel(level)
         ch.setFormatter(SnafflerFormatter(logger))
         logger.addHandler(ch)
 
-    # ---------- file ----------
     if log_to_file and log_file_path:
-        log_path = Path(log_file_path)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-
-        fh = logging.FileHandler(log_file_path, mode='a')
+        Path(log_file_path).parent.mkdir(parents=True, exist_ok=True)
+        fh = logging.FileHandler(log_file_path, mode="a")
 
         if log_level == "data":
             fh.setLevel(logging.DEBUG)
@@ -141,36 +134,43 @@ def setup_logging(
     return logger
 
 
+def _make_finding_id(file_path: str, rule_name: str) -> str:
+    h = hashlib.sha1()
+    h.update(f"{file_path}:{rule_name}".encode())
+    return h.hexdigest()
+
+
 def log_file_result(
         logger: logging.Logger,
         file_path: str,
         triage: str,
         rule_name: str,
-        match: str = None,
-        context: str = None,
-        size: int = None,
-        modified: str = None,
+        match: Optional[str] = None,
+        context: Optional[str] = None,
+        size: Optional[int] = None,
+        modified: Optional[str] = None,
 ):
-    triage_colors = {
-        'Black': Colors.BLACK + Colors.BOLD,
-        'Red': Colors.RED + Colors.BOLD,
-        'Yellow': Colors.YELLOW + Colors.BOLD,
-        'Green': Colors.GREEN,
-        'Gray': Colors.GRAY,
-    }
 
     use_colors = (
             sys.stdout.isatty()
             and not _logger_has_file_handler(logger)
     )
 
-    color = triage_colors.get(triage, '') if use_colors else ''
-    reset = Colors.RESET if use_colors else ''
-    bold = Colors.BOLD if use_colors else ''
+    triage_colors = {
+        "Black": Colors.BLACK + Colors.BOLD,
+        "Red": Colors.RED + Colors.BOLD,
+        "Yellow": Colors.YELLOW + Colors.BOLD,
+        "Green": Colors.GREEN,
+        "Gray": Colors.GRAY,
+    }
+
+    color = triage_colors.get(triage, "") if use_colors else ""
+    reset = Colors.RESET if use_colors else ""
+    bold = Colors.BOLD if use_colors else ""
 
     parts = [f"{color}[{triage}]{reset}", f"[{rule_name}]"]
 
-    if size:
+    if size is not None:
         parts.append(f"[{format_size(size)}]")
     if modified:
         parts.append(f"[mtime:{modified}]")
@@ -189,18 +189,20 @@ def log_file_result(
 
     message = "file_match" if is_json else " ".join(parts)
 
-
     extra = {
-        'file_path': file_path,
-        'triage': triage,
-        'rule_name': rule_name,
-        'is_data': True,
+        "file_path": file_path,
+        "triage": triage,
+        "rule_name": rule_name,
+        "finding_id": _make_finding_id(file_path, rule_name),
+        "is_data": True,
     }
 
-    if match:
-        extra['match'] = match
     if context:
-        extra['match_context'] = context
+        extra["match_context"] = context
+    if size is not None:
+        extra["size"] = size
+    if modified:
+        extra["mtime"] = modified
 
     logger.warning(message, extra=extra)
 
@@ -209,31 +211,28 @@ def print_completion_stats(start_time):
     if not start_time:
         return
 
-    logger = logging.getLogger('snaffler')
+    logger = logging.getLogger("snaffler")
     end_time = datetime.now()
     duration = end_time - start_time
 
-    total_seconds = int(duration.total_seconds())
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
+    seconds = int(duration.total_seconds())
+    h, r = divmod(seconds, 3600)
+    m, s = divmod(r, 60)
 
     logger.info("-" * 60)
     logger.info(f"Started:  {start_time:%Y-%m-%d %H:%M:%S}")
     logger.info(f"Finished: {end_time:%Y-%m-%d %H:%M:%S}")
-
-    if hours > 0:
-        logger.info(f"Duration: {hours}h {minutes}m {seconds}s")
-    elif minutes > 0:
-        logger.info(f"Duration: {minutes}m {seconds}s")
-    else:
-        logger.info(f"Duration: {seconds}s")
-
+    logger.info(
+        f"Duration: {h}h {m}m {s}s" if h else
+        f"Duration: {m}m {s}s" if m else
+        f"Duration: {s}s"
+    )
     logger.info("-" * 60)
 
 
 def format_size(size_bytes: int) -> str:
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if size_bytes < 1024.0:
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size_bytes < 1024:
             return f"{size_bytes:.1f}{unit}"
-        size_bytes /= 1024.0
+        size_bytes /= 1024
     return f"{size_bytes:.1f}PB"
