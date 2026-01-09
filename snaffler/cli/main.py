@@ -74,11 +74,9 @@ def run(
         dc_host: Optional[str] = typer.Option(
             None,
             "--dc-host",
-            "--dc-ip",   # backward-compatible alias
             help=(
-                    "Domain controller hostname or FQDN. "
-                    "Required for Kerberos LDAP. "
-                    "(IPs may work for transport but hostnames are recommended.)"
+                    "Domain controller hostname, FQDN or IP address. "
+                    "Hostnames are required for Kerberos LDAP. "
             ),
             rich_help_panel="Authentication",
         ),
