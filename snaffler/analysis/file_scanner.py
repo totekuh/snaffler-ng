@@ -116,9 +116,7 @@ class FileScanner:
                     continue
 
                 if action == MatchAction.CHECK_FOR_KEYS:
-                    cert = self._check_certificate(
-                        server, share, smb_path, unc_path, size, modified
-                    )
+                    cert = self._check_certificate(ctx, server, share, smb_path, modified)
                     if cert:
                         cert = self._finalize_result(
                             cert, server, share, smb_path
@@ -161,7 +159,6 @@ class FileScanner:
                     server,
                     share,
                     smb_path,
-                    size,
                     modified,
                     relay_rule_names or None,
                 )
@@ -190,7 +187,6 @@ class FileScanner:
             server: str,
             share: str,
             smb_path: str,
-            size: int,
             modified: datetime,
             relay_rule_names: Optional[List[str]],
     ) -> Optional[FileResult]:
@@ -237,7 +233,7 @@ class FileScanner:
 
             result = FileResult(
                 file_path=ctx.unc_path,
-                size=size,
+                size=ctx.size,
                 modified=modified,
                 triage=rule.triage,
                 rule_name=rule.rule_name,
@@ -255,20 +251,21 @@ class FileScanner:
 
     def _check_certificate(
             self,
+            ctx: FileContext,
             server: str,
             share: str,
             smb_path: str,
-            unc_path: str,
-            size: int,
             modified: datetime,
     ) -> Optional[FileResult]:
 
+        unc_path = ctx.name
+        size = ctx.size
         data = self.file_accessor.read(server, share, smb_path)
         if not data:
             return None
 
         reasons = self.cert_checker.check_certificate(
-            data, Path(unc_path).name
+            data, Path(ctx.name).name
         )
         if not reasons or "HasPrivateKey" not in reasons:
             return None
