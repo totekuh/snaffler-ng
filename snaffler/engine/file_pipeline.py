@@ -7,13 +7,19 @@ from snaffler.analysis.file_scanner import FileScanner
 from snaffler.classifiers.evaluator import RuleEvaluator
 from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.discovery.tree import TreeWalker
+from snaffler.resume.scan_state import ScanState
 
 logger = logging.getLogger("snaffler")
 
 
 class FilePipeline:
-    def __init__(self, cfg: SnafflerConfiguration):
+    def __init__(
+            self,
+            cfg: SnafflerConfiguration,
+            state: ScanState | None = None,
+    ):
         self.cfg = cfg
+        self.state = state
 
         self.tree_threads = cfg.advanced.tree_threads
         self.file_threads = cfg.advanced.file_threads
@@ -26,20 +32,13 @@ class FilePipeline:
             content_rules=cfg.rules.content,
             postmatch_rules=cfg.rules.postmatch,
         )
-        self.file_scanner = FileScanner(cfg=cfg,
-                                        file_accessor=file_accessor,
-                                        rule_evaluator=rule_evaluator)
+        self.file_scanner = FileScanner(
+            cfg=cfg,
+            file_accessor=file_accessor,
+            rule_evaluator=rule_evaluator,
+        )
 
     def run(self, paths: List[str]) -> int:
-        """
-        Execute file discovery + scanning
-
-        Args:
-            paths: UNC paths to scan
-
-        Returns:
-            Number of interesting files found
-        """
         logger.info(f"Starting file discovery on {len(paths)} paths")
 
         all_files = []
@@ -63,6 +62,22 @@ class FilePipeline:
             logger.warning("No files found")
             return 0
 
+        # ---------- Resume filtering ----------
+        if self.state:
+            before = len(all_files)
+            all_files = [
+                (file_path, file_info)
+                for file_path, file_info in all_files
+                if not self.state.should_skip(file_path)
+            ]
+            skipped = before - len(all_files)
+            if skipped:
+                logger.info(f"Resume: skipped {skipped} already-scanned files")
+
+        if not all_files:
+            logger.info("No files left to scan after resume filtering")
+            return 0
+
         # ---------- File scanning ----------
         results_count = 0
 
@@ -78,8 +93,13 @@ class FilePipeline:
                 file_path = future_to_file[future]
                 try:
                     result = future.result()
+
+                    if self.state:
+                        self.state.mark_done(file_path)
+
                     if result:
                         results_count += 1
+
                 except Exception as e:
                     logger.debug(f"Error scanning {file_path}: {e}")
 

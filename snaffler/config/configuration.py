@@ -4,7 +4,7 @@ Configuration management for Snaffler Linux
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Any
+from typing import List, Optional
 
 import toml
 import typer
@@ -24,6 +24,7 @@ class AuthConfig:
     # Kerberos
     kerberos: bool = False
     use_kcache: bool = False
+
 
 # ---------------- TARGETING ----------------
 
@@ -89,6 +90,14 @@ class RulesConfig:
     postmatch: list = field(default_factory=list)
 
 
+# ---------------- RESUME ----------------
+
+@dataclass
+class ResumeConfig:
+    enabled: bool = False
+    state_db: Optional[str] = None
+
+
 # ---------------- ROOT CONFIG ----------------
 @dataclass
 class SnafflerConfiguration:
@@ -98,12 +107,7 @@ class SnafflerConfiguration:
     output: OutputConfig = field(default_factory=OutputConfig)
     advanced: AdvancedConfig = field(default_factory=AdvancedConfig)
     rules: RulesConfig = field(default_factory=RulesConfig)
-
-    # runtime-only (populated later)
-    share_classifiers: List[Any] = field(default_factory=list)
-    dir_classifiers: List[Any] = field(default_factory=list)
-    file_classifiers: List[Any] = field(default_factory=list)
-    contents_classifiers: List[Any] = field(default_factory=list)
+    resume: ResumeConfig = field(default_factory=ResumeConfig)
 
     # ---------- validation ----------
     def validate(self):
@@ -139,7 +143,6 @@ class SnafflerConfiguration:
                     raise typer.BadParameter(
                         "KRB5CCNAME not set but Kerberos ccache was requested"
                     )
-
 
     # ---------- TOML ----------
 

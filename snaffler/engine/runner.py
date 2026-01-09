@@ -8,6 +8,7 @@ from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.engine.domain_pipeline import DomainPipeline
 from snaffler.engine.file_pipeline import FilePipeline
 from snaffler.engine.share_pipeline import SharePipeline
+from snaffler.resume.scan_state import SQLiteStateStore, ScanState
 from snaffler.utils.logger import print_completion_stats
 
 logger = logging.getLogger('snaffler')
@@ -18,8 +19,14 @@ class SnafflerRunner:
         self.cfg = cfg
         self.start_time = None
 
+        # ---------- resume state ----------
+        self.state = None
+        if cfg.resume.enabled and cfg.resume.state_db:
+            self.state = ScanState(store=SQLiteStateStore(cfg.resume.state_db))
+            logger.info(f"Resume enabled (state={cfg.resume.state_db})")
+
         self.share_pipeline = SharePipeline(cfg=cfg)
-        self.file_pipeline = FilePipeline(cfg=cfg)
+        self.file_pipeline = FilePipeline(cfg=cfg, state=self.state)
 
     def execute(self):
         self.start_time = datetime.now()

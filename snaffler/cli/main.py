@@ -198,7 +198,21 @@ def run(
             None, "-R", "--rule-dir",
             help="Directory containing custom TOML rule files",
             rich_help_panel="Advanced",
-        )
+        ),
+        resume: bool = typer.Option(
+            False,
+            "--resume",
+            help="Resume a previous scan",
+            rich_help_panel="Resume",
+        ),
+
+        state: Optional[Path] = typer.Option(
+            None,
+            "--state",
+            help="Path to resume state database (SQLite)",
+            rich_help_panel="Resume",
+        ),
+
 ):
     if not no_banner:
         banner()
@@ -270,6 +284,32 @@ def run(
     cfg.output.output_file = str(output_file) if output_file else None
     cfg.output.log_level = log_level
     cfg.output.log_type = log_type
+
+    # ---------- RESUME ----------
+    if resume:
+        cfg.resume.enabled = True
+
+        if state:
+            state_path = state
+        else:
+            state_path = Path("snaffler.db")
+
+        # ensure parent dir exists
+        if state_path.parent and not state_path.parent.exists():
+            state_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # create DB file if missing
+        if not state_path.exists():
+            state_path.touch()
+
+        cfg.resume.state_db = str(state_path)
+
+    else:
+        if state:
+            typer.echo(
+                "[!] Warning: --state provided without --resume. Ignoring.",
+                err=True,
+            )
 
     # ---------- validate ----------
     cfg.validate()
