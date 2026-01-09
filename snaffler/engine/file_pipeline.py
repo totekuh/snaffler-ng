@@ -41,7 +41,7 @@ class FilePipeline:
     def run(self, paths: List[str]) -> int:
         logger.info(f"Starting file discovery on {len(paths)} paths")
 
-        all_files = []
+        all_files: list[tuple[str, object]] = []
 
         # ---------- Tree walking ----------
         with ThreadPoolExecutor(max_workers=self.tree_threads) as executor:
@@ -62,7 +62,7 @@ class FilePipeline:
             logger.warning("No files found")
             return 0
 
-        # ---------- Resume filtering ----------
+        # ---------- Resume filtering (files only) ----------
         if self.state:
             before = len(all_files)
             all_files = [
@@ -72,7 +72,7 @@ class FilePipeline:
             ]
             skipped = before - len(all_files)
             if skipped:
-                logger.info(f"Resume: skipped {skipped} already-scanned files")
+                logger.info(f"Resume: skipped {skipped} already-checked files")
 
         if not all_files:
             logger.info("No files left to scan after resume filtering")
@@ -94,6 +94,7 @@ class FilePipeline:
                 try:
                     result = future.result()
 
+                    # Mark as checked once scan attempt completes
                     if self.state:
                         self.state.mark_file_done(file_path)
 
