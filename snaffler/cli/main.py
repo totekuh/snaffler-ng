@@ -508,9 +508,18 @@ def main(
 
     # ---------- CLI → config (only override TOML when explicitly provided) ----------
     def _explicit(param: str) -> bool:
-        """True if the CLI param was explicitly provided (not just the default)."""
-        from click.core import ParameterSource
-        return ctx.get_parameter_source(param) != ParameterSource.DEFAULT
+        """True if the CLI param was explicitly provided (not just the default).
+
+        Compares the ParameterSource by name rather than enum identity. typer and
+        click can expose distinct ParameterSource enum classes (different module
+        paths / versions), and their DEFAULT members carry different integer
+        values, so an identity ``!=`` against ``click.core.ParameterSource.DEFAULT``
+        is always True — treating every option as explicit and breaking every
+        "only override when provided" guard. Matching on ``.name`` is robust
+        across typer/click versions.
+        """
+        src = ctx.get_parameter_source(param)
+        return src is not None and src.name not in ("DEFAULT", "DEFAULT_MAP")
 
     # ---------- AUTH ----------
     if _explicit("username"):     cfg.auth.username = username
