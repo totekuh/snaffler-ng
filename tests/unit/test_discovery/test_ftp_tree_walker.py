@@ -71,8 +71,8 @@ def make_cfg():
 
 def collect_callback():
     collected = []
-    def on_file(path, size, mtime):
-        collected.append((path, size, mtime))
+    def on_file(path, size, mtime, ctime=0.0, atime=0.0):
+        collected.append((path, size, mtime, ctime, atime))
     return on_file, collected
 
 
@@ -258,6 +258,76 @@ def test_exclude_unc_filters_ftp_dirs():
 
     assert len(subdirs) == 1
     assert "src" in subdirs[0]
+
+
+# ---------- ctime/atime forwarding (T3) ----------
+
+def test_walk_directory_mlsd_forwards_ctime_atime_args():
+    """MLSD path calls on_file with 5 args; atime is unavailable → 0.0."""
+    cfg = make_cfg()
+    walker = FTPTreeWalker(cfg)
+
+    ftp = MagicMock()
+    ftp.voidcmd.return_value = "200 OK"
+    ftp.mlsd.return_value = [
+        ("file.txt", {"type": "file", "size": "12", "modify": "20240101120000"}),
+    ]
+
+    with patch.object(walker.ftp_transport, "connect", return_value=ftp):
+        on_file, files = collect_callback()
+        walker.walk_directory("ftp://10.0.0.5/data", on_file)
+
+    assert len(files) == 1
+    # (path, size, mtime, ctime, atime)
+    assert len(files[0]) == 5
+    assert files[0][2] > 0           # mtime parsed
+    assert files[0][3] == 0.0        # no create fact → 0.0
+    assert files[0][4] == 0.0        # atime unavailable over FTP → 0.0
+
+
+def test_walk_directory_mlsd_uses_create_fact_for_ctime():
+    """When MLSD exposes a 'create' fact it is forwarded as ctime."""
+    cfg = make_cfg()
+    walker = FTPTreeWalker(cfg)
+
+    ftp = MagicMock()
+    ftp.voidcmd.return_value = "200 OK"
+    ftp.mlsd.return_value = [
+        ("file.txt", {
+            "type": "file", "size": "12",
+            "modify": "20240601120000", "create": "20240101000000",
+        }),
+    ]
+
+    with patch.object(walker.ftp_transport, "connect", return_value=ftp):
+        on_file, files = collect_callback()
+        walker.walk_directory("ftp://10.0.0.5/data", on_file)
+
+    expected_ctime = FTPTreeWalker._parse_mlsd_modify("20240101000000")
+    assert files[0][3] == expected_ctime
+    assert expected_ctime > 0
+
+
+def test_walk_directory_nlst_forwards_ctime_atime_args():
+    """NLST fallback also calls on_file with 5 args (ctime/atime → 0.0)."""
+    cfg = make_cfg()
+    walker = FTPTreeWalker(cfg)
+
+    ftp = MagicMock()
+    ftp.voidcmd.return_value = "200 OK"
+    ftp.mlsd.side_effect = Exception("500 MLSD not supported")
+    ftp.nlst.return_value = ["/data/file.txt"]
+    ftp.size.return_value = 100
+    ftp.sendcmd.return_value = "213 20240101120000"
+
+    with patch.object(walker.ftp_transport, "connect", return_value=ftp):
+        on_file, files = collect_callback()
+        walker.walk_directory("ftp://10.0.0.5/data", on_file)
+
+    assert len(files) == 1
+    assert len(files[0]) == 5
+    assert files[0][3] == 0.0
+    assert files[0][4] == 0.0
 
 
 # ---------- _parse_mlsd_modify ----------
