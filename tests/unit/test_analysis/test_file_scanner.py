@@ -181,6 +181,90 @@ def test_scan_file_zero_mtime():
     assert result is None
 
 
+def test_scan_file_carries_ctime_atime_into_result():
+    """scan_file threads ctime/atime epochs into FileResult.created/.accessed."""
+    accessor = MagicMock()
+
+    rule = make_rule(
+        action=MatchAction.SNAFFLE,
+        triage=Triage.RED,
+        name="SecretRule",
+    )
+
+    evaluator = MagicMock()
+    evaluator.file_rules = [rule]
+    evaluator.should_discard_postmatch.return_value = False
+    evaluator.evaluate_file_rule.return_value = RuleDecision(
+        action=MatchAction.SNAFFLE,
+        match="secret",
+    )
+
+    scanner = FileScanner(make_cfg(), accessor, evaluator)
+
+    mtime, ctime, atime = 1700000000.0, 1690000000.0, 1695000000.0
+    result = scanner.scan_file("//srv/share/f.txt", 100, mtime, ctime, atime)
+
+    assert isinstance(result, FileResult)
+    assert result.modified == datetime.fromtimestamp(mtime)
+    assert result.created == datetime.fromtimestamp(ctime)
+    assert result.accessed == datetime.fromtimestamp(atime)
+
+
+def test_check_file_carries_ctime_atime_into_result():
+    """check_file (Phase 1) threads ctime/atime into the SNAFFLE FileResult."""
+    accessor = MagicMock()
+
+    rule = make_rule(
+        action=MatchAction.SNAFFLE,
+        triage=Triage.RED,
+        name="SecretRule",
+    )
+
+    evaluator = MagicMock()
+    evaluator.file_rules = [rule]
+    evaluator.should_discard_postmatch.return_value = False
+    evaluator.evaluate_file_rule.return_value = RuleDecision(
+        action=MatchAction.SNAFFLE,
+        match="secret",
+    )
+
+    scanner = FileScanner(make_cfg(), accessor, evaluator)
+
+    ctime, atime = 1690000000.0, 1695000000.0
+    check = scanner.check_file("//srv/share/f.txt", 100, 1700000000.0, ctime, atime)
+
+    assert check.result is not None
+    assert check.result.created == datetime.fromtimestamp(ctime)
+    assert check.result.accessed == datetime.fromtimestamp(atime)
+
+
+def test_scan_file_ctime_atime_default_none():
+    """Omitting ctime/atime leaves FileResult.created/.accessed as None."""
+    accessor = MagicMock()
+
+    rule = make_rule(
+        action=MatchAction.SNAFFLE,
+        triage=Triage.RED,
+        name="SecretRule",
+    )
+
+    evaluator = MagicMock()
+    evaluator.file_rules = [rule]
+    evaluator.should_discard_postmatch.return_value = False
+    evaluator.evaluate_file_rule.return_value = RuleDecision(
+        action=MatchAction.SNAFFLE,
+        match="secret",
+    )
+
+    scanner = FileScanner(make_cfg(), accessor, evaluator)
+
+    result = scanner.scan_file("//srv/share/f.txt", 100, 1700000000.0)
+
+    assert isinstance(result, FileResult)
+    assert result.created is None
+    assert result.accessed is None
+
+
 def test_scan_file_black_triage_skips_content_scan():
     """Black-triage file match should skip content scanning entirely (no read() call)."""
     accessor = MagicMock()

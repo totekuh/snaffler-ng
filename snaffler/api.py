@@ -214,8 +214,8 @@ class Snaffler:
             files = []
             subdirs_from_cb = []
 
-            def _on_file(path, size, mtime):
-                files.append((path, size, mtime))
+            def _on_file(path, size, mtime, ctime=0.0, atime=0.0):
+                files.append((path, size, mtime, ctime, atime))
 
             def _on_dir(path):
                 subdirs_from_cb.append(path)
@@ -242,17 +242,22 @@ class Snaffler:
                 )
 
             # Classify each file
-            for file_path, size, mtime_epoch in files:
-                finding = self._scan_one(file_path, size, mtime_epoch)
+            for file_path, size, mtime_epoch, ctime_epoch, atime_epoch in files:
+                finding = self._scan_one(
+                    file_path, size, mtime_epoch, ctime_epoch, atime_epoch,
+                )
                 if finding is not None:
                     yield finding
 
     def _scan_one(
         self, file_path: str, size: int, mtime_epoch: float,
+        ctime_epoch: float = 0.0, atime_epoch: float = 0.0,
     ) -> Optional[FileResult]:
         """Scan a single file: check_file -> optional read -> classify -> filter."""
         try:
-            check = self._scanner.check_file(file_path, size, mtime_epoch)
+            check = self._scanner.check_file(
+                file_path, size, mtime_epoch, ctime_epoch, atime_epoch,
+            )
 
             if check.status == FileCheckStatus.DISCARD:
                 return None

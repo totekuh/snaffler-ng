@@ -12,6 +12,8 @@ class FileResult:
         "file_path",
         "size",
         "modified",
+        "created",
+        "accessed",
         "triage",
         "rule_name",
         "match",
@@ -27,10 +29,14 @@ class FileResult:
             rule_name: str,
             match: str,
             context: Optional[str] = None,
+            created: Optional[datetime] = None,
+            accessed: Optional[datetime] = None,
     ):
         self.file_path = file_path
         self.size = size
         self.modified = modified
+        self.created = created
+        self.accessed = accessed
         self.triage = triage
         self.rule_name = rule_name
         self.match = match

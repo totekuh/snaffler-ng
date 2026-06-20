@@ -63,8 +63,9 @@ class _BatchWriter:
     def put_dir(self, unc_path: str, share: str):
         self._queue.put(("dir", unc_path, share))
 
-    def put_file(self, unc_path: str, share: str, size: int, mtime: float):
-        self._queue.put(("file", unc_path, share, size, mtime))
+    def put_file(self, unc_path: str, share: str, size: int, mtime: float,
+                 ctime: float = 0.0, atime: float = 0.0):
+        self._queue.put(("file", unc_path, share, size, mtime, ctime, atime))
 
     def enqueue_checked(self, unc_path: str):
         """Queue a file-checked mark for batched DB write."""
@@ -96,6 +97,8 @@ class _BatchWriter:
                     if kind == "dir":
                         dir_buf.append((remaining[1], remaining[2]))
                     elif kind == "file":
+                        # DB stores (unc_path, share, size, mtime); ctime/atime
+                        # (positions 5/6) are carried in the queue but not persisted.
                         file_buf.append((remaining[1], remaining[2], remaining[3], remaining[4]))
                     elif kind == "checked":
                         checked_buf.append(remaining[1])
@@ -114,6 +117,8 @@ class _BatchWriter:
             if kind == "dir":
                 dir_buf.append((item[1], item[2]))
             elif kind == "file":
+                # DB stores (unc_path, share, size, mtime); ctime/atime
+                # (positions 5/6) are carried in the queue but not persisted.
                 file_buf.append((item[1], item[2], item[3], item[4]))
             elif kind == "checked":
                 checked_buf.append(item[1])
@@ -192,7 +197,7 @@ class FilePipeline:
             logger.info("No shares to walk")
             return 0
 
-        # Bounded queue: lightweight (path, size, mtime) tuples, ~240 bytes each
+        # Bounded queue: lightweight (path, size, mtime, ctime, atime) tuples, ~240 bytes each
         file_queue = queue.Queue(maxsize=100_000)
 
         walked_shares: list = []
@@ -214,7 +219,7 @@ class FilePipeline:
             enqueued = set()
             enqueued_lock = threading.Lock()
 
-            def on_file(unc_path, size, mtime):
+            def on_file(unc_path, size, mtime, ctime=0.0, atime=0.0):
                 """Callback invoked by TreeWalker for each file discovered."""
                 normalized = unc_path.lower()
                 with enqueued_lock:
@@ -232,10 +237,10 @@ class FilePipeline:
                     self.progress.files_total += 1
                 if batch_writer:
                     share_unc = _extract_share_unc(unc_path)
-                    batch_writer.put_file(unc_path, share_unc, size, mtime)
+                    batch_writer.put_file(unc_path, share_unc, size, mtime, ctime, atime)
                 while not shutdown.is_set():
                     try:
-                        file_queue.put((unc_path, size, mtime), timeout=1.0)
+                        file_queue.put((unc_path, size, mtime, ctime, atime), timeout=1.0)
                         return
                     except queue.Full:
                         continue
@@ -402,6 +407,8 @@ class FilePipeline:
                         include_filter = self.cfg.targets.share_filter
                         exclude_filter = self.cfg.targets.exclude_share
                         exclude_dir_patterns = self.cfg.targets.exclude_unc
+                        # DB-seeded resume files: ctime/atime are not persisted,
+                        # so they default to 0.0 (→ None downstream).
                         for unc_path, size, mtime in self.state.iter_unchecked_files():
                             file_share = _extract_share_unc(unc_path).lower()
                             # Respect --share / --exclude-share for DB-seeded files
@@ -424,7 +431,7 @@ class FilePipeline:
                                 self.progress.files_total += 1
                             while not shutdown.is_set():
                                 try:
-                                    file_queue.put((unc_path, size or 0, mtime or 0.0), timeout=1.0)
+                                    file_queue.put((unc_path, size or 0, mtime or 0.0, 0.0, 0.0), timeout=1.0)
                                     break
                                 except queue.Full:
                                     continue
@@ -529,7 +536,7 @@ class FilePipeline:
                 if item is _SENTINEL:
                     return
 
-                unc_path, size, mtime = item
+                unc_path, size, mtime, ctime, atime = item
 
                 if self.state and self.state.should_skip_file(unc_path):
                     if self.progress:
@@ -539,7 +546,7 @@ class FilePipeline:
                 if self.progress:
                     self.progress.files_in_progress += 1
                 try:
-                    result = self.file_scanner.scan_file(unc_path, size, mtime)
+                    result = self.file_scanner.scan_file(unc_path, size, mtime, ctime, atime)
 
                     # Mark done only on success — transport errors skip this
                     # so the file is retried on resume.
@@ -560,6 +567,12 @@ class FilePipeline:
                             result.size,
                             result.modified.strftime("%Y-%m-%d %H:%M:%S")
                             if result.modified
+                            else None,
+                            created=result.created.strftime("%Y-%m-%d %H:%M:%S")
+                            if result.created
+                            else None,
+                            accessed=result.accessed.strftime("%Y-%m-%d %H:%M:%S")
+                            if result.accessed
                             else None,
                         )
                         # Download if configured

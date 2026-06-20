@@ -137,7 +137,15 @@ class SMBTreeWalker(TreeWalker):
                     mtime = entry.get_mtime_epoch()
                 except Exception:
                     mtime = 0.0
+                try:
+                    ctime = entry.get_ctime_epoch()
+                except Exception:
+                    ctime = 0.0
+                try:
+                    atime = entry.get_atime_epoch()
+                except Exception:
+                    atime = 0.0
                 if on_file:
-                    on_file(unc_full, size, mtime)
+                    on_file(unc_full, size, mtime, ctime, atime)
 
         return subdir_paths

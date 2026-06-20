@@ -50,8 +50,8 @@ def make_rule(action):
 def collect_callback():
     """Return (callback, collected_list) for use with walk_directory on_file."""
     collected = []
-    def on_file(path, size, mtime):
-        collected.append((path, size, mtime))
+    def on_file(path, size, mtime, ctime=0.0, atime=0.0):
+        collected.append((path, size, mtime, ctime, atime))
     return on_file, collected
 
 
@@ -391,3 +391,60 @@ def test_walk_directory_subpath():
     assert files[0][0] == "//HOST/SHARE/parent/child/data.csv"
     # listPath should have been called with the correct sub-path
     smb.listPath.assert_called_once_with("SHARE", "/parent/child/*")
+
+
+# ---------- ctime/atime propagation ----------
+
+class FakeEntryWithTimes(FakeEntry):
+    """FakeEntry exposing impacket's get_ctime_epoch / get_atime_epoch."""
+
+    def __init__(self, name, is_dir, size=100, mtime=1700000000.0,
+                 ctime=1690000000.0, atime=1695000000.0):
+        super().__init__(name, is_dir, size=size, mtime=mtime)
+        self._ctime = ctime
+        self._atime = atime
+
+    def get_ctime_epoch(self):
+        return self._ctime
+
+    def get_atime_epoch(self):
+        return self._atime
+
+
+def test_walk_directory_propagates_ctime_atime():
+    """SMB walker passes ctime/atime epochs to on_file when available."""
+    cfg = make_cfg()
+    walker = SMBTreeWalker(cfg)
+
+    smb = MagicMock()
+    smb.listPath.return_value = [
+        FakeEntryWithTimes("file.txt", False),
+    ]
+
+    with patch.object(walker.smb_transport, "connect", return_value=smb):
+        on_file, collected = collect_callback()
+        walker.walk_directory("//HOST/SHARE", on_file)
+
+    assert len(collected) == 1
+    path, size, mtime, ctime, atime = collected[0]
+    assert ctime == 1690000000.0
+    assert atime == 1695000000.0
+
+
+def test_walk_directory_missing_ctime_atime_defaults_zero():
+    """When the SharedFile lacks get_ctime_epoch/get_atime_epoch, default to 0.0."""
+    cfg = make_cfg()
+    walker = SMBTreeWalker(cfg)
+
+    smb = MagicMock()
+    # plain FakeEntry has no get_ctime_epoch / get_atime_epoch
+    smb.listPath.return_value = [FakeEntry("file.txt", False)]
+
+    with patch.object(walker.smb_transport, "connect", return_value=smb):
+        on_file, collected = collect_callback()
+        walker.walk_directory("//HOST/SHARE", on_file)
+
+    assert len(collected) == 1
+    _, _, _, ctime, atime = collected[0]
+    assert ctime == 0.0
+    assert atime == 0.0
