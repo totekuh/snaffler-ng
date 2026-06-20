@@ -45,11 +45,15 @@ class LocalTreeWalker(TreeWalker):
                             stat = entry.stat()
                             size = stat.st_size
                             mtime = stat.st_mtime
+                            ctime = stat.st_ctime
+                            atime = stat.st_atime
                         except OSError:
                             size = 0
                             mtime = 0.0
+                            ctime = 0.0
+                            atime = 0.0
                         if on_file:
-                            on_file(entry.path, size, mtime)
+                            on_file(entry.path, size, mtime, ctime, atime)
                     elif entry.is_symlink():
                         # Dangling or directory symlinks — not followed (loop prevention)
                         logger.debug(f"Skipping symlink: {entry.path}")

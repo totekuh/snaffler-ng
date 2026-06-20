@@ -91,13 +91,20 @@ class FileScanner:
 
     # -------------------------------------------------------------- Phase 1
 
-    def check_file(self, file_path: str, size: int, mtime_epoch: float) -> FileCheckResult:
+    def check_file(
+            self,
+            file_path: str,
+            size: int,
+            mtime_epoch: float,
+            ctime_epoch: float = 0.0,
+            atime_epoch: float = 0.0,
+    ) -> FileCheckResult:
         """Phase 1 — evaluate file rules only (zero I/O).
 
         Returns a :class:`FileCheckResult` whose *status* tells the caller
         what to do next.
         """
-        ctx = FileContext.from_path(file_path, size, mtime_epoch)
+        ctx = FileContext.from_path(file_path, size, mtime_epoch, ctime_epoch, atime_epoch)
 
         content_rule_names: set = set()
         best_result: Optional[FileResult] = None
@@ -151,6 +158,8 @@ class FileScanner:
                 file_path=file_path,
                 size=size,
                 modified=ctx.modified,
+                created=ctx.created,
+                accessed=ctx.accessed,
                 triage=rule.triage,
                 rule_name=rule.rule_name,
                 match=decision.match,
@@ -246,7 +255,14 @@ class FileScanner:
 
     # -------------------------------------------------------------- Scanning (composed)
 
-    def scan_file(self, file_path: str, size: int, mtime_epoch: float) -> Optional[FileResult]:
+    def scan_file(
+            self,
+            file_path: str,
+            size: int,
+            mtime_epoch: float,
+            ctime_epoch: float = 0.0,
+            atime_epoch: float = 0.0,
+    ) -> Optional[FileResult]:
         """Full scan: check_file → optional I/O → scan_with_data → filter.
 
         This is the main entry point used by FilePipeline.
@@ -258,7 +274,7 @@ class FileScanner:
             so the pipeline can decide not to mark the file as done
             (retry on resume).
         """
-        check = self.check_file(file_path, size, mtime_epoch)
+        check = self.check_file(file_path, size, mtime_epoch, ctime_epoch, atime_epoch)
 
         if check.status == FileCheckStatus.DISCARD:
             return None
@@ -348,6 +364,8 @@ class FileScanner:
                 file_path=ctx.unc_path,
                 size=ctx.size,
                 modified=ctx.modified,
+                created=ctx.created,
+                accessed=ctx.accessed,
                 triage=rule.triage,
                 rule_name=rule.rule_name,
                 match=match_text,
@@ -390,6 +408,8 @@ class FileScanner:
                     ext=member_ext,
                     size=member_size,
                     modified=ctx.modified,
+                    created=ctx.created,
+                    accessed=ctx.accessed,
                 )
 
                 for rule in self.rule_evaluator.file_rules:
@@ -412,6 +432,8 @@ class FileScanner:
                         file_path=member_unc,
                         size=member_size,
                         modified=ctx.modified,
+                        created=ctx.created,
+                        accessed=ctx.accessed,
                         triage=rule.triage,
                         rule_name=rule.rule_name,
                         match=decision.match,
@@ -524,6 +546,8 @@ class FileScanner:
             file_path=ctx.unc_path,
             size=ctx.size,
             modified=ctx.modified,
+            created=ctx.created,
+            accessed=ctx.accessed,
             triage=Triage.RED,
             rule_name="RelayCertByExtension",
             match=ctx.name,

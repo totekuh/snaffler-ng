@@ -91,6 +91,8 @@ class SnafflerJSONFormatter(logging.Formatter):
                 "match_context",
                 "size",
                 "mtime",
+                "ctime",
+                "atime",
                 "finding_id",
         ):
             if hasattr(record, field):
@@ -106,6 +108,8 @@ class SnafflerTSVFormatter(logging.Formatter):
         "file_path",
         "size",
         "mtime",
+        "ctime",
+        "atime",
         "finding_id",
         "match_context",
     )
@@ -174,7 +178,7 @@ def setup_logging(
             if not tsv_path.exists() or tsv_path.stat().st_size == 0:
                 with open(log_file_path, "w", encoding="utf-8") as f:
                     f.write(
-                        "timestamp\ttriage\trule_name\tfile_path\tsize\tmtime\tfinding_id\tmatch_context\n"
+                        "timestamp\ttriage\trule_name\tfile_path\tsize\tmtime\tctime\tatime\tfinding_id\tmatch_context\n"
                     )
 
             fh = logging.FileHandler(log_file_path, mode="a", encoding="utf-8", errors="replace")
@@ -216,6 +220,8 @@ def log_file_result(
         size: Optional[int] = None,
         modified: Optional[str] = None,
         suppress_log: bool = False,
+        created: Optional[str] = None,
+        accessed: Optional[str] = None,
 ):
 
     use_colors = (
@@ -242,6 +248,10 @@ def log_file_result(
         parts.append(f"[{format_size(size)}]")
     if modified:
         parts.append(f"[mtime:{modified}]")
+    if created:
+        parts.append(f"[ctime:{created}]")
+    if accessed:
+        parts.append(f"[atime:{accessed}]")
 
     parts.append(f"{bold}{file_path}{reset}")
 
@@ -272,6 +282,10 @@ def log_file_result(
         extra["size"] = size
     if modified:
         extra["mtime"] = modified
+    if created:
+        extra["ctime"] = created
+    if accessed:
+        extra["atime"] = accessed
 
     if not suppress_log:
         logger.warning(message, extra=extra)
