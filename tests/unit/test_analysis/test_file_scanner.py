@@ -210,6 +210,41 @@ def test_scan_file_carries_ctime_atime_into_result():
     assert result.accessed == datetime.fromtimestamp(atime)
 
 
+def test_scan_file_bad_timestamp_does_not_drop_file():
+    """A huge/negative ctime or atime must not raise; the file still scans.
+
+    Regression for T1: an out-of-range epoch used to raise OverflowError/
+    ValueError from FileContext.from_path, escaping the walker's try/except
+    and sinking the whole file (all findings lost on every resume). The
+    scan must now succeed with created/accessed degraded to None.
+    """
+    accessor = MagicMock()
+
+    rule = make_rule(
+        action=MatchAction.SNAFFLE,
+        triage=Triage.RED,
+        name="SecretRule",
+    )
+
+    evaluator = MagicMock()
+    evaluator.file_rules = [rule]
+    evaluator.should_discard_postmatch.return_value = False
+    evaluator.evaluate_file_rule.return_value = RuleDecision(
+        action=MatchAction.SNAFFLE,
+        match="secret",
+    )
+
+    scanner = FileScanner(make_cfg(), accessor, evaluator)
+
+    # Huge ctime and very-negative atime would both have raised before.
+    result = scanner.scan_file("//srv/share/f.txt", 100, 1700000000.0, 1e20, -1e12)
+
+    assert isinstance(result, FileResult)
+    assert result.modified == datetime.fromtimestamp(1700000000.0)
+    assert result.created is None
+    assert result.accessed is None
+
+
 def test_check_file_carries_ctime_atime_into_result():
     """check_file (Phase 1) threads ctime/atime into the SNAFFLE FileResult."""
     accessor = MagicMock()

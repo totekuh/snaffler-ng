@@ -68,7 +68,10 @@ class FTPTreeWalker(TreeWalker):
 
         Args:
             ftp_path: Full FTP URL (e.g. ftp://host/path/to/dir)
-            on_file: callable(ftp_url, size, mtime_epoch) -- called for each file
+            on_file: callable(ftp_url, size, mtime_epoch, ctime_epoch,
+                atime_epoch) -- called for each file. FTP rarely exposes
+                create/access times, so ctime/atime default to ``0.0``
+                (treated as "unknown") unless the listing provides them.
             on_dir: callable(ftp_url) -- called for each subdirectory
             cancel: optional threading.Event -- checked before listing
 
@@ -123,8 +126,12 @@ class FTPTreeWalker(TreeWalker):
                 elif entry_type == "file":
                     size = int(facts.get("size", 0))
                     mtime = self._parse_mlsd_modify(facts.get("modify", ""))
+                    # MLSD may expose a "create" fact; access time is not
+                    # available over FTP -> default to 0.0 (-> None).
+                    ctime = self._parse_mlsd_modify(facts.get("create", ""))
+                    atime = 0.0
                     if on_file:
-                        on_file(full_url, size, mtime)
+                        on_file(full_url, size, mtime, ctime, atime)
 
         except Exception as mlsd_err:
             logger.debug(f"MLSD not supported ({mlsd_err}), falling back to NLST")
@@ -152,10 +159,11 @@ class FTPTreeWalker(TreeWalker):
                 size = ftp.size(entry_path)
                 if size is None:
                     size = 0
-                # It's a file
+                # It's a file. NLST/MDTM only exposes mtime; create/access
+                # times are unavailable over FTP -> default to 0.0 (-> None).
                 mtime = self._get_mdtm(ftp, entry_path)
                 if on_file:
-                    on_file(full_url, size, mtime)
+                    on_file(full_url, size, mtime, 0.0, 0.0)
             except Exception:
                 # Likely a directory
                 if self._should_scan_directory(full_url):

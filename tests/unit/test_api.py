@@ -385,6 +385,63 @@ class TestPeekArchive:
         assert result.triage == Triage.BLACK
 
 
+# ------------------------------------------------------------------ ctime/atime parity (T4)
+
+
+class TestTimestampParity:
+    """Public low-level API methods accept and thread ctime/atime epochs."""
+
+    def test_check_file_threads_ctime_atime(self):
+        s = Snaffler()
+        ctime, atime = 1690000000.0, 1695000000.0
+        check = s.check_file(
+            "//srv/share/ntds.dit", 1000000, 1700000000.0, ctime, atime,
+        )
+        # ntds.dit is BLACK → SNAFFLE result is built in check_file
+        assert check.result is not None
+        from datetime import datetime
+        assert check.result.created == datetime.fromtimestamp(ctime)
+        assert check.result.accessed == datetime.fromtimestamp(atime)
+
+    def test_check_file_defaults_are_none(self):
+        s = Snaffler()
+        check = s.check_file("//srv/share/ntds.dit", 1000000, 1700000000.0)
+        assert check.result is not None
+        assert check.result.created is None
+        assert check.result.accessed is None
+
+    def test_scan_content_standalone_threads_ctime_atime(self):
+        s = Snaffler()
+        ctime, atime = 1690000000.0, 1695000000.0
+        data = b'password = "secret123"\n'
+        result = s.scan_content(
+            data,
+            file_path="//srv/share/app.config",
+            size=100,
+            mtime_epoch=1700000000.0,
+            ctime_epoch=ctime,
+            atime_epoch=atime,
+        )
+        assert isinstance(result, FileResult)
+        from datetime import datetime
+        assert result.created == datetime.fromtimestamp(ctime)
+        assert result.accessed == datetime.fromtimestamp(atime)
+
+    def test_check_certificate_threads_ctime_atime(self):
+        s = Snaffler()
+        with open(TEST_KEY_PEM, "rb") as f:
+            data = f.read()
+        ctime, atime = 1690000000.0, 1695000000.0
+        result = s.check_certificate(
+            "//srv/share/server.pem", len(data), 1700000000.0, data,
+            ctime_epoch=ctime, atime_epoch=atime,
+        )
+        assert isinstance(result, FileResult)
+        from datetime import datetime
+        assert result.created == datetime.fromtimestamp(ctime)
+        assert result.accessed == datetime.fromtimestamp(atime)
+
+
 # ------------------------------------------------------------------ output filters
 
 

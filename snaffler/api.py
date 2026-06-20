@@ -312,13 +312,18 @@ class Snaffler:
         file_path: str,
         size: int,
         mtime_epoch: float,
+        ctime_epoch: float = 0.0,
+        atime_epoch: float = 0.0,
     ) -> FileCheckResult:
         """Phase 1 — evaluate file rules only (zero I/O).
 
         Returns a :class:`FileCheckResult` whose *status* tells the caller
-        what to do next.
+        what to do next. Optional *ctime_epoch* / *atime_epoch* populate the
+        finding's created/accessed timestamps (``0.0`` means "unknown").
         """
-        return self._scanner.check_file(file_path, size, mtime_epoch)
+        return self._scanner.check_file(
+            file_path, size, mtime_epoch, ctime_epoch, atime_epoch,
+        )
 
     # ------------------------------------------------------------------ content
 
@@ -329,13 +334,17 @@ class Snaffler:
         file_path: Optional[str] = None,
         size: Optional[int] = None,
         mtime_epoch: Optional[float] = None,
+        ctime_epoch: float = 0.0,
+        atime_epoch: float = 0.0,
     ) -> Optional[FileResult]:
         """Phase 2 — scan file content.
 
         If *prior* is provided (from :meth:`check_file`), the file-rule
         evaluation is skipped and the targeted content rules are used.
         If *prior* is ``None``, standalone mode: calls check_file first,
-        then scan_with_data.
+        then scan_with_data. Optional *ctime_epoch* / *atime_epoch* are only
+        used in standalone mode (when *prior* is ``None``) to populate the
+        finding's created/accessed timestamps (``0.0`` means "unknown").
         """
         if prior is None:
             if file_path is None or size is None or mtime_epoch is None:
@@ -343,7 +352,9 @@ class Snaffler:
                     "file_path, size, and mtime_epoch are required "
                     "when prior is not provided"
                 )
-            prior = self._scanner.check_file(file_path, size, mtime_epoch)
+            prior = self._scanner.check_file(
+                file_path, size, mtime_epoch, ctime_epoch, atime_epoch,
+            )
             if prior.status == FileCheckStatus.DISCARD:
                 return None
             if prior.status == FileCheckStatus.SNAFFLE:
@@ -371,17 +382,22 @@ class Snaffler:
         size: int,
         mtime_epoch: float,
         data: bytes,
+        ctime_epoch: float = 0.0,
+        atime_epoch: float = 0.0,
     ) -> Optional[FileResult]:
         """Check certificate data for private keys.
 
         Returns a RED :class:`FileResult` if a private key is found,
-        ``None`` otherwise.
+        ``None`` otherwise. Optional *ctime_epoch* / *atime_epoch* populate
+        the finding's created/accessed timestamps (``0.0`` means "unknown").
 
         Note: this is a low-level method that bypasses file-rule evaluation
         (e.g. DISCARD rules). Use :meth:`walk` or :meth:`check_file` +
         :meth:`scan_content` for the full classification pipeline.
         """
-        ctx = FileContext.from_path(file_path, size, mtime_epoch)
+        ctx = FileContext.from_path(
+            file_path, size, mtime_epoch, ctime_epoch, atime_epoch,
+        )
         result = self._scanner._evaluate_certificate(ctx, data)
         return self._apply_filters(result)
 

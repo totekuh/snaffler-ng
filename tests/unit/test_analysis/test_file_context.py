@@ -54,6 +54,48 @@ def test_from_path_none_epoch_is_none():
     assert ctx.accessed is None
 
 
+def test_from_path_modified_zero_epoch_is_none():
+    """0.0 epoch for mtime → None (unified with ctime/atime, was 1970 before)."""
+    ctx = FileContext.from_path("//HOST/SHARE/f.txt", 10, 0.0, 0.0, 0.0)
+
+    assert ctx.modified is None
+    assert ctx.created is None
+    assert ctx.accessed is None
+
+
+def test_from_path_modified_none_epoch_is_none():
+    """None epoch for mtime → None."""
+    ctx = FileContext.from_path("//HOST/SHARE/f.txt", 10, None)
+
+    assert ctx.modified is None
+
+
+def test_from_path_huge_epoch_degrades_to_none():
+    """An out-of-range (huge) epoch degrades to None instead of raising."""
+    ctx = FileContext.from_path("//HOST/SHARE/f.txt", 10, 1700000000.0, 1e20, 0.0)
+
+    assert ctx.modified == datetime.fromtimestamp(1700000000.0)
+    assert ctx.created is None
+    assert ctx.accessed is None
+
+
+def test_from_path_negative_epoch_degrades_to_none():
+    """A very negative epoch degrades to None instead of raising."""
+    ctx = FileContext.from_path("//HOST/SHARE/f.txt", 10, 1700000000.0, 0.0, -1e12)
+
+    assert ctx.created is None
+    assert ctx.accessed is None
+
+
+def test_from_path_bad_mtime_degrades_to_none_keeps_other_fields():
+    """A bad mtime alone must not abort the context; other fields survive."""
+    ctx = FileContext.from_path("//HOST/SHARE/f.txt", 10, 1e20, 1690000000.0, 0.0)
+
+    assert ctx.modified is None
+    assert ctx.name == "f.txt"
+    assert ctx.created == datetime.fromtimestamp(1690000000.0)
+
+
 def test_context_is_frozen():
     ctx = FileContext.from_path("//HOST/SHARE/f.txt", 10, 1700000000.0)
     try:
