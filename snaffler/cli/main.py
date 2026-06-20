@@ -251,6 +251,11 @@ def main(
             help="Only enumerate shares, skip filesystem walking",
             rich_help_panel="Targeting",
         ),
+        no_check_writable: bool = typer.Option(
+            False, "--no-check-writable",
+            help="Skip the per-share write-access probe (RW detection is on by default)",
+            rich_help_panel="Targeting",
+        ),
         rescan_unreadable: bool = typer.Option(
             False, "--rescan-unreadable",
             help="Re-test previously unreadable shares from state DB with current creds",
@@ -535,6 +540,7 @@ def main(
     if _explicit("unc_targets"):      cfg.targets.unc_targets = unc_targets or []
     if _explicit("local"):            cfg.targets.local_targets = local or []
     if _explicit("shares_only"):      cfg.targets.shares_only = shares_only
+    if _explicit("no_check_writable"): cfg.targets.check_writable = not no_check_writable
     if _explicit("include_disabled"): cfg.targets.skip_disabled_computers = not include_disabled
     if _explicit("rescan_unreadable"): cfg.targets.rescan_unreadable = rescan_unreadable
     if _explicit("domain_users"):     cfg.targets.domain_users = domain_users

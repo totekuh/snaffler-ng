@@ -22,6 +22,7 @@ def make_cfg():
 
     cfg.targets.scan_sysvol = True
     cfg.targets.scan_netlogon = True
+    cfg.targets.check_writable = True
     cfg.targets.share_filter = []
     cfg.targets.exclude_share = []
 
@@ -137,6 +138,141 @@ def test_is_share_readable_false():
 
     with patch.object(finder._cache, "get", return_value=smb):
         assert finder.is_share_readable("HOST", "DATA") is False
+
+
+# ---------- is_share_writable ----------
+
+def test_is_share_writable_true():
+    cfg = make_cfg()
+    finder = ShareFinder(cfg)
+
+    smb = MagicMock()
+    smb.connectTree.return_value = 7
+    smb.openFile.return_value = 42
+
+    with patch.object(finder._cache, "get", return_value=smb):
+        assert finder.is_share_writable("HOST", "DATA") is True
+
+    smb.connectTree.assert_called_once_with("DATA")
+    smb.openFile.assert_called_once()
+    # opened against the share root and never wrote any data
+    assert smb.openFile.call_args.args[1] == "\\"
+    smb.write.assert_not_called()
+    # handle + tree are cleaned up
+    smb.closeFile.assert_called_once_with(7, 42)
+    smb.disconnectTree.assert_called_once_with(7)
+
+
+def test_is_share_writable_false_on_session_error():
+    cfg = make_cfg()
+    finder = ShareFinder(cfg)
+
+    smb = MagicMock()
+    smb.connectTree.return_value = 7
+    smb.openFile.side_effect = SessionError(0, "access denied")
+
+    with patch.object(finder._cache, "get", return_value=smb):
+        assert finder.is_share_writable("HOST", "DATA") is False
+
+    # tree is still cleaned up even when the open is denied
+    smb.disconnectTree.assert_called_once_with(7)
+    smb.closeFile.assert_not_called()
+
+
+def test_is_share_writable_handles_unexpected_exception():
+    """A non-fatal unexpected error must be swallowed (return False, no crash)."""
+    cfg = make_cfg()
+    finder = ShareFinder(cfg)
+
+    smb = MagicMock()
+    smb.connectTree.side_effect = ValueError("boom")
+
+    with patch.object(finder._cache, "get", return_value=smb):
+        # check_fatal_os_error lets ValueError through as non-fatal
+        assert finder.is_share_writable("HOST", "DATA") is False
+
+
+def test_is_share_writable_never_scan():
+    cfg = make_cfg()
+    finder = ShareFinder(cfg)
+
+    smb = MagicMock()
+    with patch.object(finder._cache, "get", return_value=smb):
+        assert finder.is_share_writable("HOST", "IPC$") is False
+
+    # never even attempts a connection for NEVER_SCAN shares
+    smb.connectTree.assert_not_called()
+
+
+def test_get_computer_shares_sets_writable(caplog):
+    """A readable+writable share gets writable=True and an (RW) log line."""
+    cfg = make_cfg()
+    cfg.rules.share = get_share_rules()
+    finder = ShareFinder(cfg)
+
+    with patch.object(finder, "enumerate_shares") as mock_enum, \
+         patch.object(finder, "is_share_readable", return_value=True), \
+         patch.object(finder, "is_share_writable", return_value=True), \
+         caplog.at_level(logging.INFO, logger="snaffler"):
+        mock_enum.return_value = [ShareInfo("C$", 0x00000000, "Default share")]
+        results = finder.get_computer_shares("DC01")
+
+    assert len(results) == 1
+    assert results[0][1].readable is True
+    assert results[0][1].writable is True
+    assert "(RW)" in caplog.text
+
+
+def test_get_computer_shares_readable_not_writable(caplog):
+    """A readable but not writable share stays writable=False and logs (R)."""
+    cfg = make_cfg()
+    cfg.rules.share = get_share_rules()
+    finder = ShareFinder(cfg)
+
+    with patch.object(finder, "enumerate_shares") as mock_enum, \
+         patch.object(finder, "is_share_readable", return_value=True), \
+         patch.object(finder, "is_share_writable", return_value=False), \
+         caplog.at_level(logging.INFO, logger="snaffler"):
+        mock_enum.return_value = [ShareInfo("C$", 0x00000000, "Default share")]
+        results = finder.get_computer_shares("DC01")
+
+    assert len(results) == 1
+    assert results[0][1].writable is False
+    assert "(R)" in caplog.text
+
+
+def test_get_computer_shares_writable_check_disabled():
+    """With check_writable=False, is_share_writable is never called."""
+    cfg = make_cfg()
+    cfg.targets.check_writable = False
+    finder = ShareFinder(cfg)
+
+    share = ShareInfo("DATA", 0, "Data")
+
+    with patch.object(finder, "enumerate_shares", return_value=[share]), \
+         patch.object(finder, "is_share_readable", return_value=True), \
+         patch.object(finder, "is_share_writable") as mock_writable:
+        results = finder.get_computer_shares("HOST")
+
+    mock_writable.assert_not_called()
+    assert results[0][1].writable is False
+
+
+def test_get_computer_shares_unreadable_skips_writable_check():
+    """Unreadable shares must not be probed for writability."""
+    cfg = make_cfg()
+    finder = ShareFinder(cfg)
+
+    share = ShareInfo("DATA", 0, "Data")
+
+    with patch.object(finder, "enumerate_shares", return_value=[share]), \
+         patch.object(finder, "is_share_readable", return_value=False), \
+         patch.object(finder, "is_share_writable") as mock_writable:
+        results = finder.get_computer_shares("HOST")
+
+    mock_writable.assert_not_called()
+    assert results[0][1].readable is False
+    assert results[0][1].writable is False
 
 
 def test_get_computer_shares_basic():

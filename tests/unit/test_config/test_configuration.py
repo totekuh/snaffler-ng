@@ -25,6 +25,9 @@ def test_default_configuration():
     assert cfg.advanced.tree_threads == 20
     assert cfg.advanced.file_threads == 20
 
+    # Share writability probing is on by default (matches Snaffler).
+    assert cfg.targets.check_writable is True
+
 
 # ---------- validation ----------
 
