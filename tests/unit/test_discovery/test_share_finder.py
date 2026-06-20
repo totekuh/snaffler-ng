@@ -192,6 +192,79 @@ def test_is_share_writable_handles_unexpected_exception():
         assert finder.is_share_writable("HOST", "DATA") is False
 
 
+def test_is_share_writable_fatal_error_in_cleanup_propagates():
+    """An EMFILE/ENFILE OSError raised during cleanup must NOT be swallowed.
+
+    The finally-block cleanup routes errors through check_fatal_os_error, so a
+    fatal FD-exhaustion error must still abort the scan (SystemExit) rather than
+    leaving the process running FD-starved (W1).
+    """
+    import errno
+
+    cfg = make_cfg()
+    finder = ShareFinder(cfg)
+
+    smb = MagicMock()
+    smb.connectTree.return_value = 7
+    smb.openFile.return_value = 42
+    smb.closeFile.side_effect = OSError(errno.EMFILE, "Too many open files")
+
+    with patch.object(finder._cache, "get", return_value=smb):
+        with pytest.raises(SystemExit):
+            finder.is_share_writable("HOST", "DATA")
+
+
+def test_is_share_writable_benign_cleanup_error_tolerated():
+    """A benign (non-fatal) cleanup error is still swallowed; probe returns True."""
+    cfg = make_cfg()
+    finder = ShareFinder(cfg)
+
+    smb = MagicMock()
+    smb.connectTree.return_value = 7
+    smb.openFile.return_value = 42
+    smb.closeFile.side_effect = ValueError("benign close failure")
+    smb.disconnectTree.side_effect = ValueError("benign disconnect failure")
+
+    with patch.object(finder._cache, "get", return_value=smb):
+        # open succeeded -> writable True; benign cleanup errors are tolerated
+        assert finder.is_share_writable("HOST", "DATA") is True
+
+
+def test_is_share_writable_transport_error_invalidates_connection():
+    """A transport-level error in the probe evicts the cached connection (W2).
+
+    Boolean contract is unchanged (still returns False / not writable), but the
+    dead connection must not be left in the cache.
+    """
+    cfg = make_cfg()
+    finder = ShareFinder(cfg)
+
+    smb = MagicMock()
+    smb.connectTree.side_effect = ConnectionResetError("connection reset")
+
+    with patch.object(finder._cache, "get", return_value=smb), \
+         patch.object(finder._cache, "invalidate") as mock_invalidate:
+        assert finder.is_share_writable("HOST", "DATA") is False
+
+    mock_invalidate.assert_called_once_with("HOST")
+
+
+def test_is_share_writable_session_error_does_not_invalidate():
+    """A SMB-level SessionError leaves the (still-valid) connection cached."""
+    cfg = make_cfg()
+    finder = ShareFinder(cfg)
+
+    smb = MagicMock()
+    smb.connectTree.return_value = 7
+    smb.openFile.side_effect = SessionError(0, "access denied")
+
+    with patch.object(finder._cache, "get", return_value=smb), \
+         patch.object(finder._cache, "invalidate") as mock_invalidate:
+        assert finder.is_share_writable("HOST", "DATA") is False
+
+    mock_invalidate.assert_not_called()
+
+
 def test_is_share_writable_never_scan():
     cfg = make_cfg()
     finder = ShareFinder(cfg)
@@ -239,6 +312,45 @@ def test_get_computer_shares_readable_not_writable(caplog):
     assert len(results) == 1
     assert results[0][1].writable is False
     assert "(R)" in caplog.text
+
+
+def test_get_computer_shares_readable_logs_access_at_info_without_rule(caplog):
+    """A plain readable share (no SNAFFLE rule match) still emits the RW/R
+    annotation at INFO so the writability result is visible (W3)."""
+    cfg = make_cfg()
+    cfg.rules.share = []  # no share rules at all -> no rule-match branch
+    finder = ShareFinder(cfg)
+
+    with patch.object(finder, "enumerate_shares") as mock_enum, \
+         patch.object(finder, "is_share_readable", return_value=True), \
+         patch.object(finder, "is_share_writable", return_value=True), \
+         caplog.at_level(logging.INFO, logger="snaffler"):
+        mock_enum.return_value = [ShareInfo("DATA", 0, "Data")]
+        results = finder.get_computer_shares("HOST")
+
+    assert len(results) == 1
+    info_records = [r for r in caplog.records if r.levelno == logging.INFO]
+    assert any("(RW)" in r.getMessage() and "//HOST/DATA" in r.getMessage()
+               for r in info_records)
+
+
+def test_get_computer_shares_readable_only_logs_r_at_info_without_rule(caplog):
+    """A readable-but-not-writable plain share logs (R) at INFO (W3)."""
+    cfg = make_cfg()
+    cfg.rules.share = []
+    finder = ShareFinder(cfg)
+
+    with patch.object(finder, "enumerate_shares") as mock_enum, \
+         patch.object(finder, "is_share_readable", return_value=True), \
+         patch.object(finder, "is_share_writable", return_value=False), \
+         caplog.at_level(logging.INFO, logger="snaffler"):
+        mock_enum.return_value = [ShareInfo("DATA", 0, "Data")]
+        results = finder.get_computer_shares("HOST")
+
+    assert len(results) == 1
+    info_records = [r for r in caplog.records if r.levelno == logging.INFO]
+    assert any("(R)" in r.getMessage() and "//HOST/DATA" in r.getMessage()
+               for r in info_records)
 
 
 def test_get_computer_shares_writable_check_disabled():

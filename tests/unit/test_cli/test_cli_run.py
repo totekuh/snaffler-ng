@@ -577,6 +577,92 @@ def test_cli_no_check_writable_disables():
     assert cfg.targets.check_writable is False
 
 
+def test_cli_check_writable_reenables_from_config_false(tmp_path):
+    """--check-writable re-enables the probe when the TOML config sets it false (W4)."""
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text("""
+        [targets]
+        check_writable = false
+    """)
+
+    with patch("snaffler.cli.main.SnafflerRunner") as runner_cls, \
+            patch("snaffler.cli.main.RuleLoader.load"), \
+            patch("snaffler.cli.main.setup_logging"):
+        result = runner.invoke(
+            app,
+            base_args() + [
+                "--config", str(cfg_file),
+                "--unc", "//HOST/SHARE",
+                "--check-writable",
+            ],
+        )
+
+    assert result.exit_code == 0
+    cfg = runner_cls.call_args[0][0]
+    assert cfg.targets.check_writable is True
+
+
+def test_cli_config_check_writable_false_without_flag(tmp_path):
+    """Without the flag, the TOML config_writable = false is respected (no clobber)."""
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text("""
+        [targets]
+        check_writable = false
+    """)
+
+    with patch("snaffler.cli.main.SnafflerRunner") as runner_cls, \
+            patch("snaffler.cli.main.RuleLoader.load"), \
+            patch("snaffler.cli.main.setup_logging"):
+        result = runner.invoke(
+            app,
+            base_args() + ["--config", str(cfg_file), "--unc", "//HOST/SHARE"],
+        )
+
+    assert result.exit_code == 0
+    cfg = runner_cls.call_args[0][0]
+    assert cfg.targets.check_writable is False
+
+
+def test_cli_check_writable_explicit_beats_config_true(tmp_path):
+    """--no-check-writable wins over a config check_writable = true (precedence)."""
+    cfg_file = tmp_path / "config.toml"
+    cfg_file.write_text("""
+        [targets]
+        check_writable = true
+    """)
+
+    with patch("snaffler.cli.main.SnafflerRunner") as runner_cls, \
+            patch("snaffler.cli.main.RuleLoader.load"), \
+            patch("snaffler.cli.main.setup_logging"):
+        result = runner.invoke(
+            app,
+            base_args() + [
+                "--config", str(cfg_file),
+                "--unc", "//HOST/SHARE",
+                "--no-check-writable",
+            ],
+        )
+
+    assert result.exit_code == 0
+    cfg = runner_cls.call_args[0][0]
+    assert cfg.targets.check_writable is False
+
+
+def test_cli_check_writable_flag_enables():
+    """--check-writable alone keeps the probe on (no double-negative bug)."""
+    with patch("snaffler.cli.main.SnafflerRunner") as runner_cls, \
+            patch("snaffler.cli.main.RuleLoader.load"), \
+            patch("snaffler.cli.main.setup_logging"):
+        result = runner.invoke(
+            app,
+            base_args() + ["--unc", "//HOST/SHARE", "--check-writable"],
+        )
+
+    assert result.exit_code == 0
+    cfg = runner_cls.call_args[0][0]
+    assert cfg.targets.check_writable is True
+
+
 def test_cli_rescan_unreadable():
     """--rescan-unreadable flag wires to config and is accepted without other targets."""
     with patch("snaffler.cli.main.SnafflerRunner") as runner_cls, \

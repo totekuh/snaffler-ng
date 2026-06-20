@@ -244,7 +244,10 @@ class ShareFinder:
                     share.writable = self.is_share_writable(computer, share.name)
 
                 access = "RW" if share.writable else "R"
-                logger.debug(f"Readable share ({access}): {unc_path}")
+                # Surface the readability/writability result at INFO so the RW/R
+                # signal actually appears in normal output, not just on the rare
+                # SNAFFLE-rule branch below.
+                logger.info(f"Readable share ({access}): {unc_path}")
                 if snaffle_rule:
                     logger.info(
                         f"[{snaffle_rule.triage.label}] [{snaffle_rule.rule_name}] "
@@ -325,20 +328,29 @@ class ShareFinder:
                 )
                 return True
             finally:
+                # Cleanup must still honour the hard-fail FD-exhaustion guard:
+                # route any cleanup error through check_fatal_os_error so an
+                # EMFILE/ENFILE OSError still aborts the scan, while genuinely
+                # ignorable close/disconnect errors stay tolerated.
                 if file_id is not None:
                     try:
                         smb.closeFile(tree_id, file_id)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        check_fatal_os_error(e)
                 try:
                     smb.disconnectTree(tree_id)
-                except Exception:
-                    pass
+                except Exception as e:
+                    check_fatal_os_error(e)
 
         except SessionError as e:
             logger.debug(f"Cannot write share {computer}\\{share_name}: {e}")
             return False
         except Exception as e:
             check_fatal_os_error(e)
+            # Transport-level error (timeout, disconnect, etc.) — the cached
+            # connection is likely dead; evict it so the next user doesn't reuse
+            # a half-dead session (mirrors enumerate_shares / SMBFileAccessor.read).
+            # The probe's boolean contract is unchanged: still "not writable".
             logger.debug(f"Error testing writability of share {computer}\\{share_name}: {e}")
+            self._cache.invalidate(computer)
             return False
