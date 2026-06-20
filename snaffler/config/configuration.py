@@ -93,6 +93,11 @@ class TargetingConfig:
     scan_sysvol: bool = True
     scan_netlogon: bool = True
 
+    # Probe each readable share for write access at the share root.
+    # Enabled by default to match Snaffler, but adds an extra SMB open per
+    # share (latency + OpSec footprint), so it can be disabled.
+    check_writable: bool = True
+
     ldap_filter: str = "(objectClass=computer)"
     exclusions: List[str] = field(default_factory=list)
 

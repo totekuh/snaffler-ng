@@ -8,6 +8,8 @@ import logging
 import threading
 from typing import List, Tuple
 
+from impacket.smb import FILE_READ_ATTRIBUTES, FILE_SHARE_READ, FILE_WRITE_DATA
+from impacket.smb3structs import FILE_DIRECTORY_FILE
 from impacket.smbconnection import SessionError
 
 from snaffler.classifiers.rules import MatchLocation, MatchAction
@@ -234,9 +236,20 @@ class ShareFinder:
             share.readable = self.is_share_readable(computer, share.name)
 
             if share.readable:
-                logger.debug(f"Readable share: {unc_path}")
+                # --- Writability check ---
+                # Only worth probing a share we can already read; mirrors
+                # Snaffler's RW reporting.  Controlled by cfg.targets.check_writable
+                # since each probe is an extra SMB open (latency + OpSec footprint).
+                if self.cfg.targets.check_writable:
+                    share.writable = self.is_share_writable(computer, share.name)
+
+                access = "RW" if share.writable else "R"
+                logger.debug(f"Readable share ({access}): {unc_path}")
                 if snaffle_rule:
-                    logger.info(f"[{snaffle_rule.triage.label}] [{snaffle_rule.rule_name}] Share: {unc_path}")
+                    logger.info(
+                        f"[{snaffle_rule.triage.label}] [{snaffle_rule.rule_name}] "
+                        f"Share ({access}): {unc_path}"
+                    )
             else:
                 logger.debug(f"Unreadable share (access denied): {unc_path}")
 
@@ -273,4 +286,59 @@ class ShareFinder:
         except Exception as e:
             check_fatal_os_error(e)
             logger.debug(f"Error testing share {computer}\\{share_name}: {e}")
+            return False
+
+    def is_share_writable(self, computer: str, share_name: str) -> bool:
+        """Test whether the current session can write to a share's root.
+
+        Opens the share root directory (``\\``) requesting write access and
+        immediately closes the handle — no data is ever written.  A successful
+        open means the server granted write access; ``SessionError`` /
+        access-denied means it did not.
+
+        Args:
+            computer: Target host the share lives on.
+            share_name: Name of the share to probe (without UNC prefix).
+
+        Returns:
+            True if the share root can be opened for writing, False otherwise.
+        """
+        if share_name.upper() in self.NEVER_SCAN:
+            return False
+
+        try:
+            smb = self._cache.get(computer)
+
+            # connectTree gives us a tree id to open the root directory against.
+            tree_id = smb.connectTree(share_name)
+            file_id = None
+            try:
+                # Open the share ROOT ("\\") as a directory requesting write
+                # access.  We never write — opening then closing is enough to
+                # prove the grant, matching Snaffler's RW probe.
+                file_id = smb.openFile(
+                    tree_id,
+                    "\\",
+                    desiredAccess=FILE_WRITE_DATA | FILE_READ_ATTRIBUTES,
+                    shareMode=FILE_SHARE_READ,
+                    creationOption=FILE_DIRECTORY_FILE,
+                )
+                return True
+            finally:
+                if file_id is not None:
+                    try:
+                        smb.closeFile(tree_id, file_id)
+                    except Exception:
+                        pass
+                try:
+                    smb.disconnectTree(tree_id)
+                except Exception:
+                    pass
+
+        except SessionError as e:
+            logger.debug(f"Cannot write share {computer}\\{share_name}: {e}")
+            return False
+        except Exception as e:
+            check_fatal_os_error(e)
+            logger.debug(f"Error testing writability of share {computer}\\{share_name}: {e}")
             return False
