@@ -17,7 +17,7 @@ class SMBTransport:
         smb = SMBConnection(
             remoteName=target,
             remoteHost=target,
-            sess_port=445,
+            sess_port=self.auth.smb_port,
             timeout=timeout,
         )
 

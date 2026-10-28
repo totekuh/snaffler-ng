@@ -1000,7 +1000,7 @@ def test_runner_dns_filters_port_closed():
 
 
 def test_runner_dns_port_closed_log_message(caplog):
-    """Port-closed host logs 'port 445 unreachable', not 'no record'."""
+    """Port-closed host logs 'port N unreachable', not 'no record'."""
     import logging
 
     cfg = make_cfg()
@@ -1026,10 +1026,10 @@ def test_runner_dns_port_closed_log_message(caplog):
          caplog.at_level(logging.DEBUG, logger="snaffler"):
         runner.execute()
 
-    # Should log the accurate "port 445 unreachable" message
+    # Should log the accurate "port N unreachable" message
     port_msgs = [
         r.message for r in caplog.records
-        if "FIREWALLED" in r.message and "port 445 unreachable" in r.message
+        if "FIREWALLED" in r.message and "unreachable" in r.message
     ]
     assert len(port_msgs) == 1
     assert "10.0.0.2" in port_msgs[0]

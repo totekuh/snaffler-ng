@@ -9,3 +9,4 @@ coverage.json
 build
 CLAUDE.md
 .claude/
+HANDOFF_SESSION*.md

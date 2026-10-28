@@ -71,6 +71,7 @@ class AuthConfig:
     domain: Optional[str] = None
     dc_host: Optional[str] = None
     smb_timeout: int = 5
+    smb_port: int = 445
 
     # Kerberos
     kerberos: bool = False

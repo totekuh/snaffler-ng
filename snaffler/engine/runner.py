@@ -311,26 +311,27 @@ class SnafflerRunner:
         self.progress.dns_start = time.monotonic()
 
         dns_timeout = self.cfg.auth.smb_timeout
+        smb_port = self.cfg.auth.smb_port
 
         def resolve_one(hostname: str):
             try:
                 result = socket.getaddrinfo(
-                    hostname, 445, socket.AF_INET, socket.SOCK_STREAM,
+                    hostname, smb_port, socket.AF_INET, socket.SOCK_STREAM,
                 )
                 ip = result[0][4][0]
             except (socket.gaierror, socket.herror, socket.timeout, OSError):
                 logger.debug(f"DNS: no record for {hostname}, skipping")
                 return None
 
-            # Quick TCP probe — verify port 445 is actually reachable
+            # Quick TCP probe — verify port is actually reachable
             try:
                 with socket.create_connection(
-                    (ip, 445), timeout=_PORT_CHECK_TIMEOUT,
+                    (ip, smb_port), timeout=_PORT_CHECK_TIMEOUT,
                 ):
                     pass
             except (OSError, socket.timeout):
                 logger.debug(
-                    f"DNS: {hostname} ({ip}) port 445 unreachable, skipping"
+                    f"DNS: {hostname} ({ip}) port {smb_port} unreachable, skipping"
                 )
                 return None
 
@@ -641,7 +642,7 @@ class SnafflerRunner:
             logger.info(f"Auth OK: SMB login to {target} succeeded")
         except OSError as e:
             raise SystemExit(
-                f"FATAL: cannot reach SMB target {target}:445 — {e}\n"
+                f"FATAL: cannot reach SMB target {target}:{cfg.auth.smb_port} — {e}\n"
                 f"Check network connectivity and retry."
             ) from e
         except Exception as e:
