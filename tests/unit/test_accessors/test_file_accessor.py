@@ -92,3 +92,36 @@ class TestLocalFileAccessorPathTraversal:
         rel = os.path.relpath(str(source_file), "/")
         expected = os.path.join(dest_root, rel)
         assert os.path.exists(expected)
+
+
+# ---------- _safe_local_write() on base FileAccessor ----------
+
+class TestSafeLocalWrite:
+
+    def _make_accessor(self):
+        class ConcreteAccessor(FileAccessor):
+            def read(self, file_path, max_bytes=None):
+                return b""
+
+            def copy_to_local(self, file_path, dest_root):
+                pass
+
+        return ConcreteAccessor()
+
+    def test_write_success(self, tmp_path):
+        accessor = self._make_accessor()
+        result = accessor._safe_local_write(str(tmp_path), ["sub", "file.txt"], b"hello")
+        assert result is True
+        assert (tmp_path / "sub" / "file.txt").read_bytes() == b"hello"
+
+    def test_creates_nested_parents(self, tmp_path):
+        accessor = self._make_accessor()
+        result = accessor._safe_local_write(str(tmp_path), ["a", "b", "c", "deep.bin"], b"\x00\x01")
+        assert result is True
+        assert (tmp_path / "a" / "b" / "c" / "deep.bin").read_bytes() == b"\x00\x01"
+
+    def test_blocks_path_traversal(self, tmp_path):
+        accessor = self._make_accessor()
+        result = accessor._safe_local_write(str(tmp_path), ["..", "escape.txt"], b"bad")
+        assert result is False
+        assert not (tmp_path.parent / "escape.txt").exists()
