@@ -1,0 +1,29 @@
+services:
+  dc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: dc01
+    domainname: testlab.local
+    privileged: true
+    ports:
+      - "127.0.0.1:${AD_LDAP_PORT:-389}:389"
+      - "127.0.0.1:${AD_LDAPS_PORT:-636}:636"
+      - "127.0.0.1:${AD_KRB_PORT:-88}:88"
+      - "127.0.0.1:${AD_KRB_PORT:-88}:88/udp"
+      - "127.0.0.1:${AD_SMB_PORT:-445}:445"
+    environment:
+      REALM: TESTLAB.LOCAL
+      DOMAIN: TESTLAB
+      ADMIN_PASS: "Passw0rd!Testing"
+    volumes:
+      - samba-data:/var/lib/samba
+      - samba-etc:/etc/samba
+      - samba-shares:/srv/shares
+    tmpfs:
+      - /run
+
+volumes:
+  samba-data:
+  samba-etc:
+  samba-shares:
