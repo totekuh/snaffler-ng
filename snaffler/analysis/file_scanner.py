@@ -1,54 +1,30 @@
 #!/usr/bin/env python3
+"""File scanner — two-phase evaluation (metadata then content)."""
 
-import io
 import logging
-import os
 import re
-import zipfile
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Optional, List
+from typing import Optional
 
 from snaffler.analysis.certificates import CertificateChecker
 from snaffler.analysis.model.file_context import FileContext
 from snaffler.analysis.model.file_result import FileResult
+from snaffler.analysis.scanner_types import FileCheckStatus, FileCheckResult
+from snaffler.analysis.content_scanner import evaluate_content
+from snaffler.analysis.archive_scanner import evaluate_archive, list_archive_members, MAX_ARCHIVE_MEMBERS
 from snaffler.classifiers.evaluator import RuleEvaluator
 from snaffler.classifiers.rules import MatchLocation, MatchAction, Triage
 from snaffler.utils.fatal import check_fatal_os_error
 
 logger = logging.getLogger("snaffler")
 
-
-class FileCheckStatus(Enum):
-    """Outcome of a metadata-only file check."""
-    DISCARD = "discard"
-    SNAFFLE = "snaffle"
-    NEEDS_CONTENT = "needs_content"
-    CHECK_KEYS = "check_keys"
-    PEEK_ARCHIVE = "peek_archive"
-
-
-@dataclass
-class FileCheckResult:
-    """Result of :meth:`FileScanner.check_file`.
-
-    For ``SNAFFLE`` status the finding is in *result*.
-    For ``NEEDS_CONTENT`` / ``CHECK_KEYS`` / ``PEEK_ARCHIVE`` the caller
-    should fetch bytes and call :meth:`FileScanner.scan_with_data`, passing
-    this object as *prior* to avoid re-evaluating file rules.
-    """
-    status: FileCheckStatus
-    result: Optional[FileResult] = None
-    content_rule_names: list = field(default_factory=list)
-    # -- internal state for Phase 2 (underscore = not part of public API) --
-    _ctx: Optional[FileContext] = None
-    _best_result: Optional[FileResult] = None
-    _needs_cert_check: bool = False
-    _needs_archive_peek: bool = False
-    _can_scan_content: bool = False
+# Re-export for backward compatibility
+__all__ = ["FileScanner", "FileCheckResult", "FileCheckStatus"]
 
 
 class FileScanner:
+    _MAX_ARCHIVE_MEMBERS = MAX_ARCHIVE_MEMBERS
+    _list_archive_members = staticmethod(list_archive_members)
+
     def __init__(
             self,
             cfg,
@@ -73,13 +49,10 @@ class FileScanner:
         self._max_read_bytes = cfg.scanning.max_read_bytes
         self._match_context_bytes = cfg.scanning.match_context_bytes
 
-    # -------------------------------------------------------------- Results
-
     def _filter_result(
             self,
             result: FileResult,
     ) -> Optional[FileResult]:
-        """Apply min_interest and match_filter to a result. Pure filter, no side effects."""
         if result.triage.below(self.cfg.scanning.min_interest):
             return None
 
@@ -89,8 +62,6 @@ class FileScanner:
 
         return result
 
-    # -------------------------------------------------------------- Phase 1
-
     def check_file(
             self,
             file_path: str,
@@ -99,11 +70,7 @@ class FileScanner:
             ctime_epoch: float = 0.0,
             atime_epoch: float = 0.0,
     ) -> FileCheckResult:
-        """Phase 1 — evaluate file rules only (zero I/O).
-
-        Returns a :class:`FileCheckResult` whose *status* tells the caller
-        what to do next.
-        """
+        """Phase 1 — evaluate file rules only (zero I/O)."""
         ctx = FileContext.from_path(file_path, size, mtime_epoch, ctime_epoch, atime_epoch)
 
         content_rule_names: set = set()
@@ -166,7 +133,6 @@ class FileScanner:
             )
             best_result = FileResult.pick_best(best_result, result)
 
-        # Black is max severity — no need for content scan
         if best_result and best_result.triage == Triage.BLACK:
             return FileCheckResult(
                 status=FileCheckStatus.SNAFFLE,
@@ -175,7 +141,6 @@ class FileScanner:
                 _best_result=best_result,
             )
 
-        # Determine what Phase 2 needs (cert + archive can coexist with content)
         if needs_cert_check or needs_archive_peek:
             can_content = (relay_fired or bool(content_rule_names)) and size <= self._max_read_bytes
             status = (FileCheckStatus.CHECK_KEYS if needs_cert_check
@@ -190,8 +155,6 @@ class FileScanner:
                 _can_scan_content=can_content,
             )
 
-        # Content scan needed: RELAY fired, targeted content rules exist,
-        # or no file-rule SNAFFLE found
         if relay_fired or content_rule_names or not best_result:
             if size <= self._max_read_bytes:
                 return FileCheckResult(
@@ -212,15 +175,8 @@ class FileScanner:
 
         return FileCheckResult(status=FileCheckStatus.DISCARD)
 
-    # -------------------------------------------------------------- Phase 2
-
     def scan_with_data(self, data: bytes, prior: FileCheckResult) -> Optional[FileResult]:
-        """Phase 2 — run cert/archive/content checks using raw data.
-
-        Returns the best unfiltered :class:`FileResult`, or ``None``.
-        Does NOT apply ``_finalize_result`` (min_interest, match_filter,
-        logging, downloads) — that is the caller's responsibility.
-        """
+        """Phase 2 — run cert/archive/content checks using raw data."""
         ctx = prior._ctx
         best_result = prior._best_result
 
@@ -229,11 +185,10 @@ class FileScanner:
             best_result = FileResult.pick_best(best_result, cert)
 
         if prior._needs_archive_peek:
-            archive = self._evaluate_archive(ctx, data)
+            archive = evaluate_archive(ctx, data, self.rule_evaluator)
             best_result = FileResult.pick_best(best_result, archive)
 
         if prior._can_scan_content:
-            # Select content rules
             targeted_names = set(prior.content_rule_names)
             if targeted_names:
                 content_rules = sorted(
@@ -248,12 +203,13 @@ class FileScanner:
             else:
                 content_rules = self.rule_evaluator.content_rules
 
-            content = self._evaluate_content(ctx, data, content_rules)
+            content = evaluate_content(
+                ctx, data, content_rules,
+                self.rule_evaluator, self._match_context_bytes,
+            )
             best_result = FileResult.pick_best(best_result, content)
 
         return best_result
-
-    # -------------------------------------------------------------- Scanning (composed)
 
     def scan_file(
             self,
@@ -263,17 +219,7 @@ class FileScanner:
             ctime_epoch: float = 0.0,
             atime_epoch: float = 0.0,
     ) -> Optional[FileResult]:
-        """Full scan: check_file → optional I/O → scan_with_data → filter.
-
-        This is the main entry point used by FilePipeline.
-        Returns a filtered FileResult or None. No logging or download
-        side effects — those are the caller's responsibility.
-
-        Raises:
-            Transport-level errors from ``file_accessor.read()`` propagate
-            so the pipeline can decide not to mark the file as done
-            (retry on resume).
-        """
+        """Full scan: check_file, optional I/O, scan_with_data, filter."""
         check = self.check_file(file_path, size, mtime_epoch, ctime_epoch, atime_epoch)
 
         if check.status == FileCheckStatus.DISCARD:
@@ -282,20 +228,16 @@ class FileScanner:
         if check.status == FileCheckStatus.SNAFFLE:
             return self._filter_result(check.result)
 
-        # Phase 2 requires data — read it
         if self.file_accessor is None:
             if check._best_result:
                 return self._filter_result(check._best_result)
             return None
 
-        # read() may raise on transport errors — let those propagate
-        # so the pipeline can track the failure.
         data = self.file_accessor.read(
             file_path,
             max_bytes=self._max_read_bytes,
         )
         if not data:
-            # Access denied or empty — filter whatever we have from Phase 1
             if check._best_result:
                 return self._filter_result(check._best_result)
             return None
@@ -310,229 +252,20 @@ class FileScanner:
             logger.warning(f"Classification error scanning {file_path}: {e}")
             return None
 
-    # -------------------------------------------------------------- Pure evaluation (no I/O)
+    def _evaluate_archive(self, ctx, data):
+        return evaluate_archive(ctx, data, self.rule_evaluator)
 
-    def _evaluate_content(
-            self,
-            ctx: FileContext,
-            data: bytes,
-            content_rules,
-    ) -> Optional[FileResult]:
-        """Evaluate content rules against raw data. No I/O, no finalization."""
-        if not data:
-            return None
-
-        try:
-            text = data.decode("utf-8")
-        except UnicodeDecodeError:
-            text = data.decode("latin-1", errors="ignore")
-            logger.debug(f"Non-UTF-8 content in {ctx.unc_path}, decoded as Latin-1")
-
-        best_result: Optional[FileResult] = None
-
-        # Cache postmatch result — invariant within a file, evaluated lazily
-        postmatch_checked = False
-        postmatch_discard = False
-
-        for rule in content_rules:
-            match = rule.matches(text)
-            if not match:
-                continue
-
-            # Evaluate postmatch once, after the first content match
-            if not postmatch_checked:
-                postmatch_checked = True
-                postmatch_discard = self.rule_evaluator.should_discard_postmatch(ctx)
-            if postmatch_discard:
-                continue
-
-            # matches() returns re.Match for regex, str for EXACT
-            if isinstance(match, str):
-                match_text = match
-                pos = text.find(match)
-                match_start = pos if pos >= 0 else 0
-                match_end = match_start + len(match)
-            else:
-                match_text = match.group(0)
-                match_start = match.start()
-                match_end = match.end()
-
-            start = max(0, match_start - self._match_context_bytes)
-            end = min(len(text), match_end + self._match_context_bytes)
-
-            result = FileResult(
-                file_path=ctx.unc_path,
-                size=ctx.size,
-                modified=ctx.modified,
-                created=ctx.created,
-                accessed=ctx.accessed,
-                triage=rule.triage,
-                rule_name=rule.rule_name,
-                match=match_text,
-                context=text[start:end],
-            )
-
-            best_result = FileResult.pick_best(best_result, result)
-
-            # Black (level 3) is the maximum severity — nothing can beat it
-            if best_result and best_result.triage == Triage.BLACK:
-                break
-
-        return best_result
-
-    # -------------------------------------------------------------- Archives
-
-    def _evaluate_archive(
-            self,
-            ctx: FileContext,
-            data: bytes,
-    ) -> Optional[FileResult]:
-        """Evaluate archive members against file rules. No I/O, no finalization."""
-        try:
-            with io.BytesIO(data) as bio:
-                members = self._list_archive_members(ctx.ext, bio)
-            if not members:
-                return None
-
-            best_result: Optional[FileResult] = None
-            for member_name, member_size in members:
-                # Normalize backslash paths (Windows-created archives)
-                member_name = member_name.replace("\\", "/")
-                basename = os.path.basename(member_name)
-                member_ext = os.path.splitext(basename)[1].lower()
-                member_unc = f"{ctx.unc_path}\u2192{member_name}"
-
-                member_ctx = FileContext(
-                    unc_path=member_unc,
-                    name=basename,
-                    ext=member_ext,
-                    size=member_size,
-                    modified=ctx.modified,
-                    created=ctx.created,
-                    accessed=ctx.accessed,
-                )
-
-                for rule in self.rule_evaluator.file_rules:
-                    decision = self.rule_evaluator.evaluate_file_rule(
-                        rule, member_ctx
-                    )
-                    if not decision:
-                        continue
-
-                    action = decision.action
-                    if action == MatchAction.DISCARD:
-                        break
-                    if action != MatchAction.SNAFFLE:
-                        continue
-
-                    if self.rule_evaluator.should_discard_postmatch(member_ctx):
-                        continue
-
-                    result = FileResult(
-                        file_path=member_unc,
-                        size=member_size,
-                        modified=ctx.modified,
-                        created=ctx.created,
-                        accessed=ctx.accessed,
-                        triage=rule.triage,
-                        rule_name=rule.rule_name,
-                        match=decision.match,
-                    )
-                    best_result = FileResult.pick_best(best_result, result)
-
-                    if best_result and best_result.triage == Triage.BLACK:
-                        return best_result
-
-            return best_result
-        except Exception as e:
-            check_fatal_os_error(e)
-            logger.warning(
-                f"Archive peek failed for {ctx.unc_path}: {e}"
-            )
-            return None
-
-    _MAX_ARCHIVE_MEMBERS = 10_000
-
-    @staticmethod
-    def _list_archive_members(
-            ext: str, bio: io.BytesIO
-    ) -> Optional[List[tuple]]:
-        """Return list of (name, size) tuples for archive members."""
-        ext_lower = ext.lower()
-
-        cap = FileScanner._MAX_ARCHIVE_MEMBERS
-
-        if ext_lower == ".zip":
-            try:
-                with zipfile.ZipFile(bio) as zf:
-                    members = []
-                    for info in zf.infolist():
-                        if info.is_dir():
-                            continue
-                        members.append((info.filename, info.file_size))
-                        if len(members) >= cap:
-                            break
-                    return members
-            except (zipfile.BadZipFile, Exception) as e:
-                logger.debug(f"Cannot list archive members ({ext}): {e}")
-                return None
-
-        if ext_lower == ".7z":
-            try:
-                import py7zr
-            except ImportError:
-                logger.warning(
-                    "py7zr not installed — skipping 7z archive peek. "
-                    "Install with: pip install snaffler-ng[7z]"
-                )
-                return None
-            try:
-                with py7zr.SevenZipFile(bio, mode="r") as sz:
-                    members = []
-                    for entry in sz.list():
-                        if entry.is_directory:
-                            continue
-                        members.append((entry.filename, entry.uncompressed or 0))
-                        if len(members) >= cap:
-                            break
-                    return members
-            except Exception as e:
-                logger.debug(f"Cannot list archive members ({ext}): {e}")
-                return None
-
-        if ext_lower == ".rar":
-            try:
-                import rarfile as _rarfile
-            except ImportError:
-                logger.warning(
-                    "rarfile not installed — skipping RAR archive peek. "
-                    "Install with: pip install snaffler-ng[rar]"
-                )
-                return None
-            try:
-                with _rarfile.RarFile(bio) as rf:
-                    members = []
-                    for info in rf.infolist():
-                        if info.is_dir():
-                            continue
-                        members.append((info.filename, info.file_size))
-                        if len(members) >= cap:
-                            break
-                    return members
-            except Exception as e:
-                logger.debug(f"Cannot list archive members ({ext}): {e}")
-                return None
-
-        return None
-
-    # -------------------------------------------------------------- Certs
+    def _evaluate_content(self, ctx, data, content_rules):
+        return evaluate_content(
+            ctx, data, content_rules,
+            self.rule_evaluator, self._match_context_bytes,
+        )
 
     def _evaluate_certificate(
             self,
             ctx: FileContext,
             data: bytes,
     ) -> Optional[FileResult]:
-        """Evaluate certificate data for private keys. No I/O, no finalization."""
         if not data:
             return None
 
