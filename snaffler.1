@@ -1,6 +1,6 @@
-.TH SNAFFLER 1 "March 2026" "snaffler-ng 1.4.0" "User Commands"
+.TH SNAFFLER 1 "November 2026" "snaffler-ng 1.5.13" "User Commands"
 .SH NAME
-snaffler \- discover credentials and sensitive data on SMB shares
+snaffler \- discover credentials and sensitive data on SMB shares, FTP servers, and local filesystems
 .SH SYNOPSIS
 .B snaffler
 .RB [ \-u
@@ -10,22 +10,33 @@ snaffler \- discover credentials and sensitive data on SMB shares
 .RB [ \-d
 .IR DOMAIN ]
 .RI [ OPTIONS ]
+.PP
+.B snaffler results
+.RB [ \-s
+.IR DB ]
+.RB [ \-f
+.IR FORMAT ]
+.RI [ SUBCOMMAND ]
 .SH DESCRIPTION
 .B snaffler
 (snaffler-ng) is a post-exploitation tool that discovers readable SMB shares,
-walks directory trees, and identifies credentials and sensitive data on Windows
-systems. It is an Impacket-based Python port of the original C# Snaffler.
+FTP servers, and local directories, walks their trees, and identifies
+credentials and sensitive data using rule-based matching. It is an
+Impacket-based Python port of the original C# Snaffler.
 .PP
-The tool operates in three pipeline stages:
+The tool operates in four pipeline stages:
 .IP 1. 4
 .B Domain Discovery
 \- queries Active Directory via LDAP for computer objects and DFS namespaces
 .IP 2. 4
 .B Share Discovery
-\- enumerates SMB shares on target hosts and checks readability
+\- enumerates SMB shares on target hosts and checks readability (and write access)
 .IP 3. 4
 .B File Scanning
 \- walks directory trees and classifies files using rule-based matching
+.IP 4. 4
+.B FTP Scanning
+\- connects to FTP/FTPS servers and walks their directory trees
 .PP
 Findings are assigned a triage severity:
 .B Black
@@ -36,6 +47,11 @@ Findings are assigned a triage severity:
 (medium), or
 .B Green
 (low).
+.PP
+Scan state is persisted to a SQLite database. If an existing state DB is
+found, the scan automatically resumes from where it left off. Use
+.B \-\-fresh
+to start clean.
 .SH OPTIONS
 .SS General
 .TP
@@ -55,69 +71,127 @@ Password for authentication (NTLM).
 .BI \-\-hash " TEXT"
 NT hash for Pass-the-Hash authentication.
 .TP
-.BR \-d ", " \-\-domain " " \fITEXT\fR
-Target Active Directory domain or Kerberos realm (e.g. CORP.LOCAL).
-When provided without \fB\-\-computer\fR or \fB\-\-unc\fR, triggers full domain
-discovery via LDAP.
-.TP
-.BI \-\-dc\-host " TEXT"
-Domain controller hostname, FQDN, or IP address.
-Hostnames are required for Kerberos LDAP.
-.TP
-.BR \-e ", " \-\-timeout " " \fIINTEGER\fR
-SMB timeout in seconds. Default: 5.
-.TP
 .BR \-k ", " \-\-kerberos
-Use Kerberos authentication. Requires \fB\-\-domain\fR and hostnames/FQDNs
+Use Kerberos authentication. Requires \fB\-d\fR and hostnames/FQDNs
 as targets.
 .TP
 .B \-\-use\-kcache
 Use Kerberos credentials from ccache (reads \fBKRB5CCNAME\fR environment
 variable).
-.TP
-.BI \-\-socks " URL"
-Route all connections through a SOCKS proxy for pivoting. Accepts
-\fBsocks5://host:port\fR, \fBsocks4://host:port\fR, or bare \fBhost:port\fR
-(defaults to SOCKS5). Authenticated proxies use \fBsocks5://user:pass@host:port\fR.
-Requires the \fBpysocks\fR package (\fBpip install pysocks\fR).
-DNS resolution is performed on the proxy side so internal hostnames resolve correctly.
 .SS Targeting
 .TP
-.BI \-\-unc " TEXT"
-Direct UNC path(s) to scan. Disables computer/share discovery. Can be
-specified multiple times.
+.BR \-d ", " \-\-domain " " \fITEXT\fR
+Target Active Directory domain or Kerberos realm (e.g. CORP.LOCAL).
+When provided without \fB\-\-computer\fR or \fB\-\-unc\fR, triggers full domain
+discovery via LDAP.
 .TP
-.BI \-\-local " PATH"
-Local directory path(s) to scan. Scans the local filesystem instead of SMB.
-Can be specified multiple times. Mutually exclusive with \fB\-\-unc\fR,
-\fB\-\-computer\fR, \fB\-\-domain\fR, and \fB\-\-stdin\fR.
-.TP
-.BI \-\-computer " TEXT"
-Target computer(s) by hostname, FQDN, or IP. Can be specified multiple times.
+.BR \-c ", " \-\-computer " " \fITEXT\fR
+Target computer(s) by hostname, IP, CIDR (10.0.0.0/24), or range
+(10.0.0.1\-50). Can be specified multiple times.
 Kerberos requires names, not IPs.
 .TP
 .BI \-\-computer\-file " PATH"
 File containing computer names, one per line.
 .TP
+.BI \-\-unc " TEXT"
+Direct UNC path(s) to scan. Disables computer/share discovery. Can be
+specified multiple times.
+.TP
+.BI \-\-local\-fs " PATH"
+Local directory path(s) to scan. Scans the local filesystem instead of SMB.
+Can be specified multiple times. Mutually exclusive with \fB\-\-unc\fR,
+\fB\-\-computer\fR, \fB\-\-domain\fR, and \fB\-\-stdin\fR.
+.TP
+.BI \-\-ftp " URL"
+FTP target URL(s) to scan (e.g. ftp://10.0.0.5/data or bare 10.0.0.5).
+Can be specified multiple times.
+.TP
+.BI \-\-ftp\-file " PATH"
+File containing FTP targets (one per line, same format as \fB\-\-ftp\fR).
+.TP
+.B \-\-ftp\-tls
+Use FTPS (FTP over TLS) for \fB\-\-ftp\fR targets.
+.TP
 .BR \-a ", " \-\-shares\-only
 Only enumerate shares, skip filesystem walking.
 .TP
-.B \-\-no\-skip\-disabled
-Don't skip disabled or stale computer accounts. By default, disabled machines
-and those inactive for 4+ months are skipped.
-.TP
 .B \-\-stdin
 Read NetExec (nxc) SMB \fB\-\-shares\fR output from stdin and use as UNC targets.
+.TP
+.B \-\-grab
+Bulk download mode: read file paths from stdin, download to \fB\-m\fR directory
+(no scanning).
+.TP
+.B \-\-include\-disabled
+Include disabled and stale (4+ months inactive) computer accounts. By
+default these are skipped.
+.TP
+.BI \-\-share " GLOB"
+Only scan shares matching glob pattern (case-insensitive, repeatable).
+.TP
+.BI \-\-exclude\-share " GLOB"
+Skip shares matching glob pattern (case-insensitive, repeatable).
+.TP
+.BI \-\-exclude\-unc " GLOB"
+Skip paths matching glob pattern (case-insensitive, repeatable). Also
+available as \fB\-\-exclude\-path\fR. Works with both UNC and local paths.
+.TP
+.BI \-\-exclusions " PATH"
+File of hostnames/IPs to skip (one per line).
+.TP
+.BI \-\-max\-hosts " INTEGER"
+Stop after scanning N hosts (applied after exclusions).
+.TP
+.B \-\-no\-check\-writable
+Skip the per-share write-access probe (RW detection is on by default).
+.TP
+.B \-\-check\-writable
+Force-enable the per-share write-access probe (overrides a config
+\fBcheck_writable = false\fR).
+.TP
+.B \-\-rescan\-unreadable
+Re-test previously unreadable shares from state DB with current creds.
+.TP
+.B \-\-domain\-users
+Discover interesting AD users and match their names in file contents.
+Requires \fB\-d\fR.
+.TP
+.BI \-\-user\-match " TEXT"
+Keyword filter for interesting usernames (repeatable; default:
+sql,svc,service,...).
+.TP
+.BI \-\-user\-min\-len " INTEGER"
+Minimum username length for dynamic user rules. Default: 6.
+.SS Network
+.TP
+.BI \-\-dc\-host " TEXT"
+Domain controller hostname, FQDN, or IP address.
+Hostnames are required for Kerberos LDAP.
+.TP
+.BI \-\-timeout " INTEGER"
+SMB timeout in seconds. Default: 5.
+.TP
+.BI \-\-socks " URL"
+Route all connections through a SOCKS proxy for pivoting. Accepts
+\fBsocks5://host:port\fR, \fBsocks4://host:port\fR, or bare \fBhost:port\fR
+(defaults to SOCKS5). Authenticated proxies use \fBsocks5://user:pass@host:port\fR.
+Requires the \fBpysocks\fR package (\fBpip install snaffler-ng[socks]\fR).
+DNS resolution is performed on the proxy side so internal hostnames resolve correctly.
+.TP
+.BI \-\-nameserver " IP"
+Custom DNS server for hostname resolution (e.g. DC IP). Also available
+as \fB\-\-ns\fR.
 .SS Output
 .TP
 .BR \-o ", " \-\-output " " \fIPATH\fR
 Write results to file.
 .TP
 .BI \-\-log\-level " [debug|info|data]"
-Log level. Default: info.
+Log level. Default: info. The \fBdata\fR level shows findings only.
 .TP
-.BR \-t ", " \-\-log\-type " " \fITEXT\fR
-Log format: plain, json, or tsv. Default: plain.
+.BR \-t ", " \-\-log\-type " " \fI[plain|json|tsv]\fR
+Output format. Auto-detected from \fB\-o\fR file extension if omitted;
+falls back to plain.
 .TP
 .BR \-q ", " \-\-no\-banner
 Disable startup banner.
@@ -141,24 +215,98 @@ Directory to copy interesting files into.
 .TP
 .BR \-j ", " \-\-context " " \fIINTEGER\fR
 Bytes of context around matched strings. Default: 200.
+.TP
+.BI \-\-max\-depth " INTEGER"
+Maximum directory recursion depth (0 = share root only). Unlimited by default.
+.TP
+.B \-\-fast
+Skip known time-waster directories and interleave share walking.
+.TP
+.BI \-\-match " REGEX"
+Only output findings matching this regex (applied to path, rule, match,
+and context).
 .SS Advanced
 .TP
 .BR \-x ", " \-\-max\-threads " " \fIINTEGER\fR
 Maximum total worker threads, split equally across share/tree/file stages.
 Default: 60.
 .TP
+.BI \-\-dns\-threads " INTEGER"
+Concurrent threads for DNS and port 445 reachability probes. Default: 100.
+.TP
+.BI \-\-max\-threads\-per\-share " INTEGER"
+Max concurrent tree-walk threads per share (0 = unlimited; \fB\-\-fast\fR
+auto-sets this). Default: 0.
+.TP
 .BR \-z ", " \-\-config " " \fIPATH\fR
 Path to TOML configuration file.
 .TP
 .BR \-R ", " \-\-rule\-dir " " \fIPATH\fR
 Directory containing custom TOML rule files.
-.SS Resume
 .TP
-.B \-\-resume
-Resume a previous scan from SQLite state database.
+.B \-\-stealth
+OPSEC mode: pad LDAP queries with random attributes to break IDS signatures.
 .TP
 .BI \-\-state " PATH"
-Path to resume state database (SQLite).
+Path to state database. Default: ./snaffler.db. If the DB exists, the scan
+automatically resumes from it.
+.TP
+.B \-\-fresh
+Ignore existing state DB and start a clean scan.
+.SS Web Dashboard
+.TP
+.B \-\-web
+Enable live web dashboard during scan. Requires \fBpip install snaffler-ng[web]\fR.
+.TP
+.BI \-\-web\-port " INTEGER"
+Port for web dashboard. Default: 8080.
+.SH SUBCOMMANDS
+.SS snaffler results
+Display stats and findings from a scan state database.
+.TP
+.BR \-s ", " \-\-state " " \fIPATH\fR
+Path to scan state database. Default: snaffler.db.
+.TP
+.BR \-f ", " \-\-format " " \fI[plain|json|html]\fR
+Output format. Default: plain.
+.TP
+.BR \-b ", " \-\-min\-interest " " \fIINTEGER\fR
+Minimum severity to show (0=all, 1=Yellow+, 2=Red+, 3=Black only).
+.TP
+.BR \-r ", " \-\-rule " " \fINAME\fR
+Filter findings by rule name (repeatable).
+.TP
+.BR \-hu ", " \-\-hide\-unreadable
+Hide unreadable shares section.
+.TP
+.B \-\-files
+Print one file path per line (pipe into \fB\-\-grab\fR).
+.TP
+.B \-\-no\-color
+Disable colored output.
+.SS snaffler results rules
+List all matching rules and their finding counts.
+.TP
+.BR \-f ", " \-\-format " " \fI[plain|json]\fR
+Output format.
+.SS snaffler results export
+Export scan results as a gzip-compressed DB or JSON file.
+.PP
+.RS 4
+.nf
+snaffler results export findings.json
+snaffler results export backup.db
+.fi
+.RE
+.SS snaffler results import
+Import and merge findings from another scan DB or JSON export.
+.PP
+.RS 4
+.nf
+snaffler results import other_scan.db
+snaffler results import findings.json
+.fi
+.RE
 .SH EXAMPLES
 Full domain discovery (LDAP computer enumeration + DFS + share scan):
 .PP
@@ -180,7 +328,39 @@ Scan multiple computers with share discovery:
 .PP
 .RS 4
 .nf
-snaffler -u admin -p pass --computer dc01 --computer fs01
+snaffler -u admin -p pass -c dc01 -c fs01
+.fi
+.RE
+.PP
+Scan a CIDR range:
+.PP
+.RS 4
+.nf
+snaffler -u admin -p pass -c 10.0.0.0/24
+.fi
+.RE
+.PP
+Scan local filesystem directories:
+.PP
+.RS 4
+.nf
+snaffler --local-fs /mnt/share --local-fs /opt/backups
+.fi
+.RE
+.PP
+Scan FTP servers:
+.PP
+.RS 4
+.nf
+snaffler -u ftpuser -p pass --ftp ftp://10.0.0.5/data --ftp 10.0.0.6
+.fi
+.RE
+.PP
+Scan FTP over TLS:
+.PP
+.RS 4
+.nf
+snaffler -u ftpuser -p pass --ftp 10.0.0.5 --ftp-tls
 .fi
 .RE
 .PP
@@ -217,11 +397,27 @@ snaffler -u admin -p pass -d CORP.LOCAL -t json -b 2 -o findings.json
 .fi
 .RE
 .PP
-Resume interrupted scan:
+Fast scan with depth limit and web dashboard:
 .PP
 .RS 4
 .nf
-snaffler -u admin -p pass --computer-file targets.txt --resume
+snaffler -u admin -p pass -d CORP.LOCAL --fast --max-depth 3 --web
+.fi
+.RE
+.PP
+Filter shares and exclude paths:
+.PP
+.RS 4
+.nf
+snaffler -u admin -p pass -c fs01 --share 'HR*' --exclude-unc '*\\Windows\\*'
+.fi
+.RE
+.PP
+Stealth mode with custom DNS:
+.PP
+.RS 4
+.nf
+snaffler -u admin -p pass -d CORP.LOCAL --stealth --nameserver 10.0.0.1
 .fi
 .RE
 .PP
@@ -230,6 +426,34 @@ Pivot through a SOCKS proxy (e.g. Chisel, Ligolo, SSH tunnel):
 .RS 4
 .nf
 snaffler -u admin -p pass -d CORP.LOCAL --socks socks5://127.0.0.1:1080
+.fi
+.RE
+.PP
+Fresh scan (ignore previous state):
+.PP
+.RS 4
+.nf
+snaffler -u admin -p pass --computer-file targets.txt --fresh
+.fi
+.RE
+.PP
+View results from scan database:
+.PP
+.RS 4
+.nf
+snaffler results
+snaffler results -b 2 -f json
+snaffler results --files | snaffler -u admin -p pass --grab -m ./loot
+snaffler results rules
+snaffler results export backup.json
+.fi
+.RE
+.PP
+Bulk download flagged files:
+.PP
+.RS 4
+.nf
+snaffler results --files -b 2 | snaffler -u admin -p pass --grab -m ./loot
 .fi
 .RE
 .SH TRIAGE LEVELS
@@ -247,8 +471,9 @@ Medium: potentially interesting files.
 Low: mildly interesting.
 .SH FILES
 .TP
-.I snaffler_state.db
-Default SQLite resume state database (created in current directory).
+.I snaffler.db
+Default SQLite state database (created in current directory). Enables
+automatic scan resume.
 .TP
 .I rules/*.toml
 Custom TOML rule files loaded via \fB\-\-rule\-dir\fR.
