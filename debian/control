@@ -9,9 +9,9 @@ Build-Depends: debhelper-compat (= 13),
                python3-setuptools,
                pybuild-plugin-pyproject,
                python3-impacket (>= 0.11.0),
-               python3-typer (>= 0.12.0),
+               python3-typer (>= 0.15.0),
                python3-rich (>= 13.0.0),
-               python3-tomlkit,
+               python3-tomlkit (>= 0.12.0),
                python3-cryptography
 Standards-Version: 4.7.3
 Homepage: https://github.com/totekuh/snaffler-ng
@@ -25,17 +25,22 @@ Multi-Arch: foreign
 Depends: ${python3:Depends},
          ${misc:Depends},
          python3-impacket (>= 0.11.0),
-         python3-typer (>= 0.12.0),
+         python3-typer (>= 0.15.0),
          python3-rich (>= 13.0.0),
-         python3-tomlkit,
+         python3-tomlkit (>= 0.12.0),
          python3-cryptography
-Recommends: python3-socks
-Description: SMB share credential and sensitive data scanner
+Recommends: python3-socks,
+            python3-flask,
+            python3-py7zr,
+            python3-rarfile
+Description: Credential and sensitive data scanner for SMB, FTP, and local filesystems
  Impacket port of Snaffler, a post-exploitation tool that discovers readable
- SMB shares, walks directory trees, and identifies credentials and sensitive
- data on Windows file systems.
+ SMB shares, FTP servers, and local directories, walks their trees, and
+ identifies credentials and sensitive data.
  .
  Features include NTLM and Kerberos authentication, DFS namespace discovery,
- regex-based file and content classification with 103 built-in rules, archive
- peeking (ZIP/7z/RAR), triage severity levels (Black/Red/Yellow/Green), resume
- support via SQLite, and multiple output formats (plain, JSON, TSV).
+ FTP/FTPS scanning, local filesystem scanning, regex-based file and content
+ classification with 103+ built-in rules, archive peeking (ZIP/7z/RAR),
+ share writability detection, dynamic AD user discovery, triage severity
+ levels (Black/Red/Yellow/Green), auto-resume via SQLite, live web dashboard,
+ export/import of scan results, and multiple output formats (plain, JSON, TSV).

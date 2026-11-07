@@ -1,3 +1,56 @@
+snaffler-ng (1.5.13-0kali1) kali-dev; urgency=medium
+
+  * SMB share writability detection (RW/R shown per share)
+  * Add --check-writable / --no-check-writable flags
+  * Add created/accessed timestamp propagation to findings
+
+ -- totekuh <totekuh@protonmail.com>  Sat, 20 Jun 2026 12:00:00 +0000
+
+snaffler-ng (1.5.12-0kali1) kali-dev; urgency=medium
+
+  * Fix CLI flag detection broken by newer typer/click (issue #2)
+  * Raise typer floor to >= 0.15 (CLI does not parse correctly on 0.12)
+
+ -- totekuh <totekuh@protonmail.com>  Mon, 08 Jun 2026 12:00:00 +0000
+
+snaffler-ng (1.5.11-0kali1) kali-dev; urgency=medium
+
+  * --domain-users: NetBIOS (CORP\user) and UPN (user@corp.local) format variants
+
+ -- totekuh <totekuh@protonmail.com>  Sat, 29 Mar 2026 12:00:00 +0000
+
+snaffler-ng (1.5.10-0kali1) kali-dev; urgency=medium
+
+  * Eliminate silent fallbacks: --nameserver, WAL mode, --web failures now abort
+  * Transport errors propagate instead of silently marking files/hosts done
+  * Files with read errors are retried on resume instead of skipped
+
+ -- totekuh <totekuh@protonmail.com>  Sat, 28 Mar 2026 12:00:00 +0000
+
+snaffler-ng (1.5.9-0kali1) kali-dev; urgency=medium
+
+  * Add --domain-users: discover AD users and match names in file contents
+  * Add --user-match and --user-min-len for username filtering
+  * Export/import now gzip-compressed
+
+ -- totekuh <totekuh@protonmail.com>  Thu, 27 Mar 2026 12:00:00 +0000
+
+snaffler-ng (1.5.8-0kali1) kali-dev; urgency=medium
+
+  * Large-scale performance: SQLite tuning, partial indexes, batch writes
+  * Bloom filter dedup for 10M+ file environments
+  * Add `snaffler results export` and `snaffler results import` subcommands
+
+ -- totekuh <totekuh@protonmail.com>  Thu, 27 Mar 2026 12:00:00 +0000
+
+snaffler-ng (1.5.7-0kali1) kali-dev; urgency=medium
+
+  * Fix 8 resource leaks (SMB socket, FTP socket, BytesIO, FileHandler)
+  * EMFILE/ENFILE hard-fail guard — abort on file descriptor exhaustion
+  * Credential preflight validation before scanning
+
+ -- totekuh <totekuh@protonmail.com>  Wed, 26 Mar 2026 12:00:00 +0000
+
 snaffler-ng (1.5.6-0kali1) kali-dev; urgency=medium
 
   * Add --grab bulk download mode for downloading findings post-scan
