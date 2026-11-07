@@ -1,76 +1,3 @@
-"""Inline CSS and JS assets for the live web dashboard."""
-
-CSS_STYLES = """\
-  * { box-sizing: border-box; }
-  body { background: #1e1e1e; color: #d4d4d4; font-family: 'Cascadia Code', 'Fira Code', monospace; margin: 0; padding: 20px; }
-  h1 { color: #e0e0e0; margin-bottom: 4px; display: inline-block; }
-  h2 { color: #e0e0e0; margin: 20px 0 8px; }
-  .header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-  .elapsed { color: #888; font-size: 0.95em; font-variant-numeric: tabular-nums; }
-  .phase-badge { display: inline-flex; align-items: center; gap: 6px; background: #2d2d2d; border-radius: 6px; padding: 4px 12px; font-size: 0.85em; color: #ccc; }
-  .phase-dot { width: 8px; height: 8px; border-radius: 50%; background: #27ae60; }
-  .phase-dot.active { animation: pulse 1.2s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-  .cards { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
-  .card { background: #2d2d2d; border-radius: 8px; padding: 16px 24px; min-width: 140px; text-align: center; }
-  .card-value { font-size: 1.4em; font-weight: bold; color: #fff; transition: all 0.3s; }
-  .card-label { color: #888; font-size: 0.85em; margin-top: 4px; }
-  .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
-  .severities { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
-  .severity { display: flex; align-items: center; gap: 6px; font-size: 1em; }
-  .badge { display: inline-block; padding: 2px 10px; border-radius: 4px; color: #fff; font-weight: bold; font-size: 0.85em; }
-  .badge[data-triage] { cursor: pointer; user-select: none; transition: opacity 0.15s; }
-  .badge[data-triage].active { outline: 2px solid #fff; outline-offset: 1px; }
-  .badge[data-triage].dimmed { opacity: 0.35; }
-  #clear-filter { background: #333; color: #aaa; border: 1px solid #444; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-family: inherit; font-size: 0.85em; }
-  #clear-filter:hover { background: #444; color: #fff; }
-  #export-csv, #export-json { background: #333; color: #aaa; border: 1px solid #444; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-family: inherit; font-size: 0.85em; }
-  #export-csv:hover, #export-json:hover { background: #444; color: #fff; }
-  .rate-indicators { display: inline-flex; gap: 14px; align-items: center; font-size: 0.82em; color: #888; }
-  .rate { display: flex; align-items: center; gap: 4px; }
-  .rate span:first-child { color: #aaa; font-variant-numeric: tabular-nums; }
-  #rule-filter { padding: 8px 12px; background: #2d2d2d; color: #d4d4d4; border: 1px solid #444; border-radius: 6px; font-family: inherit; font-size: 0.9em; outline: none; max-width: 260px; }
-  #rule-filter:focus { border-color: #888; }
-  #search { flex: 1; min-width: 200px; padding: 10px 14px; background: #2d2d2d; color: #d4d4d4; border: 1px solid #444; border-radius: 6px; font-family: inherit; font-size: 1em; outline: none; }
-  #search:focus { border-color: #888; }
-  table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #444; color: #aaa; font-size: 0.8em; text-transform: uppercase; cursor: pointer; user-select: none; white-space: nowrap; }
-  th:hover { color: #fff; }
-  th.sort-asc::after { content: ' \2191'; color: #fff; }
-  th.sort-desc::after { content: ' \2193'; color: #fff; }
-  td { padding: 8px 12px; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
-  tbody tr { cursor: pointer; transition: filter 0.1s; }
-  tbody tr:hover { filter: brightness(1.3); }
-  tr[data-triage="Black"] { background: #271515; }
-  tr[data-triage="Red"] { background: #221212; }
-  tr[data-triage="Yellow"] { background: #201e0d; }
-  tr[data-triage="Green"] { background: #131d13; }
-  .path { word-break: break-all; max-width: 320px; }
-  .match { display: block; margin-top: 4px; font-size: 0.8em; color: #ffd700; background: #1e1900; border-left: 2px solid #ffd700; padding: 2px 6px; word-break: break-all; }
-  .context { font-size: 0.82em; color: #999; max-width: 280px; word-break: break-all; }
-  .footer { margin-top: 30px; color: #555; font-size: 0.8em; border-top: 1px solid #333; padding-top: 10px; }
-  /* Modal */
-  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
-  .overlay.hidden { display: none; }
-  .modal { background: #252525; border-radius: 10px; padding: 28px 32px; width: 100%; max-width: 820px; max-height: 88vh; overflow-y: auto; position: relative; border: 1px solid #3a3a3a; }
-  .modal-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
-  .modal-rule { flex: 1; font-size: 1em; font-weight: bold; color: #e0e0e0; word-break: break-all; }
-  .modal-close { background: none; border: none; color: #666; font-size: 1.5em; cursor: pointer; line-height: 1; padding: 0; flex-shrink: 0; }
-  .modal-close:hover { color: #fff; }
-  .modal-field { margin-bottom: 14px; }
-  .modal-field label { color: #666; font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px; }
-  .modal-path { word-break: break-all; display: flex; gap: 10px; align-items: flex-start; }
-  .modal-path span { flex: 1; }
-  .copy-btn { background: #333; border: 1px solid #555; color: #aaa; border-radius: 4px; padding: 2px 8px; font-size: 0.75em; cursor: pointer; flex-shrink: 0; font-family: inherit; }
-  .copy-btn:hover { background: #444; color: #fff; }
-  .modal-meta { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 14px; }
-  .modal-match { background: #1a1500; border-left: 3px solid #ffd700; padding: 10px 14px; color: #ffd700; white-space: pre-wrap; word-break: break-all; font-size: 0.88em; border-radius: 0 4px 4px 0; }
-  .modal-context { background: #1a1a1a; border-left: 3px solid #444; padding: 10px 14px; color: #aaa; white-space: pre-wrap; word-break: break-all; font-size: 0.85em; border-radius: 0 4px 4px 0; }
-  .new-row { animation: fadeIn 0.4s ease-out; }
-  @keyframes fadeIn { from { opacity: 0; background: #333; } to { opacity: 1; } }
-"""
-
-JS_SCRIPT = """\
 (function() {
   "use strict";
 
@@ -80,14 +7,15 @@ JS_SCRIPT = """\
   var activeTriage = null;
   var activeRule = "";
   var lastRowid = 0;
-  var findingsData = [];  // stores {match, context, rule} for modal + filter
-  var seenIds = {};       // finding_id → true (dedup on resume)
-  var knownRules = {};    // rule_name → true (for dropdown dedup)
+  var findingsData = [];
+  var seenIds = {};
+  var knownRules = {};
   var pollActive = true;
   var stopScheduled = false;
   var serverElapsed = 0;
   var localSyncTime = Date.now();
-  var isResultsMode = document.body.dataset.mode === "results";
+  var isResultsMode = (typeof __SNAFFLER_MODE !== "undefined" && __SNAFFLER_MODE === "results")
+    || (document.body && document.body.dataset.mode === "results");
   var prevFilesScanned = 0;
   var prevFindingsTotal = 0;
   var prevRateTime = Date.now();
@@ -179,7 +107,6 @@ JS_SCRIPT = """\
       var ruleOk = !activeRule || row.getAttribute("data-rule") === activeRule;
       var textOk = true;
       if (term) {
-        // Search visible text + full match/context from data array
         var idx = parseInt(row.getAttribute("data-idx"));
         var data = findingsData[idx] || {};
         var haystack = row.textContent.toLowerCase()
@@ -274,7 +201,6 @@ JS_SCRIPT = """\
     var idx = findingsData.length;
     findingsData.push({match: f.match_text || "", context: f.context || "", rule: f.rule_name || ""});
 
-    // Populate rule dropdown
     if (f.rule_name && !knownRules[f.rule_name]) {
       knownRules[f.rule_name] = true;
       var opt = document.createElement("option");
@@ -294,16 +220,10 @@ JS_SCRIPT = """\
     tr.className = "new-row";
 
     var ctxDisplay = (f.context || "").substring(0, 200);
-    if ((f.context || "").length > 200) ctxDisplay += "\u2026";
+    if ((f.context || "").length > 200) ctxDisplay += "…";
     var matchDisplay = (f.match_text || "").substring(0, 120);
-    if ((f.match_text || "").length > 120) matchDisplay += "\u2026";
+    if ((f.match_text || "").length > 120) matchDisplay += "…";
 
-    var matchHtml = "";
-    if (matchDisplay) {
-      matchHtml = '<span class="match"></span>';
-    }
-
-    // Build cells using textContent for XSS safety, except badge which is controlled
     tr.innerHTML =
       "<td>" + makeBadge(f.triage) + "</td>" +
       "<td></td>" +
@@ -317,7 +237,6 @@ JS_SCRIPT = """\
     tr.cells[3].textContent = f.size_str || "";
     tr.cells[4].textContent = f.mtime || "";
 
-    // Context cell: set text safely
     var ctxCell = tr.cells[5];
     ctxCell.textContent = ctxDisplay;
     if (matchDisplay) {
@@ -329,14 +248,12 @@ JS_SCRIPT = """\
 
     tr.addEventListener("click", function() { openModal(this); });
 
-    // Prepend (newest first)
     if (tbody.firstChild) {
       tbody.insertBefore(tr, tbody.firstChild);
     } else {
       tbody.appendChild(tr);
     }
 
-    // Apply current filter
     var triageOk = !activeTriage || f.triage === activeTriage;
     var ruleOk = !activeRule || f.rule_name === activeRule;
     var term = document.getElementById("search").value.toLowerCase();
@@ -356,11 +273,9 @@ JS_SCRIPT = """\
   function pollProgress() {
     if (!pollActive) return;
     fetch("/api/progress").then(function(r) { return r.json(); }).then(function(d) {
-      // Elapsed
       serverElapsed = d.elapsed_seconds || 0;
       localSyncTime = Date.now();
 
-      // Phase
       var phaseEl = document.getElementById("phase-text");
       var dotEl = document.getElementById("phase-dot");
       phaseEl.textContent = PHASE_LABELS[d.phase] || d.phase;
@@ -369,7 +284,6 @@ JS_SCRIPT = """\
         dotEl.style.background = "#888";
         if (!stopScheduled) {
           stopScheduled = true;
-          // One final findings poll after BatchWriter flush window
           setTimeout(function() {
             if (!isResultsMode) fetchFindings();
             pollActive = false;
@@ -383,7 +297,6 @@ JS_SCRIPT = """\
         dotEl.style.background = "#27ae60";
       }
 
-      // Cards
       document.getElementById("card-dns").textContent = (d.dns_resolved || 0).toLocaleString();
       document.getElementById("card-computers").textContent =
         (d.computers_done || 0).toLocaleString() + " / " + (d.computers_total || 0).toLocaleString();
@@ -392,17 +305,14 @@ JS_SCRIPT = """\
       document.getElementById("card-files").textContent =
         (d.files_scanned || 0).toLocaleString() + " / " + (d.files_total || 0).toLocaleString();
 
-      // Severity
       document.getElementById("sev-black").textContent = (d.severity_black || 0).toLocaleString();
       document.getElementById("sev-red").textContent = (d.severity_red || 0).toLocaleString();
       document.getElementById("sev-yellow").textContent = (d.severity_yellow || 0).toLocaleString();
       document.getElementById("sev-green").textContent = (d.severity_green || 0).toLocaleString();
 
-      // Findings count (total from server)
       var total = (d.severity_black || 0) + (d.severity_red || 0) + (d.severity_yellow || 0) + (d.severity_green || 0);
       document.getElementById("findings-count").textContent = total.toLocaleString();
 
-      // Rate indicators (live mode only)
       if (!isResultsMode) {
         var now = Date.now();
         var dt = (now - prevRateTime) / 1000;
@@ -428,7 +338,6 @@ JS_SCRIPT = """\
     var url = "/api/findings?since_rowid=" + lastRowid;
     fetch(url).then(function(r) { return r.json(); }).then(function(data) {
       if (data.findings && data.findings.length > 0) {
-        // Add in reverse so newest ends up on top
         for (var i = data.findings.length - 1; i >= 0; i--) {
           var f = data.findings[i];
           if (seenIds[f.finding_id]) continue;
@@ -493,4 +402,3 @@ JS_SCRIPT = """\
   var progressIval = setInterval(pollProgress, 2500);
   var findingsIval = isResultsMode ? null : setInterval(pollFindings, 2500);
 })();
-"""

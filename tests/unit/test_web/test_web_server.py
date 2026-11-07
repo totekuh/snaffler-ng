@@ -120,6 +120,13 @@ def _insert_share(db_path, unc_path, done=0):
     conn.close()
 
 
+def _read_dashboard_js():
+    """Read the static dashboard.js file directly."""
+    from pathlib import Path
+    js_path = Path(__file__).parent.parent.parent.parent / "snaffler" / "web" / "static" / "dashboard.js"
+    return js_path.read_text()
+
+
 # ── Dashboard page ───────────────────────────────────────────────
 
 def test_dashboard_returns_200(client):
@@ -131,10 +138,13 @@ def test_dashboard_returns_200(client):
 def test_dashboard_contains_key_elements(client):
     resp = client.get("/")
     html = resp.data.decode()
-    assert "api/progress" in html
-    assert "api/findings" in html
     assert "phase-dot" in html
     assert "card-files" in html
+    assert "dashboard.js" in html
+    assert "dashboard.css" in html
+    js = _read_dashboard_js()
+    assert "api/progress" in js
+    assert "api/findings" in js
 
 
 # ── Progress endpoint ────────────────────────────────────────────
@@ -441,71 +451,56 @@ def test_progress_api_phase_consistent_with_snapshot(client, progress):
 
 # ── Dashboard JS correctness ─────────────────────────────────────
 
-def test_dashboard_has_timer_interval_id(client):
+def test_dashboard_has_timer_interval_id():
     """W5: timer interval is stored so it can be cleared on complete."""
-    resp = client.get("/")
-    html = resp.data.decode()
-    assert "var timerIval" in html
-    assert "timerIval = setInterval" in html
+    js = _read_dashboard_js()
+    assert "var timerIval" in js
+    assert "timerIval = setInterval" in js
 
 
-def test_dashboard_clears_intervals_on_complete(client):
+def test_dashboard_clears_intervals_on_complete():
     """W5: all intervals are cleared when phase becomes complete."""
-    resp = client.get("/")
-    html = resp.data.decode()
-    assert "clearInterval(timerIval)" in html
-    assert "clearInterval(progressIval)" in html
-    assert "clearInterval(findingsIval)" in html
+    js = _read_dashboard_js()
+    assert "clearInterval(timerIval)" in js
+    assert "clearInterval(progressIval)" in js
+    assert "clearInterval(findingsIval)" in js
 
 
-def test_dashboard_sort_table_function(client):
+def test_dashboard_sort_table_function():
     """W6: sortTable() is a standalone function called after adding rows."""
-    resp = client.get("/")
-    html = resp.data.decode()
-    assert "function sortTable()" in html
-    # Called in pollFindings after adding rows
-    assert "sortTable();" in html
+    js = _read_dashboard_js()
+    assert "function sortTable()" in js
+    assert "sortTable();" in js
 
 
-def test_dashboard_no_poll_stats(client):
+def test_dashboard_no_poll_stats():
     """W10: pollStats removed — no wasted /api/stats fetches."""
-    resp = client.get("/")
-    html = resp.data.decode()
-    assert "pollStats" not in html
+    js = _read_dashboard_js()
+    assert "pollStats" not in js
 
 
-def test_dashboard_unknown_triage_sort(client):
+def test_dashboard_unknown_triage_sort():
     """W15: unknown triage values get sort order 99 instead of NaN."""
-    resp = client.get("/")
-    html = resp.data.decode()
-    # The sort function uses `in TRIAGE_ORDER` guard with fallback to 99
-    assert "TRIAGE_ORDER[at] : 99" in html
+    js = _read_dashboard_js()
+    assert "TRIAGE_ORDER[at] : 99" in js
 
 
 # ── Werkzeug logging suppression ─────────────────────────────────
 
 # ── BUG-G11: Dashboard final poll on completion ───────────────────
 
-def test_dashboard_final_poll_on_complete(client):
+def test_dashboard_final_poll_on_complete():
     """BUG-G11: When phase becomes 'complete', the dashboard must schedule
-    one final fetchFindings() call via setTimeout before stopping polls.
-
-    This ensures any findings flushed by BatchWriter's final drain are
-    picked up by the dashboard.
-    """
+    one final fetchFindings() call via setTimeout before stopping polls."""
     import re
 
-    resp = client.get("/")
-    html = resp.data.decode()
+    js = _read_dashboard_js()
 
-    # The complete handler must contain a setTimeout that calls fetchFindings
-    assert "setTimeout" in html, "Dashboard JS must use setTimeout for final poll"
-    assert "fetchFindings()" in html, "Dashboard JS must call fetchFindings() in the final poll"
+    assert "setTimeout" in js, "Dashboard JS must use setTimeout for final poll"
+    assert "fetchFindings()" in js, "Dashboard JS must call fetchFindings() in the final poll"
 
-    # Verify the setTimeout is inside the complete-phase handler and calls fetchFindings
-    # Pattern: setTimeout(function() { ... fetchFindings() ... }, <delay>)
     pattern = r"setTimeout\s*\(\s*function\s*\(\)\s*\{[^}]*fetchFindings\(\)"
-    match = re.search(pattern, html)
+    match = re.search(pattern, js)
     assert match is not None, (
         "Dashboard must schedule fetchFindings() inside a setTimeout callback "
         "when phase is complete"
@@ -625,12 +620,10 @@ def test_serve_results_missing_db(tmp_path):
         serve_results(str(tmp_path / "nonexistent.db"))
 
 
-def test_results_js_has_mode_detection(db_path):
-    with _results_client(db_path) as client:
-        resp = client.get("/")
-        html = resp.data.decode()
-        assert "isResultsMode" in html
-        assert "fetchFindingsPage" in html
+def test_results_js_has_mode_detection():
+    js = _read_dashboard_js()
+    assert "isResultsMode" in js
+    assert "fetchFindingsPage" in js
 
 
 # ── Pagination ───────────────────────────────────────────────────
@@ -747,9 +740,10 @@ def test_export_csv_min_interest_filter(client, db_path):
 def test_dashboard_has_rate_indicators(client):
     resp = client.get("/")
     html = resp.data.decode()
-    assert "rate-files" in html
-    assert "rate-findings" in html
     assert "rate-box" in html
+    js = _read_dashboard_js()
+    assert "rate-files" in js
+    assert "rate-findings" in js
 
 
 def test_results_mode_has_rate_hide_logic(db_path):
@@ -758,3 +752,27 @@ def test_results_mode_has_rate_hide_logic(db_path):
         html = resp.data.decode()
         assert 'data-mode="results"' in html
         assert "rate-box" in html
+
+
+# ── JS syntax validation ────────────────────────────────────────
+
+
+def test_dashboard_js_syntax_valid():
+    """JS file must have no unclosed string literals (bare newlines in strings)."""
+    js = _read_dashboard_js()
+    lines = js.split("\n")
+    for i, line in enumerate(lines):
+        stripped = line.rstrip()
+        if stripped.endswith(('"', "'")):
+            continue
+        in_str = False
+        quote = None
+        for ch in stripped:
+            if not in_str and ch in ('"', "'"):
+                in_str = True
+                quote = ch
+            elif in_str and ch == quote:
+                in_str = False
+        assert not in_str, (
+            f"Unclosed string literal at JS line {i+1}: {stripped[:80]}"
+        )

@@ -76,16 +76,20 @@ def create_app(progress, db_path, start_time, mode="live"):
         mode: "live" for active scan, "results" for completed DB
     """
     flask = _check_flask()
+    from pathlib import Path
     from snaffler.web.dashboard import render_dashboard
 
-    app = flask.Flask(__name__)
+    static_dir = Path(__file__).parent / "static"
+    app = flask.Flask(__name__, static_folder=str(static_dir), static_url_path="/static")
 
     # Suppress werkzeug request logging
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
     @app.route("/")
     def index():
-        return render_dashboard(mode=mode)
+        resp = flask.make_response(render_dashboard(mode=mode))
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
 
     @app.route("/api/progress")
     def api_progress():
@@ -317,8 +321,8 @@ def serve_results(db_path, port=8080):
     progress = _make_results_progress(db_path)
     app = create_app(progress, db_path, datetime.now(), mode="results")
 
-    logger.info(f"Serving results: http://127.0.0.1:{port}")
-    logger.info("Press Ctrl+C to stop")
+    print(f"Serving results: http://127.0.0.1:{port}")
+    print("Press Ctrl+C to stop")
     try:
         app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
     except OSError as exc:
