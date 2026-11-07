@@ -1,17 +1,32 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "snaffler-ng"
 version = "1.5.13"
-description = "Snaffler Impacket port - find credentials and sensitive data on SMB shares"
+description = "Find credentials and sensitive data on SMB shares, FTP servers, and local filesystems"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [
     { name = "totekuh", email = "totekuh@protonmail.com" }
 ]
 requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+]
 
 dependencies = [
     "impacket>=0.11.0",
@@ -29,16 +44,26 @@ packages = { find = {} }
 [tool.setuptools.package-data]
 snaffler = ["rules/*.toml"]
 
+[project.urls]
+Homepage = "https://github.com/totekuh/snaffler-ng"
+Repository = "https://github.com/totekuh/snaffler-ng"
+Issues = "https://github.com/totekuh/snaffler-ng/issues"
+Kali = "https://gitlab.com/kalilinux/packages/snaffler-ng"
+
 [project.optional-dependencies]
 socks = ["pysocks>=1.7.0"]
 web = ["flask>=3.0.0"]
 7z = ["py7zr>=0.20.0"]
 rar = ["rarfile>=4.0"]
-test = [
-    "pytest>=8.0",
-    "pytest-cov",
+all = [
+    "pysocks>=1.7.0",
     "flask>=3.0.0",
     "py7zr>=0.20.0",
     "rarfile>=4.0",
+]
+test = [
+    "snaffler-ng[all]",
+    "pytest>=8.0",
+    "pytest-cov",
     "pyftpdlib>=2.0.0",
 ]
