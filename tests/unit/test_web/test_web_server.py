@@ -143,7 +143,7 @@ def test_dashboard_contains_key_elements(client):
     html = resp.data.decode()
     assert "phase-dot" in html
     assert "card-files" in html
-    assert "js/state.js" in html
+    assert "js/dashboard.js" in html
     assert "css/base.css" in html
     js = _read_dashboard_js()
     assert "api/progress" in js

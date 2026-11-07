@@ -31,24 +31,35 @@ function syncBadges() {
 
 document.getElementById("search").addEventListener("input", applyFilter);
 
+function matchesTriage(row) {
+  return !activeTriage || row.getAttribute("data-triage") === activeTriage;
+}
+
+function matchesRule(row) {
+  return !activeRule || row.getAttribute("data-rule") === activeRule;
+}
+
+function matchesSearch(row, term) {
+  if (!term) return true;
+  var idx = parseInt(row.getAttribute("data-idx"));
+  var data = findingsData[idx] || {};
+  var haystack = [
+    row.textContent,
+    data.match || "",
+    data.context || ""
+  ].join("\n").toLowerCase();
+  return haystack.indexOf(term) !== -1;
+}
+
 function applyFilter() {
   var term = document.getElementById("search").value.toLowerCase();
   var visible = 0;
+
   document.querySelectorAll("#tbl tbody tr").forEach(function(row) {
-    var triageOk = !activeTriage || row.getAttribute("data-triage") === activeTriage;
-    var ruleOk = !activeRule || row.getAttribute("data-rule") === activeRule;
-    var textOk = true;
-    if (term) {
-      var idx = parseInt(row.getAttribute("data-idx"));
-      var data = findingsData[idx] || {};
-      var haystack = row.textContent.toLowerCase()
-        + "\n" + (data.match || "").toLowerCase()
-        + "\n" + (data.context || "").toLowerCase();
-      textOk = haystack.indexOf(term) !== -1;
-    }
-    var show = triageOk && ruleOk && textOk;
+    var show = matchesTriage(row) && matchesRule(row) && matchesSearch(row, term);
     row.style.display = show ? "" : "none";
     if (show) visible++;
   });
+
   document.getElementById("findings-visible").textContent = visible.toLocaleString();
 }

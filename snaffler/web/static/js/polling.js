@@ -62,6 +62,8 @@ function pollProgress() {
   }).catch(function() {});
 }
 
+// ── Findings fetch ──────────────────────────────────────────────
+
 function fetchFindings() {
   var url = "/api/findings?since_rowid=" + lastRowid;
   fetch(url).then(function(r) { return r.json(); }).then(function(data) {
@@ -83,6 +85,8 @@ function pollFindings() {
   if (!pollActive) return;
   fetchFindings();
 }
+
+// ── Paginated fetch (results mode) ──────────────────────────────
 
 var PAGE_SIZE = 500;
 var loadingMore = false;
@@ -110,3 +114,26 @@ function fetchFindingsPage() {
       }
     }).catch(function() { loadingMore = false; });
 }
+
+// ── Export ───────────────────────────────────────────────────────
+
+document.getElementById("export-csv").addEventListener("click", function() {
+  window.location.href = "/api/export/csv";
+});
+
+document.getElementById("export-json").addEventListener("click", function() {
+  window.location.href = "/api/export/json";
+});
+
+// ── Init ────────────────────────────────────────────────────────
+
+pollProgress();
+
+if (isResultsMode) {
+  fetchFindingsPage();
+} else {
+  fetchFindings();
+}
+
+var progressIval = setInterval(pollProgress, 2500);
+var findingsIval = isResultsMode ? null : setInterval(pollFindings, 2500);

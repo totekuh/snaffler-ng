@@ -30,6 +30,8 @@ document.querySelectorAll("th[data-col]").forEach(function(th) {
   });
 });
 
+// ── Add finding row ─────────────────────────────────────────────
+
 function addFindingRow(f) {
   var idx = findingsData.length;
   findingsData.push({match: f.match_text || "", context: f.context || "", rule: f.rule_name || ""});
@@ -57,18 +59,21 @@ function addFindingRow(f) {
   var matchDisplay = (f.match_text || "").substring(0, 120);
   if ((f.match_text || "").length > 120) matchDisplay += "…";
 
-  tr.innerHTML =
-    "<td>" + makeBadge(f.triage) + "</td>" +
-    "<td></td>" +
-    '<td class="path"></td>' +
-    "<td></td>" +
-    "<td></td>" +
-    '<td class="context"></td>';
-
-  tr.cells[1].textContent = f.rule_name;
-  tr.cells[2].textContent = f.file_path;
-  tr.cells[3].textContent = f.size_str || "";
-  tr.cells[4].textContent = f.mtime || "";
+  var cells = [
+    { content: makeBadge(f.triage) },
+    { text: f.rule_name },
+    { text: f.file_path, cls: "path" },
+    { text: f.size_str || "" },
+    { text: f.mtime || "" },
+    { cls: "context" }
+  ];
+  cells.forEach(function(spec) {
+    var td = document.createElement("td");
+    if (spec.cls) td.className = spec.cls;
+    if (spec.content) td.appendChild(spec.content);
+    if (spec.text) td.textContent = spec.text;
+    tr.appendChild(td);
+  });
 
   var ctxCell = tr.cells[5];
   ctxCell.textContent = ctxDisplay;
@@ -92,12 +97,60 @@ function addFindingRow(f) {
   var term = document.getElementById("search").value.toLowerCase();
   var textOk = true;
   if (term) {
-    var haystack = tr.textContent.toLowerCase()
-      + "\n" + (f.match_text || "").toLowerCase()
-      + "\n" + (f.context || "").toLowerCase();
+    var haystack = [
+      tr.textContent,
+      f.match_text || "",
+      f.context || ""
+    ].join("\n").toLowerCase();
     textOk = haystack.indexOf(term) !== -1;
   }
   if (!(triageOk && ruleOk && textOk)) {
     tr.style.display = "none";
   }
 }
+
+// ── Modal ───────────────────────────────────────────────────────
+
+var overlay = document.getElementById("overlay");
+
+function openModal(row) {
+  var idx = parseInt(row.getAttribute("data-idx"));
+  var data = findingsData[idx] || {};
+  var triage = row.getAttribute("data-triage");
+  var badgeContainer = document.getElementById("m-badge");
+  badgeContainer.textContent = "";
+  badgeContainer.appendChild(makeBadge(triage));
+  document.getElementById("m-rule").textContent = row.getAttribute("data-rule");
+  document.getElementById("m-path").textContent = row.getAttribute("data-path");
+  document.getElementById("m-size").textContent = row.getAttribute("data-size");
+  document.getElementById("m-mtime").textContent = row.getAttribute("data-mtime");
+  var matchWrap = document.getElementById("m-match-wrap");
+  if (data.match) {
+    document.getElementById("m-match").textContent = data.match;
+    matchWrap.style.display = "";
+  } else {
+    matchWrap.style.display = "none";
+  }
+  document.getElementById("m-context").textContent = data.context || "";
+  overlay.classList.remove("hidden");
+}
+
+document.getElementById("modal-close").addEventListener("click", function() {
+  overlay.classList.add("hidden");
+});
+
+overlay.addEventListener("click", function(e) {
+  if (e.target === overlay) overlay.classList.add("hidden");
+});
+
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") overlay.classList.add("hidden");
+});
+
+document.getElementById("copy-path").addEventListener("click", function(e) {
+  e.stopPropagation();
+  navigator.clipboard.writeText(document.getElementById("m-path").textContent);
+  var btn = this;
+  btn.textContent = "Copied!";
+  setTimeout(function() { btn.textContent = "Copy"; }, 1500);
+});
