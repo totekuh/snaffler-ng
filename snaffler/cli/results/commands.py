@@ -75,6 +75,18 @@ def results(
         "--files",
         help="Print one file path per line (pipe into --grab)",
     ),
+    web: bool = typer.Option(
+        False,
+        "--web",
+        help="Serve results in web dashboard (requires: pip install snaffler-ng[web])",
+        rich_help_panel="Web Dashboard",
+    ),
+    web_port: int = typer.Option(
+        8080,
+        "--web-port",
+        help="Port for web dashboard (default: 8080)",
+        rich_help_panel="Web Dashboard",
+    ),
 ):
     # Store shared options for subcommands
     ctx.ensure_object(dict)
@@ -84,6 +96,24 @@ def results(
 
     # If a subcommand is being invoked, skip the default results display
     if ctx.invoked_subcommand is not None:
+        return
+
+    if web:
+        try:
+            from snaffler.web.server import serve_results
+            serve_results(str(state), port=web_port)
+        except ImportError as exc:
+            typer.echo(
+                f"Error: --web requires Flask: {exc}\n"
+                f"Install with: pip install snaffler-ng[web]",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        except FileNotFoundError as exc:
+            typer.echo(f"Error: {exc}", err=True)
+            raise typer.Exit(code=1)
+        except KeyboardInterrupt:
+            pass
         return
 
     conn = _open_db(state)

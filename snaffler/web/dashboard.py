@@ -23,6 +23,10 @@ _MIDDLE = r"""
     <span class="phase-dot active" id="phase-dot"></span>
     <span id="phase-text">Initializing</span>
   </div>
+  <div class="rate-indicators" id="rate-box">
+    <span class="rate"><span id="rate-files">--</span> files/s</span>
+    <span class="rate"><span id="rate-findings">--</span> findings/min</span>
+  </div>
 </div>
 
 <div class="cards">
@@ -42,6 +46,8 @@ _MIDDLE = r"""
   <select id="rule-filter"><option value="">All Rules</option></select>
   <button id="clear-filter">Show All</button>
   <input id="search" type="text" placeholder="Filter findings (searches match &amp; context)..." />
+  <button id="export-csv" title="Export filtered findings as CSV">&#x2B07; CSV</button>
+  <button id="export-json" title="Export filtered findings as JSON">&#x2B07; JSON</button>
 </div>
 
 <h2>Findings (<span id="findings-visible">0</span> / <span id="findings-count">0</span>)</h2>
@@ -98,6 +104,13 @@ _TAIL = r"""
 </html>"""
 
 
-def render_dashboard() -> str:
-    """Return a complete HTML page for the live web dashboard."""
-    return _HEAD + CSS_STYLES + _MIDDLE + JS_SCRIPT + _TAIL
+def render_dashboard(mode: str = "live") -> str:
+    """Return a complete HTML page for the web dashboard."""
+    title = "Snaffler Results" if mode == "results" else "Snaffler Live"
+    head = _HEAD.replace("Snaffler Live</title>", f"{title}</title>")
+    middle = _MIDDLE
+    if mode == "results":
+        middle = middle.replace("<body>", '<body data-mode="results">')
+        middle = middle.replace(">Snaffler Live<", f">{title}<")
+        middle = middle.replace("snaffler-ng live dashboard", "snaffler-ng results dashboard")
+    return head + CSS_STYLES + middle + JS_SCRIPT + _TAIL

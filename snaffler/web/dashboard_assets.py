@@ -24,6 +24,11 @@ CSS_STYLES = """\
   .badge[data-triage].dimmed { opacity: 0.35; }
   #clear-filter { background: #333; color: #aaa; border: 1px solid #444; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-family: inherit; font-size: 0.85em; }
   #clear-filter:hover { background: #444; color: #fff; }
+  #export-csv, #export-json { background: #333; color: #aaa; border: 1px solid #444; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-family: inherit; font-size: 0.85em; }
+  #export-csv:hover, #export-json:hover { background: #444; color: #fff; }
+  .rate-indicators { display: inline-flex; gap: 14px; align-items: center; font-size: 0.82em; color: #888; }
+  .rate { display: flex; align-items: center; gap: 4px; }
+  .rate span:first-child { color: #aaa; font-variant-numeric: tabular-nums; }
   #rule-filter { padding: 8px 12px; background: #2d2d2d; color: #d4d4d4; border: 1px solid #444; border-radius: 6px; font-family: inherit; font-size: 0.9em; outline: none; max-width: 260px; }
   #rule-filter:focus { border-color: #888; }
   #search { flex: 1; min-width: 200px; padding: 10px 14px; background: #2d2d2d; color: #d4d4d4; border: 1px solid #444; border-radius: 6px; font-family: inherit; font-size: 1em; outline: none; }
@@ -82,21 +87,32 @@ JS_SCRIPT = """\
   var stopScheduled = false;
   var serverElapsed = 0;
   var localSyncTime = Date.now();
+  var isResultsMode = document.body.dataset.mode === "results";
+  var prevFilesScanned = 0;
+  var prevFindingsTotal = 0;
+  var prevRateTime = Date.now();
 
   // ── Elapsed timer ──────────────────────────────────────────────
   var elapsedEl = document.getElementById("elapsed");
-  var timerIval = setInterval(function() {
-    var now = Date.now();
-    var totalSec = serverElapsed + Math.floor((now - localSyncTime) / 1000);
-    if (totalSec < 0) totalSec = 0;
-    var h = Math.floor(totalSec / 3600);
-    var m = Math.floor((totalSec % 3600) / 60);
-    var s = totalSec % 60;
-    elapsedEl.textContent =
-      (h < 10 ? "0" : "") + h + ":" +
-      (m < 10 ? "0" : "") + m + ":" +
-      (s < 10 ? "0" : "") + s;
-  }, 1000);
+  var timerIval = null;
+  if (isResultsMode) {
+    elapsedEl.textContent = "";
+    var rateBox = document.getElementById("rate-box");
+    if (rateBox) rateBox.style.display = "none";
+  } else {
+    timerIval = setInterval(function() {
+      var now = Date.now();
+      var totalSec = serverElapsed + Math.floor((now - localSyncTime) / 1000);
+      if (totalSec < 0) totalSec = 0;
+      var h = Math.floor(totalSec / 3600);
+      var m = Math.floor((totalSec % 3600) / 60);
+      var s = totalSec % 60;
+      elapsedEl.textContent =
+        (h < 10 ? "0" : "") + h + ":" +
+        (m < 10 ? "0" : "") + m + ":" +
+        (s < 10 ? "0" : "") + s;
+    }, 1000);
+  }
 
   // ── Phase mapping ─────────────────────────────────────────────
   var PHASE_LABELS = {
@@ -355,11 +371,11 @@ JS_SCRIPT = """\
           stopScheduled = true;
           // One final findings poll after BatchWriter flush window
           setTimeout(function() {
-            fetchFindings();
+            if (!isResultsMode) fetchFindings();
             pollActive = false;
-            clearInterval(timerIval);
+            if (timerIval) clearInterval(timerIval);
             clearInterval(progressIval);
-            clearInterval(findingsIval);
+            if (findingsIval) clearInterval(findingsIval);
           }, 2000);
         }
       } else {
@@ -385,6 +401,25 @@ JS_SCRIPT = """\
       // Findings count (total from server)
       var total = (d.severity_black || 0) + (d.severity_red || 0) + (d.severity_yellow || 0) + (d.severity_green || 0);
       document.getElementById("findings-count").textContent = total.toLocaleString();
+
+      // Rate indicators (live mode only)
+      if (!isResultsMode) {
+        var now = Date.now();
+        var dt = (now - prevRateTime) / 1000;
+        if (dt >= 2) {
+          var filesDelta = (d.files_scanned || 0) - prevFilesScanned;
+          var filesPerSec = dt > 0 ? (filesDelta / dt) : 0;
+          var findingsDelta = total - prevFindingsTotal;
+          var findingsPerMin = dt > 0 ? (findingsDelta / dt * 60) : 0;
+          document.getElementById("rate-files").textContent =
+            filesPerSec > 0 ? Math.round(filesPerSec).toLocaleString() : "--";
+          document.getElementById("rate-findings").textContent =
+            findingsPerMin > 0 ? Math.round(findingsPerMin).toLocaleString() : "--";
+          prevFilesScanned = d.files_scanned || 0;
+          prevFindingsTotal = total;
+          prevRateTime = now;
+        }
+      }
     }).catch(function() {});
   }
 
@@ -412,11 +447,50 @@ JS_SCRIPT = """\
     fetchFindings();
   }
 
+  // ── Export buttons ─────────────────────────────────────────────
+  document.getElementById("export-csv").addEventListener("click", function() {
+    window.location.href = "/api/export/csv";
+  });
+  document.getElementById("export-json").addEventListener("click", function() {
+    window.location.href = "/api/export/json";
+  });
+
+  // ── Paginated fetch (results mode) ────────────────────────────
+  var PAGE_SIZE = 500;
+  var loadingMore = false;
+  function fetchFindingsPage() {
+    if (loadingMore) return;
+    loadingMore = true;
+    fetch("/api/findings?since_rowid=" + lastRowid + "&limit=" + PAGE_SIZE)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.findings && data.findings.length > 0) {
+          for (var i = data.findings.length - 1; i >= 0; i--) {
+            var f = data.findings[i];
+            if (seenIds[f.finding_id]) continue;
+            seenIds[f.finding_id] = true;
+            addFindingRow(f);
+          }
+          lastRowid = data.max_rowid || lastRowid;
+          sortTable();
+          applyFilter();
+        }
+        loadingMore = false;
+        if (data.has_more) {
+          setTimeout(fetchFindingsPage, 50);
+        }
+      }).catch(function() { loadingMore = false; });
+  }
+
   // ── Start polling ─────────────────────────────────────────────
   pollProgress();
-  fetchFindings();
+  if (isResultsMode) {
+    fetchFindingsPage();
+  } else {
+    fetchFindings();
+  }
 
   var progressIval = setInterval(pollProgress, 2500);
-  var findingsIval = setInterval(pollFindings, 2500);
+  var findingsIval = isResultsMode ? null : setInterval(pollFindings, 2500);
 })();
 """

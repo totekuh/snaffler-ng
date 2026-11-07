@@ -66,13 +66,14 @@ def _format_size(size):
         return f"{size / (1024 * 1024):.1f} MB"
 
 
-def create_app(progress, db_path, start_time):
+def create_app(progress, db_path, start_time, mode="live"):
     """Create and configure the Flask app.
 
     Args:
         progress: ProgressState instance (read-only, no DB I/O)
         db_path: Path to the SQLite state database
         start_time: datetime when the scan started
+        mode: "live" for active scan, "results" for completed DB
     """
     flask = _check_flask()
     from snaffler.web.dashboard import render_dashboard
@@ -84,7 +85,7 @@ def create_app(progress, db_path, start_time):
 
     @app.route("/")
     def index():
-        return render_dashboard()
+        return render_dashboard(mode=mode)
 
     @app.route("/api/progress")
     def api_progress():
@@ -115,6 +116,7 @@ def create_app(progress, db_path, start_time):
     def api_findings():
         min_interest = flask.request.args.get("min_interest", 0, type=int)
         since_rowid = flask.request.args.get("since_rowid", 0, type=int)
+        limit = flask.request.args.get("limit", 0, type=int)
 
         # Map min_interest to allowed triage levels
         triage_order = {"Black": 0, "Red": 1, "Yellow": 2, "Green": 3}
@@ -122,21 +124,26 @@ def create_app(progress, db_path, start_time):
         allowed = [name for name, order in triage_order.items() if order <= threshold]
 
         if not allowed:
-            return flask.jsonify({"findings": [], "max_rowid": since_rowid})
+            return flask.jsonify({"findings": [], "max_rowid": since_rowid, "has_more": False})
 
         try:
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
             try:
                 placeholders = ",".join("?" for _ in allowed)
-                rows = conn.execute(
+                query = (
                     f"SELECT rowid, finding_id, file_path, triage, rule_name, "  # noqa: S608
                     f"match_text, context, size, mtime, found_at "
                     f"FROM finding "
                     f"WHERE triage IN ({placeholders}) AND rowid > ? "
-                    f"ORDER BY rowid",
-                    [*allowed, since_rowid],
-                ).fetchall()
+                    f"ORDER BY rowid"
+                )
+                params = [*allowed, since_rowid]
+                if limit > 0:
+                    query += " LIMIT ?"
+                    params.append(limit)
+
+                rows = conn.execute(query, params).fetchall()
 
                 max_rowid = since_rowid
                 findings = []
@@ -150,10 +157,83 @@ def create_app(progress, db_path, start_time):
             finally:
                 conn.close()
 
-            return flask.jsonify({"findings": findings, "max_rowid": max_rowid})
+            has_more = limit > 0 and len(findings) == limit
+            return flask.jsonify({"findings": findings, "max_rowid": max_rowid, "has_more": has_more})
         except Exception as exc:
             logger.debug(f"/api/findings error: {exc}")
-            return flask.jsonify({"error": "Internal server error", "findings": [], "max_rowid": since_rowid}), 500
+            return flask.jsonify({"error": "Internal server error", "findings": [], "max_rowid": since_rowid, "has_more": False}), 500
+
+    @app.route("/api/export/csv")
+    def api_export_csv():
+        min_interest = flask.request.args.get("min_interest", 0, type=int)
+        triage_order = {"Black": 0, "Red": 1, "Yellow": 2, "Green": 3}
+        threshold = 3 - min_interest
+        allowed = [name for name, order in triage_order.items() if order <= threshold]
+
+        import csv
+        import io
+
+        def generate():
+            yield "triage,rule_name,file_path,size,mtime,match_text,context\n"
+            if not allowed:
+                return
+            try:
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                try:
+                    placeholders = ",".join("?" for _ in allowed)
+                    rows = conn.execute(
+                        f"SELECT triage, rule_name, file_path, size, mtime, "  # noqa: S608
+                        f"match_text, context FROM finding "
+                        f"WHERE triage IN ({placeholders}) ORDER BY rowid",
+                        allowed,
+                    )
+                    for row in rows:
+                        buf = io.StringIO()
+                        w = csv.writer(buf)
+                        w.writerow([row[k] if row[k] is not None else "" for k in
+                                    ("triage", "rule_name", "file_path", "size", "mtime", "match_text", "context")])
+                        yield buf.getvalue()
+                finally:
+                    conn.close()
+            except Exception as exc:
+                logger.debug(f"/api/export/csv error: {exc}")
+
+        return flask.Response(
+            generate(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=snaffler_findings.csv"},
+        )
+
+    @app.route("/api/export/json")
+    def api_export_json():
+        min_interest = flask.request.args.get("min_interest", 0, type=int)
+        triage_order = {"Black": 0, "Red": 1, "Yellow": 2, "Green": 3}
+        threshold = 3 - min_interest
+        allowed = [name for name, order in triage_order.items() if order <= threshold]
+
+        findings = []
+        if allowed:
+            try:
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                try:
+                    placeholders = ",".join("?" for _ in allowed)
+                    rows = conn.execute(
+                        f"SELECT finding_id, file_path, triage, rule_name, "  # noqa: S608
+                        f"match_text, context, size, mtime, found_at "
+                        f"FROM finding WHERE triage IN ({placeholders}) ORDER BY rowid",
+                        allowed,
+                    ).fetchall()
+                    findings = [dict(r) for r in rows]
+                finally:
+                    conn.close()
+            except Exception as exc:
+                logger.debug(f"/api/export/json error: {exc}")
+
+        resp = flask.jsonify({"findings": findings})
+        resp.headers["Content-Disposition"] = "attachment; filename=snaffler_findings.json"
+        return resp
 
     return app
 
@@ -192,3 +272,54 @@ def stop_web_server():
     """Clear the server thread reference. The daemon thread dies with the process."""
     global _server_thread
     _server_thread = None
+
+
+def _make_results_progress(db_path):
+    """Build a frozen ProgressState from a completed scan DB."""
+    from snaffler.utils.progress import ProgressState
+    from snaffler.cli.results import _query_stats
+
+    p = ProgressState()
+    try:
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        try:
+            stats = _query_stats(conn)
+        finally:
+            conn.close()
+        p.computers_total = stats["computers"]["total"]
+        p.computers_done = stats["computers"]["done"]
+        p.dns_total = stats["computers"]["total"]
+        p.dns_resolved = stats["computers"]["resolved"]
+        p.shares_found = stats["shares"]["total"]
+        p.shares_total = stats["shares"]["total"]
+        p.shares_walked = stats["shares"]["total"]
+        p.files_total = stats["files"]["total"]
+        p.files_scanned = stats["files"]["checked"]
+        p.files_matched = stats["findings"]["total"]
+        p.severity_black = stats["findings"]["black"]
+        p.severity_red = stats["findings"]["red"]
+        p.severity_yellow = stats["findings"]["yellow"]
+        p.severity_green = stats["findings"]["green"]
+    except Exception:
+        pass
+    p.scan_complete = True
+    return p
+
+
+def serve_results(db_path, port=8080):
+    """Serve a completed scan DB through the web dashboard (blocks until Ctrl+C)."""
+    import os
+    _check_flask()
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(f"Database not found: {db_path}")
+
+    progress = _make_results_progress(db_path)
+    app = create_app(progress, db_path, datetime.now(), mode="results")
+
+    logger.info(f"Serving results: http://127.0.0.1:{port}")
+    logger.info("Press Ctrl+C to stop")
+    try:
+        app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
+    except OSError as exc:
+        logger.error(f"Web dashboard failed to start on port {port}: {exc}")

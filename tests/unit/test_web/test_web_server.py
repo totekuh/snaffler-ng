@@ -12,7 +12,10 @@ import pytest
 flask = pytest.importorskip("flask")
 
 from snaffler.utils.progress import ProgressState
-from snaffler.web.server import create_app, _check_flask, _detect_phase
+from snaffler.web.server import (
+    create_app, _check_flask, _detect_phase,
+    _make_results_progress, serve_results,
+)
 
 
 # ── Fixtures ─────────────────────────────────────────────────────
@@ -442,7 +445,8 @@ def test_dashboard_has_timer_interval_id(client):
     """W5: timer interval is stored so it can be cleared on complete."""
     resp = client.get("/")
     html = resp.data.decode()
-    assert "var timerIval = setInterval" in html
+    assert "var timerIval" in html
+    assert "timerIval = setInterval" in html
 
 
 def test_dashboard_clears_intervals_on_complete(client):
@@ -543,3 +547,214 @@ def test_findings_error_does_not_leak_exception(progress, start_time, tmp_path):
         data = json.loads(resp.data)
         assert data["error"] == "Internal server error"
         assert "nonexistent" not in data["error"]
+
+
+# ── Results mode (--web on results) ──────────────────────────────
+
+
+def _results_client(db_path):
+    """Create a Flask test client in results mode."""
+    progress = _make_results_progress(db_path)
+    app = create_app(progress, db_path, datetime.now(), mode="results")
+    app.config["TESTING"] = True
+    return app.test_client()
+
+
+def test_results_progress_reports_complete(db_path):
+    with _results_client(db_path) as client:
+        resp = client.get("/api/progress")
+        data = json.loads(resp.data)
+        assert data["phase"] == "complete"
+        assert data["scan_complete"] is True
+
+
+def test_results_progress_has_db_counts(db_path):
+    _insert_finding(db_path, "f1", "//H/s/a.txt", "Black", "Rule1")
+    _insert_finding(db_path, "f2", "//H/s/b.txt", "Red", "Rule2")
+    _insert_finding(db_path, "f3", "//H/s/c.txt", "Yellow", "Rule3")
+    progress = _make_results_progress(db_path)
+    assert progress.severity_black == 1
+    assert progress.severity_red == 1
+    assert progress.severity_yellow == 1
+    assert progress.scan_complete is True
+
+
+def test_results_dashboard_title(db_path):
+    with _results_client(db_path) as client:
+        resp = client.get("/")
+        html = resp.data.decode()
+        assert "Snaffler Results" in html
+        assert "Snaffler Live" not in html
+        assert 'data-mode="results"' in html
+
+
+def test_results_dashboard_footer(db_path):
+    with _results_client(db_path) as client:
+        resp = client.get("/")
+        html = resp.data.decode()
+        assert "results dashboard" in html
+
+
+def test_results_findings_returns_all(db_path):
+    _insert_finding(db_path, "f1", "//H/s/a.txt", "Black", "Rule1")
+    _insert_finding(db_path, "f2", "//H/s/b.txt", "Red", "Rule2")
+    _insert_finding(db_path, "f3", "//H/s/c.txt", "Green", "Rule3")
+    with _results_client(db_path) as client:
+        resp = client.get("/api/findings")
+        data = json.loads(resp.data)
+        assert len(data["findings"]) == 3
+
+
+def test_results_stats_endpoint(db_path):
+    _insert_finding(db_path, "f1", "//H/s/a.txt", "Red", "Rule1")
+    _insert_computer(db_path, "HOST1", "10.0.0.1", done=1)
+    with _results_client(db_path) as client:
+        resp = client.get("/api/stats")
+        data = json.loads(resp.data)
+        assert data["findings"]["total"] == 1
+        assert data["computers"]["total"] == 1
+
+
+def test_make_results_progress_missing_db(tmp_path):
+    progress = _make_results_progress(str(tmp_path / "nonexistent.db"))
+    assert progress.scan_complete is True
+
+
+def test_serve_results_missing_db(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        serve_results(str(tmp_path / "nonexistent.db"))
+
+
+def test_results_js_has_mode_detection(db_path):
+    with _results_client(db_path) as client:
+        resp = client.get("/")
+        html = resp.data.decode()
+        assert "isResultsMode" in html
+        assert "fetchFindingsPage" in html
+
+
+# ── Pagination ───────────────────────────────────────────────────
+
+
+def test_findings_with_limit(db_path, progress, start_time):
+    for i in range(10):
+        _insert_finding(db_path, f"f{i}", f"//H/s/{i}.txt", "Red", "Rule1")
+    app = create_app(progress, db_path, start_time)
+    app.config["TESTING"] = True
+    with app.test_client() as client:
+        resp = client.get("/api/findings?limit=3")
+        data = json.loads(resp.data)
+        assert len(data["findings"]) == 3
+        assert data["has_more"] is True
+
+
+def test_findings_limit_no_more(db_path, progress, start_time):
+    _insert_finding(db_path, "f1", "//H/s/a.txt", "Red", "Rule1")
+    app = create_app(progress, db_path, start_time)
+    app.config["TESTING"] = True
+    with app.test_client() as client:
+        resp = client.get("/api/findings?limit=10")
+        data = json.loads(resp.data)
+        assert len(data["findings"]) == 1
+        assert data["has_more"] is False
+
+
+def test_findings_no_limit_has_more_false(client, db_path):
+    _insert_finding(db_path, "f1", "//H/s/a.txt", "Red", "Rule1")
+    resp = client.get("/api/findings")
+    data = json.loads(resp.data)
+    assert data["has_more"] is False
+
+
+def test_findings_paginated_cursor(db_path, progress, start_time):
+    for i in range(5):
+        _insert_finding(db_path, f"f{i}", f"//H/s/{i}.txt", "Red", "Rule1")
+    app = create_app(progress, db_path, start_time)
+    app.config["TESTING"] = True
+    with app.test_client() as client:
+        resp1 = client.get("/api/findings?limit=2")
+        d1 = json.loads(resp1.data)
+        assert len(d1["findings"]) == 2
+        assert d1["has_more"] is True
+
+        resp2 = client.get(f"/api/findings?limit=2&since_rowid={d1['max_rowid']}")
+        d2 = json.loads(resp2.data)
+        assert len(d2["findings"]) == 2
+        assert d2["has_more"] is True
+
+        resp3 = client.get(f"/api/findings?limit=2&since_rowid={d2['max_rowid']}")
+        d3 = json.loads(resp3.data)
+        assert len(d3["findings"]) == 1
+        assert d3["has_more"] is False
+
+
+# ── Export endpoints ─────────────────────────────────────────────
+
+
+def test_export_csv_empty(client):
+    resp = client.get("/api/export/csv")
+    assert resp.status_code == 200
+    assert resp.content_type.startswith("text/csv")
+    assert b"triage,rule_name" in resp.data
+
+
+def test_export_csv_with_findings(client, db_path):
+    _insert_finding(db_path, "f1", "//H/s/a.txt", "Red", "Rule1", size=1024)
+    _insert_finding(db_path, "f2", "//H/s/b.txt", "Black", "Rule2", size=2048)
+    resp = client.get("/api/export/csv")
+    lines = resp.data.decode().strip().split("\n")
+    assert len(lines) == 3  # header + 2 findings
+
+
+def test_export_csv_content_disposition(client):
+    resp = client.get("/api/export/csv")
+    assert "attachment" in resp.headers.get("Content-Disposition", "")
+    assert "snaffler_findings.csv" in resp.headers.get("Content-Disposition", "")
+
+
+def test_export_json_empty(client):
+    resp = client.get("/api/export/json")
+    assert resp.status_code == 200
+    data = json.loads(resp.data)
+    assert data["findings"] == []
+
+
+def test_export_json_with_findings(client, db_path):
+    _insert_finding(db_path, "f1", "//H/s/a.txt", "Red", "Rule1")
+    resp = client.get("/api/export/json")
+    data = json.loads(resp.data)
+    assert len(data["findings"]) == 1
+    assert data["findings"][0]["triage"] == "Red"
+
+
+def test_export_json_content_disposition(client):
+    resp = client.get("/api/export/json")
+    assert "attachment" in resp.headers.get("Content-Disposition", "")
+    assert "snaffler_findings.json" in resp.headers.get("Content-Disposition", "")
+
+
+def test_export_csv_min_interest_filter(client, db_path):
+    _insert_finding(db_path, "f1", "//H/s/a.txt", "Green", "Rule1")
+    _insert_finding(db_path, "f2", "//H/s/b.txt", "Black", "Rule2")
+    resp = client.get("/api/export/csv?min_interest=3")
+    lines = resp.data.decode().strip().split("\n")
+    assert len(lines) == 2  # header + 1 Black finding
+
+
+# ── Rate indicator ───────────────────────────────────────────────
+
+
+def test_dashboard_has_rate_indicators(client):
+    resp = client.get("/")
+    html = resp.data.decode()
+    assert "rate-files" in html
+    assert "rate-findings" in html
+    assert "rate-box" in html
+
+
+def test_results_mode_has_rate_hide_logic(db_path):
+    with _results_client(db_path) as client:
+        resp = client.get("/")
+        html = resp.data.decode()
+        assert 'data-mode="results"' in html
+        assert "rate-box" in html
