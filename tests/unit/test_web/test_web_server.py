@@ -121,10 +121,13 @@ def _insert_share(db_path, unc_path, done=0):
 
 
 def _read_dashboard_js():
-    """Read the static dashboard.js file directly."""
+    """Read all static JS files concatenated."""
     from pathlib import Path
-    js_path = Path(__file__).parent.parent.parent.parent / "snaffler" / "web" / "static" / "dashboard.js"
-    return js_path.read_text()
+    js_dir = Path(__file__).parent.parent.parent.parent / "snaffler" / "web" / "static" / "js"
+    parts = []
+    for f in sorted(js_dir.glob("*.js")):
+        parts.append(f.read_text())
+    return "\n".join(parts)
 
 
 # ── Dashboard page ───────────────────────────────────────────────
@@ -140,7 +143,7 @@ def test_dashboard_contains_key_elements(client):
     html = resp.data.decode()
     assert "phase-dot" in html
     assert "card-files" in html
-    assert "dashboard.js" in html
+    assert "js/state.js" in html
     assert "css/base.css" in html
     js = _read_dashboard_js()
     assert "api/progress" in js

@@ -42,7 +42,7 @@ snaffler = "snaffler.cli.main:app"
 packages = { find = {} }
 
 [tool.setuptools.package-data]
-snaffler = ["rules/*.toml", "web/static/*", "web/static/css/*"]
+snaffler = ["rules/*.toml", "web/static/*", "web/static/css/*", "web/static/js/*"]
 
 [project.urls]
 Homepage = "https://github.com/totekuh/snaffler-ng"
