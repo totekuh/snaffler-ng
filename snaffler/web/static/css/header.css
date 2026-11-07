@@ -1,0 +1,59 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.elapsed {
+  color: #888;
+  font-size: 0.95em;
+  font-variant-numeric: tabular-nums;
+}
+
+.phase-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #2d2d2d;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 0.85em;
+  color: #ccc;
+}
+
+.phase-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #27ae60;
+}
+
+.phase-dot.active {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.rate-indicators {
+  display: inline-flex;
+  gap: 14px;
+  align-items: center;
+  font-size: 0.82em;
+  color: #888;
+}
+
+.rate {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rate span:first-child {
+  color: #aaa;
+  font-variant-numeric: tabular-nums;
+}

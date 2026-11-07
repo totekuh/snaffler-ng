@@ -1,0 +1,126 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.modal {
+  background: #252525;
+  border-radius: 10px;
+  padding: 28px 32px;
+  width: 100%;
+  max-width: 820px;
+  max-height: 88vh;
+  overflow-y: auto;
+  position: relative;
+  border: 1px solid #3a3a3a;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.modal-rule {
+  flex: 1;
+  font-size: 1em;
+  font-weight: bold;
+  color: #e0e0e0;
+  word-break: break-all;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 1.5em;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.modal-close:hover {
+  color: #fff;
+}
+
+.modal-field {
+  margin-bottom: 14px;
+}
+
+.modal-field label {
+  color: #666;
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.modal-path {
+  word-break: break-all;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.modal-path span {
+  flex: 1;
+}
+
+.copy-btn {
+  background: #333;
+  border: 1px solid #555;
+  color: #aaa;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.75em;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+
+.copy-btn:hover {
+  background: #444;
+  color: #fff;
+}
+
+.modal-meta {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.modal-match {
+  background: #1a1500;
+  border-left: 3px solid #ffd700;
+  padding: 10px 14px;
+  color: #ffd700;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 0.88em;
+  border-radius: 0 4px 4px 0;
+}
+
+.modal-context {
+  background: #1a1a1a;
+  border-left: 3px solid #444;
+  padding: 10px 14px;
+  color: #aaa;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 0.85em;
+  border-radius: 0 4px 4px 0;
+}

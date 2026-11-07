@@ -1,0 +1,27 @@
+.cards {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.card {
+  background: #2d2d2d;
+  border-radius: 8px;
+  padding: 16px 24px;
+  min-width: 140px;
+  text-align: center;
+}
+
+.card-value {
+  font-size: 1.4em;
+  font-weight: bold;
+  color: #fff;
+  transition: all 0.3s;
+}
+
+.card-label {
+  color: #888;
+  font-size: 0.85em;
+  margin-top: 4px;
+}

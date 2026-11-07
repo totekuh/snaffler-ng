@@ -1,0 +1,22 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  margin: 0;
+  padding: 20px;
+}
+
+h1 {
+  color: #e0e0e0;
+  margin-bottom: 4px;
+  display: inline-block;
+}
+
+h2 {
+  color: #e0e0e0;
+  margin: 20px 0 8px;
+}
