@@ -811,9 +811,9 @@ class TestDNSPreResolution:
 
         resolvable = {"ALIVE1": "10.0.0.1", "ALIVE2": "10.0.0.2"}
 
-        with patch("snaffler.engine.runner.socket.getaddrinfo",
+        with patch("snaffler.engine.runner_discovery.socket.getaddrinfo",
                     side_effect=self._make_dns_mock(resolvable)), \
-             patch("snaffler.engine.runner.socket.create_connection",
+             patch("snaffler.engine.runner_discovery.socket.create_connection",
                    return_value=MagicMock()), \
              patch("snaffler.discovery.shares.SMBTransport") as st, \
              patch("snaffler.discovery.smb_tree_walker.SMBTransport") as tt, \
@@ -851,9 +851,9 @@ class TestDNSPreResolution:
         cfg.targets.computer_targets = ["DEAD1", "DEAD2"]
 
         # Nothing resolves
-        with patch("snaffler.engine.runner.socket.getaddrinfo",
+        with patch("snaffler.engine.runner_discovery.socket.getaddrinfo",
                     side_effect=self._make_dns_mock({})), \
-             patch("snaffler.engine.runner.socket.create_connection",
+             patch("snaffler.engine.runner_discovery.socket.create_connection",
                    return_value=MagicMock()), \
              patch("snaffler.discovery.shares.SMBTransport"), \
              patch("snaffler.engine.runner.print_completion_stats"), \
@@ -878,9 +878,9 @@ class TestDNSPreResolution:
 
         smb = _make_smb_mock(_DATA_DIR)
 
-        with patch("snaffler.engine.runner.socket.getaddrinfo",
+        with patch("snaffler.engine.runner_discovery.socket.getaddrinfo",
                     side_effect=self._make_dns_mock({"ALIVE": "10.0.0.1"})), \
-             patch("snaffler.engine.runner.socket.create_connection",
+             patch("snaffler.engine.runner_discovery.socket.create_connection",
                    return_value=MagicMock()), \
              patch("snaffler.discovery.shares.SMBTransport") as st, \
              patch("snaffler.discovery.smb_tree_walker.SMBTransport") as tt, \
@@ -930,9 +930,9 @@ class TestDNSPreResolution:
                     raise socket.gaierror(8, "not found")
                 return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (resolvable[host], port))]
 
-            with patch("snaffler.engine.runner.socket.getaddrinfo",
+            with patch("snaffler.engine.runner_discovery.socket.getaddrinfo",
                         side_effect=dns_with_interrupt), \
-                 patch("snaffler.engine.runner.socket.create_connection",
+                 patch("snaffler.engine.runner_discovery.socket.create_connection",
                        return_value=MagicMock()), \
                  patch("snaffler.discovery.shares.SMBTransport") as st, \
                  patch("snaffler.discovery.smb_tree_walker.SMBTransport") as tt, \
@@ -980,9 +980,9 @@ class TestDNSPreResolution:
                     raise socket.gaierror(8, "not found")
                 return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (resolvable[host], port))]
 
-            with patch("snaffler.engine.runner.socket.getaddrinfo",
+            with patch("snaffler.engine.runner_discovery.socket.getaddrinfo",
                         side_effect=dns_run2), \
-                 patch("snaffler.engine.runner.socket.create_connection",
+                 patch("snaffler.engine.runner_discovery.socket.create_connection",
                        return_value=MagicMock()), \
                  patch("snaffler.discovery.shares.SMBTransport") as st, \
                  patch("snaffler.discovery.smb_tree_walker.SMBTransport") as tt, \
@@ -1042,9 +1042,9 @@ class TestExclusions:
                 return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (resolvable[host], port))]
             raise socket.gaierror(8, "not found")
 
-        with patch("snaffler.engine.runner.socket.getaddrinfo",
+        with patch("snaffler.engine.runner_discovery.socket.getaddrinfo",
                     side_effect=tracking_dns), \
-             patch("snaffler.engine.runner.socket.create_connection",
+             patch("snaffler.engine.runner_discovery.socket.create_connection",
                    return_value=MagicMock()), \
              patch("snaffler.discovery.shares.SMBTransport") as st, \
              patch("snaffler.discovery.smb_tree_walker.SMBTransport") as tt, \
@@ -1112,7 +1112,7 @@ class TestExclusions:
         cfg.targets.computer_targets = ["HOST1", "HOST2"]
         cfg.targets.exclusions = ["HOST1", "HOST2"]
 
-        with patch("snaffler.engine.runner.socket.getaddrinfo",
+        with patch("snaffler.engine.runner_discovery.socket.getaddrinfo",
                     side_effect=AssertionError("DNS should not be called")), \
              patch("snaffler.engine.runner.print_completion_stats"), \
              _no_auth_check:
@@ -1506,9 +1506,9 @@ class TestDashedHostname:
         smb = _make_smb_mock(_DATA_DIR)
         resolvable = {"DC-01": "10.0.0.99"}
 
-        with patch("snaffler.engine.runner.socket.getaddrinfo",
+        with patch("snaffler.engine.runner_discovery.socket.getaddrinfo",
                     side_effect=self._make_dns_mock(resolvable)), \
-             patch("snaffler.engine.runner.socket.create_connection",
+             patch("snaffler.engine.runner_discovery.socket.create_connection",
                    return_value=MagicMock()), \
              patch("snaffler.discovery.shares.SMBTransport") as st, \
              patch("snaffler.discovery.smb_tree_walker.SMBTransport") as tt, \

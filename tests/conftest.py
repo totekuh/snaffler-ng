@@ -54,6 +54,9 @@ def make_engine_cfg(**overrides):
     cfg.rules.content = []
     cfg.rules.postmatch = []
 
+    # ---------- auth ----------
+    cfg.auth.smb_port = 445
+
     # ---------- scanning ----------
     cfg.scanning.max_depth = None
     cfg.scanning.snaffle = False

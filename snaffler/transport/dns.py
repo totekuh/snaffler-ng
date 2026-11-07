@@ -21,7 +21,7 @@ _original_getaddrinfo = socket.getaddrinfo
 logger = logging.getLogger("snaffler")
 
 
-def setup_custom_dns(nameserver: str) -> None:
+def setup_custom_dns(nameserver: str, port: int = 53) -> None:
     """Monkey-patch socket.getaddrinfo to resolve via a custom nameserver.
 
     Replaces the system DNS resolver so all hostname lookups (SMB, LDAP,
@@ -56,6 +56,7 @@ def setup_custom_dns(nameserver: str) -> None:
 
     resolver = dns.resolver.Resolver(configure=False)
     resolver.nameservers = [nameserver]
+    resolver.port = port
 
     def custom_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
         # Pass through non-hostname lookups

@@ -48,14 +48,14 @@ def _resolve_all_hosts():
     """Patch context: getaddrinfo resolves every hostname to 127.0.0.1, port 445 open."""
     def fake(host, port, family=0, type_=0, proto=0, flags=0):
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
-    with patch("snaffler.engine.runner.socket.getaddrinfo", side_effect=fake), \
+    with patch("snaffler.engine.runner_discovery.socket.getaddrinfo", side_effect=fake), \
          _port_always_open():
         yield
 
 
 def _port_always_open():
     """Patch context: create_connection always succeeds (port 445 reachable)."""
-    return patch("snaffler.engine.runner.socket.create_connection", return_value=MagicMock())
+    return patch("snaffler.engine.runner_discovery.socket.create_connection", return_value=MagicMock())
 
 
 def _make_runner_with_state(cfg):
@@ -771,7 +771,7 @@ def test_runner_dns_resolution_filters_dead_hosts():
     resolvable = {"HOST1": "10.0.0.1", "HOST2": "10.0.0.2"}
 
     with patch(
-        "snaffler.engine.runner.socket.getaddrinfo",
+        "snaffler.engine.runner_discovery.socket.getaddrinfo",
         side_effect=_mock_getaddrinfo(resolvable),
     ), _port_always_open(), patch("snaffler.engine.runner.print_completion_stats"):
         runner.execute()
@@ -801,7 +801,7 @@ def test_runner_dns_resolution_resume_skips():
     runner.file_pipeline.run = MagicMock()
 
     with patch(
-        "snaffler.engine.runner.socket.getaddrinfo",
+        "snaffler.engine.runner_discovery.socket.getaddrinfo",
         side_effect=AssertionError("should not be called"),
     ) as mock_gai, patch("snaffler.engine.runner.print_completion_stats"):
         runner.execute()
@@ -835,7 +835,7 @@ def test_runner_dns_resolution_partial_resume():
     resolvable = {"HOST2": "10.0.0.2"}
 
     with patch(
-        "snaffler.engine.runner.socket.getaddrinfo",
+        "snaffler.engine.runner_discovery.socket.getaddrinfo",
         side_effect=_mock_getaddrinfo(resolvable),
     ), _port_always_open(), patch("snaffler.engine.runner.print_completion_stats"):
         runner.execute()
@@ -860,7 +860,7 @@ def test_runner_dns_resolution_computer_mode():
     resolvable = {"ALIVE": "10.0.0.1"}
 
     with patch(
-        "snaffler.engine.runner.socket.getaddrinfo",
+        "snaffler.engine.runner_discovery.socket.getaddrinfo",
         side_effect=_mock_getaddrinfo(resolvable),
     ), _port_always_open(), patch("snaffler.engine.runner.print_completion_stats"):
         runner.execute()
@@ -888,7 +888,7 @@ def test_runner_dns_resolution_stores_ips():
     resolvable = {"HOST1": "10.0.0.1", "HOST2": "10.0.0.2"}
 
     with patch(
-        "snaffler.engine.runner.socket.getaddrinfo",
+        "snaffler.engine.runner_discovery.socket.getaddrinfo",
         side_effect=_mock_getaddrinfo(resolvable),
     ), _port_always_open(), patch("snaffler.engine.runner.print_completion_stats"):
         runner.execute()
@@ -932,7 +932,7 @@ def test_runner_dns_resolution_interrupt_persists_partial():
     state.set_computer_ip = MagicMock(side_effect=set_ip_then_interrupt)
 
     with patch(
-        "snaffler.engine.runner.socket.getaddrinfo",
+        "snaffler.engine.runner_discovery.socket.getaddrinfo",
         side_effect=fake_getaddrinfo,
     ), _port_always_open():
         with pytest.raises(KeyboardInterrupt):
@@ -982,10 +982,10 @@ def test_runner_dns_filters_port_closed():
         raise OSError("Connection refused")
 
     with patch(
-        "snaffler.engine.runner.socket.getaddrinfo",
+        "snaffler.engine.runner_discovery.socket.getaddrinfo",
         side_effect=_mock_getaddrinfo(resolvable),
     ), patch(
-        "snaffler.engine.runner.socket.create_connection",
+        "snaffler.engine.runner_discovery.socket.create_connection",
         side_effect=fake_create_connection,
     ), patch("snaffler.engine.runner.print_completion_stats"):
         runner.execute()
@@ -1000,7 +1000,7 @@ def test_runner_dns_filters_port_closed():
 
 
 def test_runner_dns_port_closed_log_message(caplog):
-    """Port-closed host logs 'port 445 unreachable', not 'no record'."""
+    """Port-closed host logs 'port N unreachable', not 'no record'."""
     import logging
 
     cfg = make_cfg()
@@ -1017,19 +1017,19 @@ def test_runner_dns_port_closed_log_message(caplog):
         raise OSError("Connection refused")
 
     with patch(
-        "snaffler.engine.runner.socket.getaddrinfo",
+        "snaffler.engine.runner_discovery.socket.getaddrinfo",
         side_effect=_mock_getaddrinfo(resolvable),
     ), patch(
-        "snaffler.engine.runner.socket.create_connection",
+        "snaffler.engine.runner_discovery.socket.create_connection",
         side_effect=fake_create_connection,
     ), patch("snaffler.engine.runner.print_completion_stats"), \
          caplog.at_level(logging.DEBUG, logger="snaffler"):
         runner.execute()
 
-    # Should log the accurate "port 445 unreachable" message
+    # Should log the accurate "port N unreachable" message
     port_msgs = [
         r.message for r in caplog.records
-        if "FIREWALLED" in r.message and "port 445 unreachable" in r.message
+        if "FIREWALLED" in r.message and "unreachable" in r.message
     ]
     assert len(port_msgs) == 1
     assert "10.0.0.2" in port_msgs[0]
@@ -1053,7 +1053,7 @@ def test_runner_dns_all_lookups_fail():
 
     # Nothing resolves
     with patch(
-        "snaffler.engine.runner.socket.getaddrinfo",
+        "snaffler.engine.runner_discovery.socket.getaddrinfo",
         side_effect=_mock_getaddrinfo({}),
     ), _port_always_open(), patch("snaffler.engine.runner.print_completion_stats"):
         runner.execute()
@@ -1359,7 +1359,7 @@ def test_exclusions_filter_computer_targets():
     resolvable = {"HOST1": "10.0.0.1", "HOST3": "10.0.0.3"}
 
     with patch(
-        "snaffler.engine.runner.socket.getaddrinfo",
+        "snaffler.engine.runner_discovery.socket.getaddrinfo",
         side_effect=_mock_getaddrinfo(resolvable),
     ), _port_always_open(), patch("snaffler.engine.runner.print_completion_stats"):
         runner.execute()
@@ -1406,7 +1406,7 @@ def test_exclusions_case_insensitive():
     resolvable = {"SERVER2": "10.0.0.2"}
 
     with patch(
-        "snaffler.engine.runner.socket.getaddrinfo",
+        "snaffler.engine.runner_discovery.socket.getaddrinfo",
         side_effect=_mock_getaddrinfo(resolvable),
     ), _port_always_open(), patch("snaffler.engine.runner.print_completion_stats"):
         runner.execute()
@@ -1471,7 +1471,7 @@ def test_dns_resolve_does_not_call_setdefaulttimeout():
     state.load_resolved_computers.return_value = []
 
     with _resolve_all_hosts(), \
-         patch("snaffler.engine.runner.socket.setdefaulttimeout") as mock_sdt:
+         patch("snaffler.engine.runner_discovery.socket.setdefaulttimeout") as mock_sdt:
         runner._resolve_computers(["HOST1"])
 
     mock_sdt.assert_not_called()
@@ -1568,7 +1568,7 @@ def test_dns_resolution_survives_non_oserror_exception():
         def shutdown(self, *args, **kwargs):
             return self._pool.shutdown(*args, **kwargs)
 
-    with patch("snaffler.engine.runner.ThreadPoolExecutor", PatchedExecutor):
+    with patch("snaffler.engine.runner_discovery.ThreadPoolExecutor", PatchedExecutor):
         resolved = runner._resolve_computers(["HOST1", "HOST2", "HOST3"])
 
     # HOST1 and HOST3 should resolve, HOST2 should fail gracefully

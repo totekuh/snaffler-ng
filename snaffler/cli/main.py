@@ -12,6 +12,9 @@ from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.engine.runner import SnafflerRunner
 from snaffler.utils.logger import setup_logging
 from snaffler.cli.results import results_app
+from snaffler.cli.config_builder import build_config
+from snaffler.cli.grab import run_grab
+from snaffler.cli.run_scan import run_scan
 
 logger = logging.getLogger("snaffler")
 
@@ -66,104 +69,6 @@ def banner():
  |_____/|_| \_/_/    \_\_|    |_|    |______|______|_|  \_\
                                                   Impacket Port
     """)
-
-
-def _run_grab(cfg: SnafflerConfiguration):
-    """Bulk download mode: read file paths from stdin, download each."""
-    import sys
-    import logging
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    logger = logging.getLogger("snaffler")
-    dest = cfg.scanning.snaffle_path
-    Path(dest).mkdir(parents=True, exist_ok=True)
-
-    # Read paths from stdin
-    raw = sys.stdin.read()
-    paths = [line.strip() for line in raw.splitlines() if line.strip()]
-    if not paths:
-        typer.echo("No file paths received on stdin.", err=True)
-        raise typer.Exit(code=1)
-
-    typer.echo(f"Grabbing {len(paths)} files to {dest}")
-
-    # Group paths by protocol and create accessors
-    smb_paths = []
-    ftp_paths = []
-    local_paths = []
-    for p in paths:
-        if p.startswith("ftp://"):
-            ftp_paths.append(p)
-        elif p.startswith("//"):
-            smb_paths.append(p)
-        else:
-            local_paths.append(p)
-
-    accessors = {}
-    if smb_paths:
-        from snaffler.accessors.smb_file_accessor import SMBFileAccessor
-        accessors["smb"] = SMBFileAccessor(cfg)
-    if ftp_paths:
-        from snaffler.accessors.ftp_file_accessor import FTPFileAccessor
-        accessors["ftp"] = FTPFileAccessor(cfg)
-    if local_paths:
-        from snaffler.accessors.local_file_accessor import LocalFileAccessor
-        accessors["local"] = LocalFileAccessor()
-
-    ok = 0
-    fail = 0
-    skip = 0
-
-    def _resolve_local_path(file_path: str) -> Path:
-        """Return the expected local path for a downloaded file."""
-        import os
-        if file_path.startswith("ftp://"):
-            from snaffler.discovery.ftp_tree_walker import parse_ftp_url
-            parsed = parse_ftp_url(file_path)
-            if parsed:
-                host, _port, remote = parsed
-                return (Path(dest) / host / remote.lstrip("/")).resolve()
-        elif file_path.startswith("//"):
-            from snaffler.utils.path_utils import parse_unc_path
-            parsed = parse_unc_path(file_path)
-            if parsed:
-                server, share, smb_path, _name, _ext = parsed
-                clean = smb_path.lstrip("\\/").replace("\\", "/")
-                return (Path(dest) / server / share / clean).resolve()
-        else:
-            rel = os.path.relpath(file_path, "/")
-            return (Path(dest) / rel).resolve()
-        return None
-
-    def _grab_one(file_path: str) -> bool:
-        """Download one file. Returns True on success."""
-        if file_path.startswith("ftp://"):
-            accessor = accessors["ftp"]
-        elif file_path.startswith("//"):
-            accessor = accessors["smb"]
-        else:
-            accessor = accessors["local"]
-        accessor.copy_to_local(file_path, dest)
-        local = _resolve_local_path(file_path)
-        return local is not None and local.exists()
-
-    workers = max(1, cfg.advanced.file_threads)
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        future_to_path = {pool.submit(_grab_one, p): p for p in paths}
-        for future in as_completed(future_to_path):
-            p = future_to_path[future]
-            try:
-                if future.result():
-                    ok += 1
-                    logger.info(f"[OK] {p}")
-                else:
-                    fail += 1
-                    logger.warning(f"[FAIL] {p}")
-            except Exception as e:
-                fail += 1
-                logger.warning(f"[FAIL] {p}: {e}")
-
-    typer.echo(f"\nDone: {ok} downloaded, {fail} failed ({len(paths)} total)")
 
 
 @app.callback(invoke_without_command=True)
@@ -510,331 +415,37 @@ def main(
     if not no_banner:
         banner()
 
-    # ---------- load configuration ----------
-    cfg = SnafflerConfiguration()
-
-    if config_file:
-        cfg.load_from_toml(str(config_file))
-
-    # ---------- CLI → config (only override TOML when explicitly provided) ----------
-    def _explicit(param: str) -> bool:
-        """True if the CLI param was explicitly provided (not just the default).
-
-        Compares the ParameterSource by name rather than enum identity. typer and
-        click can expose distinct ParameterSource enum classes (different module
-        paths / versions), and their DEFAULT members carry different integer
-        values, so an identity ``!=`` against ``click.core.ParameterSource.DEFAULT``
-        is always True — treating every option as explicit and breaking every
-        "only override when provided" guard. Matching on ``.name`` is robust
-        across typer/click versions.
-        """
-        src = ctx.get_parameter_source(param)
-        return src is not None and src.name not in ("DEFAULT", "DEFAULT_MAP")
-
-    # ---------- AUTH ----------
-    if _explicit("username"):     cfg.auth.username = username
-    if _explicit("password"):     cfg.auth.password = password
-    if _explicit("nthash"):       cfg.auth.nthash = nthash
-    if _explicit("domain"):       cfg.auth.domain = domain
-    if _explicit("dc_host"):      cfg.auth.dc_host = dc_host
-    if _explicit("smb_timeout"):  cfg.auth.smb_timeout = smb_timeout
-    if _explicit("kerberos"):     cfg.auth.kerberos = kerberos
-    if _explicit("use_kcache"):   cfg.auth.use_kcache = use_kcache
-
-    # ---------- TARGETING ----------
-    if _explicit("unc_targets"):      cfg.targets.unc_targets = unc_targets or []
-    if _explicit("local"):            cfg.targets.local_targets = local or []
-    if _explicit("shares_only"):      cfg.targets.shares_only = shares_only
-    if _explicit("no_check_writable"): cfg.targets.check_writable = not no_check_writable
-    if _explicit("check_writable"):    cfg.targets.check_writable = check_writable
-    if _explicit("include_disabled"): cfg.targets.skip_disabled_computers = not include_disabled
-    if _explicit("rescan_unreadable"): cfg.targets.rescan_unreadable = rescan_unreadable
-    if _explicit("domain_users"):     cfg.targets.domain_users = domain_users
-    if _explicit("user_match"):       cfg.targets.user_match_strings = user_match or []
-    if _explicit("user_min_len"):     cfg.targets.user_min_len = user_min_len
-    if _explicit("share"):            cfg.targets.share_filter = share or []
-    if _explicit("exclude_share"):    cfg.targets.exclude_share = exclude_share or []
-    if _explicit("exclude_unc"):      cfg.targets.exclude_unc = exclude_unc or []
-
-    if computer and computer_file:
-        raise typer.BadParameter("Use either --computer or --computer-file, not both")
-
-    if computer:
-        from snaffler.utils.target_parser import expand_targets
-        cfg.targets.computer_targets = expand_targets([h.upper() for h in computer])
-
-    if computer_file:
-        from snaffler.utils.target_parser import expand_targets
-        raw = [l.strip().upper() for l in computer_file.read_text().splitlines() if l.strip()]
-        cfg.targets.computer_targets = expand_targets(raw)
-
-    if exclusions_file:
-        cfg.targets.exclusions = [
-            l.strip().upper() for l in exclusions_file.read_text().splitlines() if l.strip()
-        ]
-
-    if _explicit("max_hosts"):
-        cfg.targets.max_hosts = max_hosts
-
-    # ---------- GRAB MODE VALIDATION ----------
-    if grab:
-        if not snaffle_path:
-            raise typer.BadParameter("--grab requires -m/--snaffle-path")
-        if (cfg.targets.unc_targets or cfg.targets.computer_targets
-                or cfg.targets.local_targets or cfg.auth.domain
-                or cfg.targets.ftp_targets or stdin_mode
-                or cfg.targets.rescan_unreadable):
-            raise typer.BadParameter(
-                "--grab is mutually exclusive with all other targeting modes"
-            )
-
-    # ---------- LOCAL TARGET VALIDATION ----------
-    if cfg.targets.local_targets:
-        if cfg.targets.unc_targets or cfg.targets.computer_targets or cfg.auth.domain or stdin_mode:
-            raise typer.BadParameter(
-                "--local-fs is mutually exclusive with --unc, --computer, --computer-file, --domain, and --stdin"
-            )
-        for lp in cfg.targets.local_targets:
-            p = Path(lp)
-            if not p.exists():
-                raise typer.BadParameter(f"--local-fs path does not exist: {lp}")
-            if not p.is_dir():
-                raise typer.BadParameter(f"--local-fs path is not a directory: {lp}")
-
-    # ---------- FTP TARGETS ----------
-    if ftp and ftp_file:
-        raise typer.BadParameter("Use either --ftp or --ftp-file, not both")
-
-    def _normalize_ftp(raw_url: str) -> str:
-        url = raw_url.strip()
-        if not url.startswith("ftp://"):
-            url = f"ftp://{url}"
-        url = url.rstrip("/") or url  # preserve at least ftp://host
-        # Validate host component exists
-        from urllib.parse import urlparse
-        parsed = urlparse(url)
-        if not parsed.hostname:
-            raise typer.BadParameter(f"Invalid FTP URL (no host): {raw_url}")
-        return url
-
-    if ftp:
-        cfg.targets.ftp_targets = [_normalize_ftp(r) for r in ftp]
-    if ftp_file:
-        lines = [l.strip() for l in ftp_file.read_text().splitlines() if l.strip() and not l.strip().startswith("#")]
-        cfg.targets.ftp_targets = [_normalize_ftp(r) for r in lines]
-    if _explicit("ftp_tls"):
-        cfg.targets.ftp_tls = ftp_tls
-
-    if cfg.targets.ftp_targets:
-        if cfg.targets.unc_targets or cfg.targets.computer_targets or cfg.targets.local_targets or cfg.auth.domain or stdin_mode:
-            raise typer.BadParameter(
-                "--ftp is mutually exclusive with --unc, --computer, --computer-file, --local-fs, --domain, and --stdin"
-            )
-
-    # ---------- STDIN (NXC) ----------
-    if stdin_mode:
-        if cfg.targets.unc_targets or cfg.targets.computer_targets or cfg.targets.local_targets or cfg.auth.domain:
-            raise typer.BadParameter(
-                "--stdin is mutually exclusive with --unc, --computer, --computer-file, --local-fs, and --domain"
-            )
-        import sys
-        from snaffler.utils.nxc_parser import parse_nxc_shares
-
-        raw = sys.stdin.read()
-        parsed = parse_nxc_shares(raw)
-        if not parsed:
-            raise typer.BadParameter(
-                "No shares found in stdin (expected NXC SMB --shares output)"
-            )
-        cfg.targets.unc_targets = parsed
-
-    # ---------- TARGET MODE VALIDATION ----------
-    has_unc = bool(cfg.targets.unc_targets)
-    has_local = bool(cfg.targets.local_targets)
-    has_computers = bool(cfg.targets.computer_targets)
-    has_domain = bool(cfg.auth.domain)
-    has_ftp = bool(cfg.targets.ftp_targets)
-
-    # --rescan-unreadable is SMB-only, mutually exclusive with local/FTP
-    if cfg.targets.rescan_unreadable and (has_local or has_ftp):
-        raise typer.BadParameter(
-            "--rescan-unreadable is mutually exclusive with --local-fs and --ftp"
-        )
-
-    # At least one targeting mode must be selected
-    if not grab and not (has_unc or has_local or has_computers or has_domain or has_ftp
-            or cfg.targets.rescan_unreadable):
-        raise typer.BadParameter(
-            "No targets specified. Use one of: "
-            "--unc, --local-fs, --ftp, --computer/--computer-file, --stdin, --domain, "
-            "--grab, or --rescan-unreadable"
-        )
-    # ---------- SCANNING ----------
-    if _explicit("min_interest"):   cfg.scanning.min_interest = min_interest
-    if _explicit("max_read_bytes"): cfg.scanning.max_read_bytes = max_read_bytes
-    if _explicit("max_file_bytes"): cfg.scanning.max_file_bytes = max_file_bytes
-    if _explicit("context"):        cfg.scanning.match_context_bytes = context
-    if _explicit("max_depth"):      cfg.scanning.max_depth = max_depth
-
-    if match_filter:
-        import re
-        try:
-            re.compile(match_filter)
-        except re.error as exc:
-            raise typer.BadParameter(f"Invalid --match regex: {exc}")
-        cfg.scanning.match_filter = match_filter
-
-    if snaffle_path:
-        cfg.scanning.snaffle = True
-        cfg.scanning.snaffle_path = str(snaffle_path)
-
-    # ---------- ADVANCED ----------
-    if _explicit("max_threads"):  cfg.advanced.max_threads = max_threads
-    if _explicit("dns_threads"):  cfg.advanced.dns_threads = dns_threads
-    if _explicit("stealth"):      cfg.advanced.stealth = stealth
-
-    per_bucket = max(1, cfg.advanced.max_threads // 3)
-    cfg.advanced.share_threads = per_bucket
-    cfg.advanced.tree_threads = per_bucket
-    cfg.advanced.file_threads = per_bucket
-
-    if _explicit("max_threads_per_share"):
-        cfg.advanced.max_tree_threads_per_share = max_threads_per_share
-
-    # ---------- --fast mode ----------
-    if fast:
-        from snaffler.config.configuration import FAST_MODE_EXCLUSIONS
-        cfg.targets.exclude_unc = list(FAST_MODE_EXCLUSIONS) + cfg.targets.exclude_unc
-        if not _explicit("max_threads_per_share"):
-            cfg.advanced.max_tree_threads_per_share = max(2, per_bucket // 4)
-
-    if _explicit("rule_dir"):
-        cfg.rules.rule_dir = f"{rule_dir}"
-
-    # ---------- OUTPUT ----------
-    cfg.output.to_file = output_file is not None
-    cfg.output.output_file = str(output_file) if output_file else None
-    cfg.output.log_level = log_level
-    # Auto-detect format from output file extension when --log-type not explicit
-    if log_type is None and output_file:
-        ext = output_file.suffix.lower()
-        if ext == ".json":
-            log_type = "json"
-        elif ext == ".tsv":
-            log_type = "tsv"
-    cfg.output.log_type = log_type or DEFAULT_LOG_TYPE
-
-    if no_color:
-        from snaffler.utils import logger as _logger_mod
-        _logger_mod.NO_COLOR = True
-
-    # ---------- STATE ----------
-    state_path = Path(state) if state else Path("snaffler.db")
-    if state_path.parent and not state_path.parent.exists():
-        state_path.parent.mkdir(parents=True, exist_ok=True)
-    if fresh and state_path.exists():
-        state_path.unlink()
-    cfg.state.state_db = str(state_path)
-
-    # ---------- WEB DASHBOARD ----------
-    if _explicit("web"):        cfg.web.enabled = web
-    if _explicit("web_port"):   cfg.web.port = web_port
-    if _explicit("web_port") and not cfg.web.enabled:
-        typer.echo("Warning: --web-port has no effect without --web", err=True)
-
-    # ---------- validate (errors caught by try/except below) ----------
-    try:
-        cfg.validate()
-    except ValueError as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=1)
-
-    # ---------- logging (before rule loader so its messages are visible) ----------
-    setup_logging(
-        log_level=cfg.output.log_level,
-        log_to_file=cfg.output.to_file,
-        log_file_path=cfg.output.output_file,
-        log_to_console=True,
-        log_type=cfg.output.log_type,
+    cfg = build_config(
+        ctx,
+        config_file=config_file,
+        username=username, password=password, nthash=nthash,
+        domain=domain, dc_host=dc_host, smb_timeout=smb_timeout,
+        kerberos=kerberos, use_kcache=use_kcache,
+        unc_targets=unc_targets, local=local, ftp=ftp, ftp_file=ftp_file, ftp_tls=ftp_tls,
+        computer=computer, computer_file=computer_file,
+        shares_only=shares_only, no_check_writable=no_check_writable,
+        check_writable=check_writable, rescan_unreadable=rescan_unreadable,
+        domain_users=domain_users, user_match=user_match, user_min_len=user_min_len,
+        grab=grab, include_disabled=include_disabled, stdin_mode=stdin_mode,
+        share=share, exclude_share=exclude_share, exclude_unc=exclude_unc,
+        exclusions_file=exclusions_file, max_hosts=max_hosts,
+        min_interest=min_interest, max_read_bytes=max_read_bytes,
+        max_file_bytes=max_file_bytes, context=context, max_depth=max_depth,
+        fast=fast, match_filter=match_filter, snaffle_path=snaffle_path,
+        max_threads=max_threads, dns_threads=dns_threads,
+        max_threads_per_share=max_threads_per_share,
+        stealth=stealth, rule_dir=rule_dir,
+        output_file=output_file, log_level=log_level, log_type=log_type, no_color=no_color,
+        state=state, fresh=fresh,
+        web=web, web_port=web_port,
+        default_log_type=DEFAULT_LOG_TYPE,
     )
 
-    # ---------- load classification rules ----------
-    try:
-        RuleLoader.load(cfg)
-    except RuntimeError as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=1)
-
-    # ---------- SOCKS proxy ----------
-    # SOCKS must be set up before custom DNS so that DNS-over-TCP
-    # queries to an internal nameserver route through the tunnel.
-    if socks_proxy:
-        cfg.auth.socks_proxy = socks_proxy
-        try:
-            from snaffler.transport.socks import setup_socks_proxy
-            setup_socks_proxy(socks_proxy)
-        except (ImportError, ValueError) as exc:
-            raise typer.BadParameter(str(exc))
-
-    # ---------- custom DNS ----------
-    if nameserver:
-        try:
-            from snaffler.transport.dns import setup_custom_dns
-            setup_custom_dns(nameserver)
-        except (ImportError, ValueError) as exc:
-            raise typer.BadParameter(str(exc))
-
-    # ---------- dynamic domain user rules ----------
-    if cfg.targets.domain_users:
-        if not cfg.auth.domain:
-            typer.echo(
-                "Warning: --domain-users requires -d/--domain, ignoring",
-                err=True,
-            )
-            cfg.targets.domain_users = False
-        else:
-            try:
-                from snaffler.discovery.ad import ADDiscovery
-                from snaffler.classifiers.loader import build_domain_user_rule
-
-                logger.info("Discovering interesting domain users for content rules...")
-                ad = ADDiscovery(cfg)
-                users = ad.get_domain_users(
-                    match_strings=cfg.targets.user_match_strings or None,
-                    min_len=cfg.targets.user_min_len,
-                )
-                if users:
-                    rule = build_domain_user_rule(users, domain=cfg.auth.domain)
-                    cfg.rules.content.append(rule)
-                    logger.info(
-                        f"Added DynamicDomainUsers rule matching {len(users)} users"
-                    )
-                else:
-                    logger.warning(
-                        "No interesting domain users found, skipping dynamic rule"
-                    )
-            except Exception as e:
-                logger.warning(f"Domain user discovery failed, continuing without: {e}")
-
-    # ---------- grab mode ----------
     if grab:
-        _run_grab(cfg)
+        run_grab(cfg)
         raise typer.Exit()
 
-    # ---------- run ----------
-    try:
-        snaff = SnafflerRunner(cfg)
-        snaff.execute()
-    except KeyboardInterrupt:
-        raise typer.Exit(code=130)
-    except (ValueError, RuntimeError) as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=1)
-    except OSError as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=1)
-    except SystemExit:
-        raise  # let SystemExit (e.g. from check_fatal_os_error) propagate
+    run_scan(cfg, socks_proxy=socks_proxy, nameserver=nameserver)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,9 @@ from snaffler.discovery.shares import share_matches_filter
 from snaffler.engine.domain_pipeline import DomainPipeline
 from snaffler.engine.file_pipeline import FilePipeline
 from snaffler.engine.share_pipeline import SharePipeline
+from snaffler.engine.runner_filters import FilterMixin
+from snaffler.engine.runner_discovery import DiscoveryMixin
+from snaffler.engine.runner_auth import AuthMixin
 from snaffler.resume.scan_state import SQLiteStateStore, ScanState
 from snaffler.utils.hotkeys import start_hotkey_listener, stop_hotkey_listener
 from snaffler.utils.logger import print_completion_stats, set_finding_store
@@ -45,7 +48,7 @@ _PHASE_SHARES = "share_discovery_done"
 _SYNC_SCAN_MODE = "scan_mode"
 
 
-class SnafflerRunner:
+class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
     def __init__(self, cfg: SnafflerConfiguration):
         self.cfg = cfg
         self.start_time = None
@@ -76,11 +79,6 @@ class SnafflerRunner:
             from snaffler.accessors.ftp_file_accessor import FTPFileAccessor
             from snaffler.discovery.ftp_tree_walker import FTPTreeWalker
 
-            # Cap FTP threads to avoid overwhelming servers with connections.
-            # Each tree + file thread opens its own FTP connection (thread-local
-            # caching), so 20+20 = 40 connections can easily exceed server limits
-            # (vsftpd: 50, proftpd: 30, IIS FTP: 25).  Cap at 4+4 unless the
-            # user explicitly set --max-threads above the default.
             _FTP_MAX_PER_BUCKET = 4
             if cfg.advanced.tree_threads > _FTP_MAX_PER_BUCKET:
                 cfg.advanced.share_threads = 0
@@ -134,398 +132,11 @@ class SnafflerRunner:
             except Exception:
                 pass
 
-    def _sync_progress_from_state(self):
-        """Refresh progress counters from resume database."""
-        if not self.state:
-            return
-        try:
-            p = self.progress
-            p.computers_done = max(
-                p.computers_done, self.state.count_checked_computers()
-            )
-            p.shares_walked = max(
-                p.shares_walked, self.state.count_checked_shares()
-            )
-            p.files_scanned = max(
-                p.files_scanned, self.state.count_checked_files()
-            )
-            # shares_found is set by _resume_share_discovery (filtered);
-            # don't overwrite with unfiltered DB count.
-            # Ensure totals are never less than done counts
-            p.files_total = max(p.files_total, p.files_scanned)
-            p.shares_total = max(p.shares_total, p.shares_walked)
-
-            # Restore finding counts from DB (critical for resume)
-            by_triage = self.state.count_findings_by_triage()
-            total = 0
-            for label, count in by_triage.items():
-                total += count
-                low = label.lower()
-                if low == "black":
-                    p.severity_black = max(p.severity_black, count)
-                elif low == "red":
-                    p.severity_red = max(p.severity_red, count)
-                elif low == "yellow":
-                    p.severity_yellow = max(p.severity_yellow, count)
-                elif low == "green":
-                    p.severity_green = max(p.severity_green, count)
-            p.files_matched = max(p.files_matched, total)
-        except Exception as e:
-            logger.debug(f"Failed to sync progress from state DB: {e}")
-
-    # ---------- thread rebalancing ----------
-
-    def _rebalance_file_threads(self):
-        """Give the share thread budget to file scanning (shares are done)."""
-        bonus = self.cfg.advanced.share_threads
-        half = bonus // 2
-        self.file_pipeline.tree_threads += half
-        self.file_pipeline.file_threads += bonus - half
-        logger.info(
-            f"Thread rebalance: +{bonus} share threads → "
-            f"tree={self.file_pipeline.tree_threads}, "
-            f"file={self.file_pipeline.file_threads}"
-        )
-
     def _run_file_pipeline(self, paths: list):
         """Rebalance threads and run the file scanning pipeline."""
         if paths:
             self._rebalance_file_threads()
             self.file_pipeline.run(paths)
-
-    # ---------- share filtering ----------
-
-    def _filter_paths_by_share(self, paths: List[str]) -> List[str]:
-        """Apply --share / --exclude-share filters to a list of UNC paths.
-
-        Extracts the share name (second component of //server/share/...)
-        and passes it through the same filter used by ShareFinder.
-        """
-        include = self.cfg.targets.share_filter
-        exclude = self.cfg.targets.exclude_share
-        if not include and not exclude:
-            return paths
-
-        filtered = []
-        for p in paths:
-            share_name = extract_unc_share_name(p)
-            if share_name is None:
-                filtered.append(p)
-                continue
-            if share_matches_filter(share_name, include, exclude):
-                filtered.append(p)
-            else:
-                logger.debug(f"Skipping UNC path {p} (excluded by share filter)")
-        return filtered
-
-    # ---------- --max-hosts cap ----------
-
-    def _cap_hosts(self, computers: List[str]) -> List[str]:
-        """Limit computer list to --max-hosts if set."""
-        limit = self.cfg.targets.max_hosts
-        if isinstance(limit, int) and len(computers) > limit:
-            logger.info(f"--max-hosts {limit}: capped from {len(computers)} to {limit} hosts")
-            return computers[:limit]
-        return computers
-
-    # ---------- exclusion helpers ----------
-
-    def _apply_exclusions(self, computers: List[str]) -> List[str]:
-        """Remove computers matching the --exclusions list."""
-        if not self._exclusion_set:
-            return computers
-        before = len(computers)
-        filtered = [c for c in computers if c.upper() not in self._exclusion_set]
-        diff = before - len(filtered)
-        if diff:
-            logger.info(f"Excluded {diff} computer(s) via --exclusions")
-        return filtered
-
-    def _filter_paths_by_exclusions(self, paths: List[str]) -> List[str]:
-        """Remove UNC paths whose hostname matches the --exclusions list."""
-        if not self._exclusion_set:
-            return paths
-        filtered = []
-        for p in paths:
-            host = extract_unc_host(p)
-            if host is None:
-                filtered.append(p)
-                continue
-            if host.upper() not in self._exclusion_set:
-                filtered.append(p)
-        diff = len(paths) - len(filtered)
-        if diff:
-            logger.info(f"Excluded {diff} UNC path(s) via --exclusions")
-        return filtered
-
-    # ---------- resume helpers ----------
-
-    def _resume_computer_discovery(self, domain_pipeline) -> List[str]:
-        """Discover or load computers, persisting to state on first run."""
-        if self.state and self.state.is_phase_done(_PHASE_COMPUTERS):
-            computers = self.state.load_computers()
-            logger.info(f"Resume: loaded {len(computers)} computers from state")
-            return computers
-
-        computers = domain_pipeline.run()
-
-        if self.state:
-            if computers:
-                self.state.store_computers(computers)
-            # Only mark phase complete if LDAP finished without error.
-            # On partial failure, leave unset so resume re-queries.
-            if domain_pipeline.ad.discovery_complete:
-                self.state.mark_phase_done(_PHASE_COMPUTERS)
-            logger.info(f"Stored {len(computers)} computers in resume state")
-
-        return computers
-
-    def _resolve_computers(self, computers: List[str]) -> List[str]:
-        """DNS pre-resolution: filter out hosts with no A record."""
-        if not computers:
-            return []
-
-        # Resume: DNS phase already complete → load from state
-        if self.state and self.state.is_phase_done(_PHASE_DNS):
-            resolved = self.state.load_resolved_computers()
-            self.progress.dns_total = len(computers)
-            self.progress.dns_resolved = len(resolved)
-            self.progress.dns_filtered = len(computers) - len(resolved)
-            logger.info(
-                f"Resume: loaded {len(resolved)} DNS-resolved computers from state"
-            )
-            return resolved
-
-        # Ensure computers are in state DB (needed for --computer mode
-        # where _resume_computer_discovery is not called)
-        if self.state:
-            self.state.store_computers(computers)
-            to_resolve = self.state.load_unresolved_computers()
-            already_resolved = self.state.load_resolved_computers()
-        else:
-            to_resolve = list(computers)
-            already_resolved = []
-
-        self.progress.dns_total = len(computers)
-        self.progress.dns_resolved = len(already_resolved)
-        self.progress.dns_start = time.monotonic()
-
-        dns_timeout = self.cfg.auth.smb_timeout
-
-        def resolve_one(hostname: str):
-            try:
-                result = socket.getaddrinfo(
-                    hostname, 445, socket.AF_INET, socket.SOCK_STREAM,
-                )
-                ip = result[0][4][0]
-            except (socket.gaierror, socket.herror, socket.timeout, OSError):
-                logger.debug(f"DNS: no record for {hostname}, skipping")
-                return None
-
-            # Quick TCP probe — verify port 445 is actually reachable
-            try:
-                with socket.create_connection(
-                    (ip, 445), timeout=_PORT_CHECK_TIMEOUT,
-                ):
-                    pass
-            except (OSError, socket.timeout):
-                logger.debug(
-                    f"DNS: {hostname} ({ip}) port 445 unreachable, skipping"
-                )
-                return None
-
-            return ip
-
-        resolved = list(already_resolved)
-        interrupted = False
-        t0 = time.monotonic()
-
-        with ThreadPoolExecutor(
-            max_workers=self.cfg.advanced.dns_threads,
-        ) as pool:
-            futures = {
-                pool.submit(resolve_one, h): h for h in to_resolve
-            }
-            try:
-                for future in as_completed(futures):
-                    hostname = futures[future]
-                    try:
-                        ip = future.result()
-                    except Exception as e:
-                        check_fatal_os_error(e)
-                        ip = None
-                        logger.info(f"DNS: probe failed for {hostname}")
-                    if ip is not None:
-                        resolved.append(hostname)
-                        self.progress.dns_resolved += 1
-                        if self.state:
-                            self.state.set_computer_ip(hostname, ip)
-                    else:
-                        self.progress.dns_filtered += 1
-            except KeyboardInterrupt:
-                pool.shutdown(wait=False, cancel_futures=True)
-                interrupted = True
-
-        elapsed = time.monotonic() - t0
-        filtered = len(computers) - len(resolved)
-        logger.info(
-            f"DNS pre-resolution: {len(resolved)}/{len(computers)} hosts resolved, "
-            f"{filtered} filtered ({elapsed:.1f}s)"
-        )
-
-        # Only mark phase complete if all hosts were processed.
-        # On interrupt, leave it unset so unresolved hosts get retried on resume.
-        if self.state and not interrupted:
-            self.state.mark_phase_done(_PHASE_DNS)
-
-        if not resolved:
-            logger.warning("DNS pre-resolution: no hosts resolved, share discovery will be skipped")
-
-        if interrupted:
-            raise KeyboardInterrupt
-
-        return resolved
-
-    def _resume_share_discovery(self, computers: List[str]) -> List[str]:
-        """Discover or load shares, skipping already-checked computers."""
-        if self.progress:
-            self.progress.computers_total = len(computers)
-
-        if self.state and self.state.is_phase_done(_PHASE_SHARES):
-            shares = self.state.load_shares()
-            shares = self._filter_paths_by_share(shares)
-            if self.progress:
-                self.progress.computers_done = len(computers)
-                self.progress.shares_found = len(shares)
-            logger.info(f"Resume: loaded {len(shares)} shares from state")
-            if self.cfg.targets.shares_only:
-                return []
-            return shares
-
-        # Filter out computers already enumerated in a previous run
-        if self.state:
-            remaining = [
-                c for c in computers
-                if not self.state.should_skip_computer(c)
-            ]
-            skipped = len(computers) - len(remaining)
-            if skipped:
-                logger.info(
-                    f"Resume: skipped {skipped} already-enumerated computers"
-                )
-                if self.progress:
-                    self.progress.computers_done = skipped
-        else:
-            remaining = computers
-
-        # Pre-seed shares_found from state so the display is correct during
-        # the entire resumed share phase (not just after run() completes).
-        if self.state:
-            existing_shares = self.state.load_shares()
-            self.progress.shares_found = len(existing_shares)
-
-        # Snapshot how many computers were already done before this run's
-        # share discovery starts, so _shares_eta() only measures the current
-        # session's throughput (avoids inflated ETA on resume).
-        self.progress._shares_done_baseline = self.progress.computers_done
-
-        new_shares = self.share_pipeline.run(remaining) if remaining else []
-
-        if self.state:
-            # Ensure pipeline return is persisted (idempotent — SharePipeline
-            # stores incrementally, this catches any that slipped through).
-            if new_shares:
-                self.state.store_shares(new_shares)
-            # Set phase flag and load ALL shares (old + new).
-            self.state.mark_phase_done(_PHASE_SHARES)
-            shares = self.state.load_shares()
-            shares = self._filter_paths_by_share(shares)
-            if self.progress:
-                self.progress.shares_found = len(shares)
-            logger.info(
-                f"Share discovery complete: {len(shares)} total shares in state"
-            )
-            if self.cfg.targets.shares_only:
-                return []
-            return shares
-
-        return self._filter_paths_by_share(new_shares)
-
-    # ---------- rescan unreadable ----------
-
-    def _rescan_unreadable(self):
-        """Re-test previously unreadable shares with current creds."""
-        unreadable = self.state.load_unreadable_shares()
-
-        # Apply --share / --exclude-share filters
-        unreadable = self._filter_paths_by_share(unreadable)
-
-        # Apply --exclusions host filter
-        unreadable = self._filter_paths_by_exclusions(unreadable)
-
-        if not unreadable:
-            logger.warning("No unreadable shares in state DB — nothing to rescan")
-            return
-
-        logger.info(f"Rescan: testing {len(unreadable)} previously unreadable shares")
-
-        from snaffler.discovery.shares import ShareFinder
-        finder = ShareFinder(self.cfg)
-
-        newly_readable = []
-        errors = 0
-
-        def _test_one(unc_path: str):
-            computer = extract_unc_host(unc_path)
-            share_name = extract_unc_share_name(unc_path)
-            if computer is None or share_name is None:
-                return None
-            readable = finder.is_share_readable(computer, share_name)
-            return readable
-
-        try:
-            with ThreadPoolExecutor(
-                max_workers=self.cfg.advanced.share_threads or 2,
-            ) as pool:
-                futures = {pool.submit(_test_one, p): p for p in unreadable}
-                try:
-                    for future in as_completed(futures):
-                        unc_path = futures[future]
-                        try:
-                            result = future.result()
-                        except Exception as e:
-                            check_fatal_os_error(e)
-                            logger.debug(f"Rescan error for {unc_path}: {e}")
-                            errors += 1
-                            continue
-                        if result is None:
-                            # Malformed path
-                            continue
-                        if result:
-                            logger.info(f"[NEW] Readable: {unc_path}")
-                            self.state.update_share_readable(unc_path)
-                            newly_readable.append(unc_path)
-                        else:
-                            logger.debug(f"Still unreadable: {unc_path}")
-                except KeyboardInterrupt:
-                    pool.shutdown(wait=False, cancel_futures=True)
-                    raise
-        finally:
-            # Close all cached connections from rescan's ShareFinder
-            try:
-                finder.close()
-            except Exception:
-                pass
-
-        still_denied = len(unreadable) - len(newly_readable) - errors
-        msg = f"Rescan: {len(newly_readable)} newly readable, {still_denied} still denied"
-        if errors:
-            msg += f", {errors} errors"
-        logger.info(msg)
-
-        if newly_readable:
-            self.progress.shares_found = len(newly_readable)
-            self._run_file_pipeline(newly_readable)
 
     def _detect_scan_mode(self) -> str:
         """Determine the current scan mode from config."""
@@ -557,99 +168,6 @@ class SnafflerRunner:
             self.state.clear_phase_flags()
         self.state.set_sync_value(_SYNC_SCAN_MODE, mode)
 
-    def _validate_credentials(self):
-        """Preflight auth check — try a single login before starting the scan.
-
-        Hard-fails with a clear error if credentials are invalid so we don't
-        silently scan thousands of hosts with bad creds and come back empty.
-
-        Skipped for --local-fs (no auth) and domain mode (LDAP connect
-        validates creds as its first operation).
-        """
-        cfg = self.cfg
-
-        # Local mode — no auth needed
-        if cfg.targets.local_targets:
-            return
-
-        # Domain mode — LDAP connect is the first thing that happens,
-        # it already raises on bad creds with a clear error.
-        if (not cfg.targets.unc_targets
-                and not cfg.targets.computer_targets
-                and not cfg.targets.rescan_unreadable
-                and not cfg.targets.ftp_targets
-                and cfg.auth.domain):
-            return
-
-        # FTP mode — test FTP login
-        if cfg.targets.ftp_targets:
-            from snaffler.discovery.ftp_tree_walker import parse_ftp_url
-            from snaffler.transport.ftp import FTPTransport
-
-            target = cfg.targets.ftp_targets[0]
-            parsed = parse_ftp_url(target)
-            if not parsed:
-                return
-            host, port, _ = parsed
-            transport = FTPTransport(cfg)
-            try:
-                ftp = transport.connect(host, port)
-                try:
-                    ftp.quit()
-                except Exception:
-                    pass
-                logger.info(f"Auth OK: FTP login to {host}:{port} succeeded")
-            except OSError as e:
-                raise SystemExit(
-                    f"FATAL: cannot reach FTP server {host}:{port} — {e}\n"
-                    f"Check network connectivity and retry."
-                ) from e
-            except Exception as e:
-                raise SystemExit(
-                    f"FATAL: FTP authentication failed against {host}:{port} — {e}\n"
-                    f"Fix credentials and retry."
-                ) from e
-            return
-
-        # SMB modes — pick the first available target
-        target = None
-        if cfg.targets.rescan_unreadable and self.state:
-            unreadable = self.state.load_unreadable_shares()
-            if unreadable:
-                target = extract_unc_host(unreadable[0])
-        elif cfg.targets.unc_targets:
-            for p in cfg.targets.unc_targets:
-                host = extract_unc_host(p)
-                if host is not None:
-                    target = host
-                    break
-        elif cfg.targets.computer_targets:
-            target = cfg.targets.computer_targets[0]
-
-        if not target:
-            return
-
-        from snaffler.transport.smb import SMBTransport
-
-        transport = SMBTransport(cfg)
-        try:
-            smb = transport.connect(target)
-            try:
-                smb.close()
-            except Exception:
-                pass
-            logger.info(f"Auth OK: SMB login to {target} succeeded")
-        except OSError as e:
-            raise SystemExit(
-                f"FATAL: cannot reach SMB target {target}:445 — {e}\n"
-                f"Check network connectivity and retry."
-            ) from e
-        except Exception as e:
-            raise SystemExit(
-                f"FATAL: SMB authentication failed against {target} — {e}\n"
-                f"Fix credentials and retry."
-            ) from e
-
     def execute(self):
         self.start_time = datetime.now()
         logger.info(f"Starting Snaffler at {self.start_time:%Y-%m-%d %H:%M:%S}")
@@ -673,7 +191,6 @@ class SnafflerRunner:
 
             # ---------- rescan unreadable shares ----------
             if self.cfg.targets.rescan_unreadable:
-                # Warn if other targeting modes were also specified
                 other = []
                 if self.cfg.targets.unc_targets:
                     other.append("--unc")
@@ -730,8 +247,6 @@ class SnafflerRunner:
                     if len(paths) != len(capped):
                         logger.info(f"--max-hosts {limit}: kept {len(seen_hosts)} hosts, {len(capped)}/{len(paths)} paths")
                     paths = capped
-                # Seed progress counters from UNC paths so summary stats
-                # include computer/share counts even without SharePipeline.
                 hosts = {
                     extract_unc_host(p)
                     for p in paths
@@ -810,7 +325,6 @@ class SnafflerRunner:
                     print_completion_stats(start_time=self.start_time, progress=self.progress)
                 except Exception:
                     pass
-                # Close all cached network connections (SMB/FTP sockets)
                 try:
                     self.file_pipeline.close()
                 except Exception:

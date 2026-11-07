@@ -16,6 +16,7 @@ def make_cfg():
     cfg.auth.dc_host = None
     cfg.auth.use_kcache = False
     cfg.auth.smb_timeout = 30
+    cfg.auth.smb_port = 445
 
     return cfg
 
