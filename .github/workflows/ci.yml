@@ -65,6 +65,7 @@ jobs:
       - name: Build binary
         run: |
           pyinstaller --onefile --name snaffler-linux-x86_64 \
+            --hidden-import backports \
             --exclude-module matplotlib \
             --exclude-module PyQt5 \
             --exclude-module PyQt6 \
@@ -118,6 +119,7 @@ jobs:
       - name: Build binary
         run: |
           pyinstaller --onefile --name snaffler-linux-aarch64 \
+            --hidden-import backports \
             --exclude-module matplotlib \
             --exclude-module PyQt5 \
             --exclude-module PyQt6 \
@@ -171,6 +173,7 @@ jobs:
       - name: Build binary
         run: |
           pyinstaller --onefile --name snaffler-windows-x86_64 `
+            --hidden-import backports `
             --exclude-module matplotlib `
             --exclude-module PyQt5 `
             --exclude-module PyQt6 `
