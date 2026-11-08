@@ -62,4 +62,50 @@ function applyFilter() {
   });
 
   document.getElementById("findings-visible").textContent = visible.toLocaleString();
+  updateTabTitle();
+  pushFilterState();
 }
+
+// ── Tab title ──────────────────────────────────────────────────
+
+var baseTitle = document.title;
+
+function updateTabTitle() {
+  var total = document.getElementById("findings-count").textContent;
+  var n = parseInt(total.replace(/,/g, ""), 10) || 0;
+  document.title = n > 0 ? "(" + n + ") " + baseTitle : baseTitle;
+}
+
+// ── URL permalink filters ──────────────────────────────────────
+
+function pushFilterState() {
+  var params = new URLSearchParams();
+  if (activeTriage) params.set("triage", activeTriage);
+  if (activeRule) params.set("rule", activeRule);
+  var search = document.getElementById("search").value;
+  if (search) params.set("q", search);
+  var qs = params.toString();
+  var url = window.location.pathname + (qs ? "?" + qs : "");
+  history.replaceState(null, "", url);
+}
+
+function restoreFilterState() {
+  var params = new URLSearchParams(window.location.search);
+  var triage = params.get("triage");
+  if (triage && triage in TRIAGE_ORDER) {
+    activeTriage = triage;
+    syncBadges();
+  }
+  var rule = params.get("rule");
+  if (rule) {
+    activeRule = rule;
+    document.getElementById("rule-filter").value = rule;
+  }
+  var q = params.get("q");
+  if (q) {
+    document.getElementById("search").value = q;
+  }
+  if (triage || rule || q) applyFilter();
+}
+
+restoreFilterState();

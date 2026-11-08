@@ -47,6 +47,7 @@ function updateSeverities(d) {
   var total = (d.severity_black || 0) + (d.severity_red || 0)
     + (d.severity_yellow || 0) + (d.severity_green || 0);
   setText("findings-count", total);
+  updateTabTitle();
   return total;
 }
 

@@ -779,3 +779,38 @@ def test_dashboard_js_syntax_valid():
         assert not in_str, (
             f"Unclosed string literal at JS line {i+1}: {stripped[:80]}"
         )
+
+
+# ── Tab title update ────────────────────────────────────────────
+
+def test_js_has_update_tab_title():
+    js = _read_dashboard_js()
+    assert "function updateTabTitle()" in js
+    assert "document.title" in js
+
+
+def test_js_tab_title_called_on_severity_update():
+    js = _read_dashboard_js()
+    # updateSeverities calls updateTabTitle after setting count
+    assert "updateTabTitle()" in js
+
+
+# ── URL permalink filters ───────────────────────────────────────
+
+def test_js_has_push_filter_state():
+    js = _read_dashboard_js()
+    assert "function pushFilterState()" in js
+    assert "history.replaceState" in js
+
+
+def test_js_has_restore_filter_state():
+    js = _read_dashboard_js()
+    assert "function restoreFilterState()" in js
+    assert "URLSearchParams" in js
+
+
+def test_js_restore_reads_triage_rule_q():
+    js = _read_dashboard_js()
+    assert 'params.get("triage")' in js
+    assert 'params.get("rule")' in js
+    assert 'params.get("q")' in js
