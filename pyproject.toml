@@ -33,6 +33,7 @@ dependencies = [
     "typer>=0.15.0",
     "rich>=13.0.0",
     "tomlkit>=0.12.0",
+    "rarfile>=4.0",
 ]
 
 [project.scripts]
@@ -54,12 +55,10 @@ Kali = "https://gitlab.com/kalilinux/packages/snaffler-ng"
 socks = ["pysocks>=1.7.0"]
 web = ["flask>=3.0.0"]
 7z = ["py7zr>=0.20.0"]
-rar = ["rarfile>=4.0"]
 all = [
     "pysocks>=1.7.0",
     "flask>=3.0.0",
     "py7zr>=0.20.0",
-    "rarfile>=4.0",
 ]
 test = [
     "snaffler-ng[all]",

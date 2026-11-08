@@ -28,11 +28,11 @@ Depends: ${python3:Depends},
          python3-typer (>= 0.15.0),
          python3-rich (>= 13.0.0),
          python3-tomlkit (>= 0.12.0),
-         python3-cryptography
+         python3-cryptography,
+         python3-rarfile
 Recommends: python3-socks,
             python3-flask,
-            python3-py7zr,
-            python3-rarfile
+            python3-py7zr
 Description: Credential and sensitive data scanner for SMB, FTP, and local filesystems
  Impacket port of Snaffler, a post-exploitation tool that discovers readable
  SMB shares, FTP servers, and local directories, walks their trees, and
