@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Playwright + headless chromium (pinned)
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
 RUN pip3 install --break-system-packages playwright==1.64.1 \
     && playwright install --with-deps chromium
 
@@ -60,6 +61,9 @@ RUN mkdir -p /work/tests/integration && \
     cp -r /build/tests/ad_env /work/tests/ad_env && \
     cp -r /build/tests/data /work/tests/data && \
     cp -r /build/tests/integration/*.py /work/tests/integration/
+
+# Non-root test user
+RUN useradd -m -s /bin/bash testrunner && chown -R testrunner:testrunner /work
 
 COPY tests/integration/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
