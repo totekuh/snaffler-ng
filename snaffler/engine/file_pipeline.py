@@ -1,9 +1,12 @@
 import fnmatch
 import logging
+import os
 import queue
 import threading
 import time
 from collections import deque
+
+_SCAN_DELAY = float(os.environ.get("SNAFFLER_SCAN_DELAY", 0))
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from typing import List
 
@@ -431,6 +434,8 @@ class FilePipeline:
                 if self.progress:
                     self.progress.files_in_progress += 1
                 try:
+                    if _SCAN_DELAY > 0:
+                        time.sleep(_SCAN_DELAY)
                     result = self.file_scanner.scan_file(unc_path, size, mtime, ctime, atime)
 
                     # Mark done only on success — transport errors skip this
