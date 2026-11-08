@@ -742,6 +742,7 @@ class TestEdgeCases:
     def test_nonexistent_dir(self):
         assert _walk("/nonexistent/path/12345") == []
 
+    @pytest.mark.skipif(os.getuid() == 0, reason="root ignores file permissions")
     def test_permission_denied_subdir(self, tmp_path):
         good = tmp_path / "good"
         good.mkdir()
