@@ -1,85 +1,34 @@
 """Shared fixtures for deb integration tests.
 
 All tests run against the *installed* snaffler-ng package, not source tree.
+The scan DB at /tests/scan.db is produced by a real snaffler scan against
+a Samba share serving tests/data/ — created by entrypoint.sh before pytest.
 """
 
 import os
 import signal
 import sqlite3
 import subprocess
-import tempfile
 import time
 
 import pytest
 import requests
 
+SCAN_DB = "/tests/scan.db"
 
-@pytest.fixture
+
+@pytest.fixture(scope="session")
 def scan_db():
-    """Create a temporary scan DB with schema and sample findings."""
-    fd, path = tempfile.mkstemp(suffix=".db")
-    os.close(fd)
-    conn = sqlite3.connect(path)
-    conn.executescript("""
-        CREATE TABLE sync (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-        CREATE TABLE target_computer
-            (name TEXT PRIMARY KEY COLLATE NOCASE, ip TEXT, done INTEGER DEFAULT 0);
-        CREATE TABLE target_share
-            (unc_path TEXT PRIMARY KEY COLLATE NOCASE, done INTEGER DEFAULT 0,
-             readable INTEGER DEFAULT 1);
-        CREATE TABLE target_dir
-            (path TEXT PRIMARY KEY, walked INTEGER DEFAULT 0);
-        CREATE TABLE target_file
-            (path TEXT PRIMARY KEY, checked INTEGER DEFAULT 0);
-        CREATE TABLE finding
-            (finding_id TEXT, file_path TEXT, triage TEXT, rule_name TEXT,
-             match_text TEXT, context TEXT, size INTEGER, mtime TEXT, found_at TEXT);
-    """)
-    conn.execute("INSERT INTO sync VALUES ('domain', 'TESTLAB.LOCAL')")
-    for i in range(5):
-        conn.execute(
-            "INSERT INTO target_computer (name, ip, done) VALUES (?, ?, 1)",
-            (f"PC{i}.testlab.local", f"10.0.0.{i+1}"),
-        )
-    for i in range(3):
-        conn.execute(
-            "INSERT INTO target_share (unc_path, done) VALUES (?, 1)",
-            (f"\\\\PC0\\share{i}",),
-        )
-    for i in range(3):
-        conn.execute(
-            "INSERT INTO target_dir (path, walked) VALUES (?, 1)",
-            (f"\\\\PC0\\share{i}",),
-        )
-    for i in range(20):
-        conn.execute(
-            "INSERT INTO target_file (path, checked) VALUES (?, 1)",
-            (f"\\\\PC0\\share0\\file{i}.txt",),
-        )
-    findings = [
-        ("f1", "\\\\PC0\\share0\\passwords.txt", "Red", "KeepPass",
-         "password=hunter2", "password=hunter2\nuser=admin", 1024),
-        ("f2", "\\\\PC0\\share0\\id_rsa", "Red", "SshPrivateKey",
-         "-----BEGIN RSA", "-----BEGIN RSA PRIVATE KEY-----", 2048),
-        ("f3", "\\\\PC0\\share1\\web.config", "Yellow", "ConfigFile",
-         "connectionString=", "Server=db;uid=sa;pwd=P@ss", 4096),
-        ("f4", "\\\\PC0\\share1\\notes.txt", "Green", "InterestingFile",
-         None, "meeting notes Q4", 512),
-        ("f5", "\\\\PC0\\share2\\shadow", "Black", "NixShadowFile",
-         "root:$6$salt$hash", "root:$6$salt$hash:19000:0:99999:7:::", 256),
-    ]
-    for fid, path_, triage, rule, match, ctx, size in findings:
-        conn.execute(
-            "INSERT INTO finding VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
-            (fid, path_, triage, rule, match, ctx, size, "2026-01-15"),
-        )
-    conn.commit()
+    """Path to the real scan DB produced by entrypoint.sh."""
+    assert os.path.exists(SCAN_DB), f"Scan DB not found at {SCAN_DB} — did entrypoint.sh run?"
+    conn = sqlite3.connect(SCAN_DB)
+    count = conn.execute("SELECT COUNT(*) FROM finding").fetchone()[0]
     conn.close()
-    yield path
-    os.unlink(path)
+    assert count > 0, "Scan DB has no findings — snaffler scan may have failed"
+    return SCAN_DB
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def web_server(scan_db):
     """Start snaffler results --web and yield (process, port). Kills on teardown."""
     port = 18923

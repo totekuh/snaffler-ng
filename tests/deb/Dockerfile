@@ -3,7 +3,7 @@ FROM kalilinux/kali-rolling@sha256:8913de4b58eeeff681a1e62653c0f4369520f65fb4199
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Pin versions for reproducibility (captured 2026-11-08)
+# Build tools + runtime deps matching debian/control
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     debhelper=14.5 \
@@ -16,11 +16,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-rich=15.0.0-2 \
     python3-tomlkit=0.13.3-3 \
     python3-cryptography=49.0.0-2 \
+    python3-rarfile \
     python3-flask=3.1.3-4 \
     python3-socks=1.7.1+dfsg-2 \
     python3-pytest=9.1.1-1 \
     python3-requests=2.34.2-1 \
     python3-pip=26.1.2+dfsg-1 \
+    # Samba for real SMB share testing
+    samba \
+    smbclient \
+    procps \
+    sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Playwright + headless chromium (pinned)
@@ -30,15 +36,26 @@ RUN pip3 install --break-system-packages playwright==1.64.1 \
 WORKDIR /build
 COPY . /build/
 
-# Build .deb
-RUN dpkg-buildpackage -us -uc -b 2>&1 | tail -5
+# Remove Kali repo snaffler-ng if apt pulled it in as dependency
+RUN dpkg -r --force-depends snaffler-ng 2>/dev/null || true
 
-# Install it
-RUN dpkg -i /snaffler-ng_*.deb 2>/dev/null || (apt-get update && apt-get install -f -y)
+# Build .deb from current source and install it
+RUN dpkg-buildpackage -us -uc -b 2>&1 | tail -5
+RUN dpkg -i --force-overwrite /snaffler-ng_*.deb
 RUN snaffler --help > /dev/null
+
+# Samba config — serves tests/data/ as SMB shares
+COPY tests/deb/smb.conf /etc/samba/smb.conf
+
+# Test data is the single source of truth
+RUN chmod -R 0755 /build/tests/data
 
 # Tests run against installed package, not source tree
 RUN mkdir -p /tests && cp -r /build/tests/deb/suite/* /tests/
-WORKDIR /tests
 
+COPY tests/deb/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+WORKDIR /tests
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python3", "-m", "pytest", "-v", "--tb=short"]
