@@ -6,10 +6,10 @@ test-unit:
 	python -m pytest tests/unit/ -v --tb=short
 
 test-integration:
-	./tests/deb/run.sh
+	./tests/integration/docker/run.sh
 
 build-deb:
-	docker build -t snaffler-ng-deb-test -f tests/deb/Dockerfile .
+	docker build -t snaffler-ng-integration -f tests/integration/docker/Dockerfile .
 
 clean:
 	rm -rf build/ dist/ *.egg-info .pytest_cache

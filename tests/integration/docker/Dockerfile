@@ -22,6 +22,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pytest=9.1.1-1 \
     python3-requests=2.34.2-1 \
     python3-pip=26.1.2+dfsg-1 \
+    python3-pyftpdlib \
+    python3-dnslib \
     # Samba for real SMB share testing
     samba \
     smbclient \
@@ -45,17 +47,23 @@ RUN dpkg -i --force-overwrite /snaffler-ng_*.deb
 RUN snaffler --help > /dev/null
 
 # Samba config — serves tests/data/ as SMB shares
-COPY tests/deb/smb.conf /etc/samba/smb.conf
+COPY tests/integration/docker/smb.conf /etc/samba/smb.conf
 
 # Test data is the single source of truth
 RUN chmod -R 0755 /build/tests/data
 
-# Tests run against installed package, not source tree
-RUN mkdir -p /tests && cp -r /build/tests/deb/suite/* /tests/
+# Reproduce source tree layout so `from tests.*` imports work
+RUN mkdir -p /work/tests/integration && \
+    cp -r /build/tests/__init__.py /work/tests/ 2>/dev/null; true && \
+    touch /work/tests/__init__.py && \
+    cp /build/tests/conftest.py /work/tests/conftest.py && \
+    cp -r /build/tests/ad_env /work/tests/ad_env && \
+    cp -r /build/tests/data /work/tests/data && \
+    cp -r /build/tests/integration/*.py /work/tests/integration/
 
-COPY tests/deb/entrypoint.sh /entrypoint.sh
+COPY tests/integration/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-WORKDIR /tests
+WORKDIR /work
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["python3", "-m", "pytest", "-v", "--tb=short"]
+CMD ["python3", "-m", "pytest", "tests/integration/", "-v", "--tb=short"]

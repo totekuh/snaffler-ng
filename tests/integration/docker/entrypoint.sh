@@ -16,12 +16,12 @@ echo "[*] Samba ready — share: testdata"
 echo "[*] Running snaffler scan..."
 snaffler \
     --unc '\\127.0.0.1\testdata' \
-    --state /tests/scan.db \
+    --state /work/scan.db \
     --fresh \
     --no-banner \
     --log-level data \
     2>&1 | tail -10
-echo "[*] Scan complete — $(sqlite3 /tests/scan.db 'SELECT COUNT(*) FROM finding') findings"
+echo "[*] Scan complete — $(sqlite3 /work/scan.db 'SELECT COUNT(*) FROM finding') findings"
 
 # Hand off to pytest
 exec "$@"

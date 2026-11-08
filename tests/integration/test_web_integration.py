@@ -12,7 +12,7 @@ import pytest
 import requests
 from playwright.sync_api import sync_playwright
 
-SCAN_DB = "/tests/scan.db"
+SCAN_DB = "/work/scan.db"
 
 
 @pytest.fixture(scope="module")
