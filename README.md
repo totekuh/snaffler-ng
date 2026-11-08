@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/snaffler-ng)](https://pypi.org/project/snaffler-ng/)
 [![License](https://img.shields.io/github/license/totekuh/snaffler-ng)](LICENSE)
 
-Impacket port of [Snaffler](https://github.com/SnaffCon/Snaffler).
+Reimplementation of [Snaffler](https://github.com/SnaffCon/Snaffler).
 
 **snaffler-ng** is a post-exploitation tool that discovers readable SMB shares, walks directory trees, and identifies credentials and sensitive data on Windows networks.
 
