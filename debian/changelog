@@ -1,3 +1,15 @@
+snaffler-ng (1.6.0-0kali1) kali-dev; urgency=medium
+
+  * Add --skip-binary / -I flag to skip content scanning on native binaries
+  * Web dashboard: --web on results command, CSV/JSON export, pagination
+  * Tab title with finding count, permalink filter URLs
+  * Unified Docker Compose test infrastructure (samba, dc, testrunner)
+  * Real Samba scan integration tests with Playwright browser automation
+  * Make rarfile a hard dependency
+  * Split large source files into submodules
+
+ -- totekuh <totekuh@protonmail.com>  Sat, 08 Nov 2026 22:00:00 +0000
+
 snaffler-ng (1.5.13-0kali1) kali-dev; urgency=medium
 
   * SMB share writability detection (RW/R shown per share)

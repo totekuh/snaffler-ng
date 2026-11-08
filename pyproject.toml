@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "snaffler-ng"
-version = "1.5.13"
+version = "1.6.0"
 description = "Find credentials and sensitive data on SMB shares, FTP servers, and local filesystems"
 readme = "README.md"
 license = {text = "Apache-2.0"}
