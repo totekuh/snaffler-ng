@@ -225,6 +225,11 @@ Skip known time-waster directories and interleave share walking.
 .BI \-\-match " REGEX"
 Only output findings matching this regex (applied to path, rule, match,
 and context).
+.TP
+.BR \-I ", " \-\-skip\-binary
+Skip content scanning for native compiled binaries (ELF, PE, Mach-O)
+detected by magic bytes. File name and extension rules still apply.
+Certificate checks and archive peeks are not affected.
 .SS Advanced
 .TP
 .BR \-x ", " \-\-max\-threads " " \fIINTEGER\fR

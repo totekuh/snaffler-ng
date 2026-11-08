@@ -20,6 +20,16 @@ snaffler ... --max-threads-per-share 5  # cap tree-walk threads per share (--fas
 
 Threads are split equally across share discovery, tree walking, and file scanning. After share discovery completes, idle threads are rebalanced to file scanning.
 
+## Skip Binary (`--skip-binary` / `-I`)
+
+Skips content regex scanning for native compiled binaries (ELF, PE/MZ, Mach-O) detected by magic bytes. File name and extension rules still apply, and certificate checks and archive peeks are not affected.
+
+```bash
+snaffler -u USER -p PASS -d DOMAIN.LOCAL --skip-binary
+```
+
+Useful on shares with large numbers of executables where content scanning is wasted effort.
+
 ## Scanning Limits
 
 ```bash
