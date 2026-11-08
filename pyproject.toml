@@ -39,7 +39,7 @@ dependencies = [
 snaffler = "snaffler.cli.main:app"
 
 [tool.setuptools]
-packages = { find = {} }
+packages = { find = { exclude = ["tests", "tests.*"] } }
 
 [tool.setuptools.package-data]
 snaffler = ["rules/*.toml", "web/static/*", "web/static/css/*", "web/static/js/*"]
