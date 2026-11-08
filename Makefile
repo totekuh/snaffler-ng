@@ -1,6 +1,8 @@
-.PHONY: test test-unit test-integration build-deb clean
+.PHONY: test test-all test-unit test-integration build-deb clean
 
 test: test-unit
+
+test-all: test-unit test-integration
 
 test-unit:
 	python -m pytest tests/unit/ -v --tb=short
