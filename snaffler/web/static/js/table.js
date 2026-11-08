@@ -32,32 +32,29 @@ document.querySelectorAll("th[data-col]").forEach(function(th) {
 
 // ── Add finding row ─────────────────────────────────────────────
 
-function addFindingRow(f) {
-  var idx = findingsData.length;
-  findingsData.push({match: f.match_text || "", context: f.context || "", rule: f.rule_name || ""});
+function truncate(text, max) {
+  if (!text || text.length <= max) return text || "";
+  return text.substring(0, max) + "…";
+}
 
-  if (f.rule_name && !knownRules[f.rule_name]) {
-    knownRules[f.rule_name] = true;
-    var opt = document.createElement("option");
-    opt.value = f.rule_name;
-    opt.textContent = f.rule_name;
-    document.getElementById("rule-filter").appendChild(opt);
-  }
+function registerRule(ruleName) {
+  if (!ruleName || knownRules[ruleName]) return;
+  knownRules[ruleName] = true;
+  var opt = document.createElement("option");
+  opt.value = ruleName;
+  opt.textContent = ruleName;
+  document.getElementById("rule-filter").appendChild(opt);
+}
 
-  var tbody = document.querySelector("#tbl tbody");
+function buildRow(f, idx) {
   var tr = document.createElement("tr");
-  tr.setAttribute("data-idx", idx);
-  tr.setAttribute("data-triage", f.triage);
-  tr.setAttribute("data-rule", f.rule_name);
-  tr.setAttribute("data-path", f.file_path);
-  tr.setAttribute("data-size", f.size_str || "");
-  tr.setAttribute("data-mtime", f.mtime || "");
   tr.className = "new-row";
 
-  var ctxDisplay = (f.context || "").substring(0, 200);
-  if ((f.context || "").length > 200) ctxDisplay += "…";
-  var matchDisplay = (f.match_text || "").substring(0, 120);
-  if ((f.match_text || "").length > 120) matchDisplay += "…";
+  var attrs = {
+    "data-idx": idx, "data-triage": f.triage, "data-rule": f.rule_name,
+    "data-path": f.file_path, "data-size": f.size_str || "", "data-mtime": f.mtime || ""
+  };
+  Object.keys(attrs).forEach(function(k) { tr.setAttribute(k, attrs[k]); });
 
   var cells = [
     { content: makeBadge(f.triage) },
@@ -75,36 +72,39 @@ function addFindingRow(f) {
     tr.appendChild(td);
   });
 
-  var ctxCell = tr.cells[5];
-  ctxCell.textContent = ctxDisplay;
-  if (matchDisplay) {
-    var matchSpan = document.createElement("span");
-    matchSpan.className = "match";
-    matchSpan.textContent = matchDisplay;
-    ctxCell.appendChild(matchSpan);
-  }
+  return tr;
+}
 
+function fillContextCell(tr, f) {
+  var ctxCell = tr.cells[5];
+  ctxCell.textContent = truncate(f.context, 200);
+
+  var matchText = truncate(f.match_text, 120);
+  if (matchText) {
+    var span = document.createElement("span");
+    span.className = "match";
+    span.textContent = matchText;
+    ctxCell.appendChild(span);
+  }
+}
+
+function addFindingRow(f) {
+  var idx = findingsData.length;
+  findingsData.push({match: f.match_text || "", context: f.context || "", rule: f.rule_name || ""});
+  registerRule(f.rule_name);
+
+  var tr = buildRow(f, idx);
+  fillContextCell(tr, f);
   tr.addEventListener("click", function() { openModal(this); });
 
+  var tbody = document.querySelector("#tbl tbody");
   if (tbody.firstChild) {
     tbody.insertBefore(tr, tbody.firstChild);
   } else {
     tbody.appendChild(tr);
   }
 
-  var triageOk = !activeTriage || f.triage === activeTriage;
-  var ruleOk = !activeRule || f.rule_name === activeRule;
-  var term = document.getElementById("search").value.toLowerCase();
-  var textOk = true;
-  if (term) {
-    var haystack = [
-      tr.textContent,
-      f.match_text || "",
-      f.context || ""
-    ].join("\n").toLowerCase();
-    textOk = haystack.indexOf(term) !== -1;
-  }
-  if (!(triageOk && ruleOk && textOk)) {
+  if (!matchesTriage(tr) || !matchesRule(tr) || !matchesSearch(tr, document.getElementById("search").value.toLowerCase())) {
     tr.style.display = "none";
   }
 }

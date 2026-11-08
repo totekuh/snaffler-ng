@@ -1,64 +1,81 @@
+function setText(id, value) {
+  document.getElementById(id).textContent = (value || 0).toLocaleString();
+}
+
+function setCounter(id, done, total) {
+  document.getElementById(id).textContent =
+    (done || 0).toLocaleString() + " / " + (total || 0).toLocaleString();
+}
+
+function updatePhase(d) {
+  var phaseEl = document.getElementById("phase-text");
+  var dotEl = document.getElementById("phase-dot");
+  phaseEl.textContent = PHASE_LABELS[d.phase] || d.phase;
+
+  if (d.phase === "complete") {
+    dotEl.classList.remove("active");
+    dotEl.style.background = "#888";
+    if (!stopScheduled) {
+      stopScheduled = true;
+      setTimeout(function() {
+        if (!isResultsMode) fetchFindings();
+        pollActive = false;
+        if (timerIval) clearInterval(timerIval);
+        clearInterval(progressIval);
+        if (findingsIval) clearInterval(findingsIval);
+      }, 2000);
+    }
+  } else {
+    dotEl.classList.add("active");
+    dotEl.style.background = "#27ae60";
+  }
+}
+
+function updateCards(d) {
+  setText("card-dns", d.dns_resolved);
+  setCounter("card-computers", d.computers_done, d.computers_total);
+  setCounter("card-shares", d.shares_walked, d.shares_total || d.shares_found);
+  setCounter("card-files", d.files_scanned, d.files_total);
+}
+
+function updateSeverities(d) {
+  setText("sev-black", d.severity_black);
+  setText("sev-red", d.severity_red);
+  setText("sev-yellow", d.severity_yellow);
+  setText("sev-green", d.severity_green);
+
+  var total = (d.severity_black || 0) + (d.severity_red || 0)
+    + (d.severity_yellow || 0) + (d.severity_green || 0);
+  setText("findings-count", total);
+  return total;
+}
+
+function updateRates(d, total) {
+  var now = Date.now();
+  var dt = (now - prevRateTime) / 1000;
+  if (dt < 2) return;
+
+  var filesPerSec = ((d.files_scanned || 0) - prevFilesScanned) / dt;
+  var findingsPerMin = ((total - prevFindingsTotal) / dt) * 60;
+
+  setText("rate-files", filesPerSec > 0 ? Math.round(filesPerSec) : "--");
+  setText("rate-findings", findingsPerMin > 0 ? Math.round(findingsPerMin) : "--");
+
+  prevFilesScanned = d.files_scanned || 0;
+  prevFindingsTotal = total;
+  prevRateTime = now;
+}
+
 function pollProgress() {
   if (!pollActive) return;
   fetch("/api/progress").then(function(r) { return r.json(); }).then(function(d) {
     serverElapsed = d.elapsed_seconds || 0;
     localSyncTime = Date.now();
 
-    var phaseEl = document.getElementById("phase-text");
-    var dotEl = document.getElementById("phase-dot");
-    phaseEl.textContent = PHASE_LABELS[d.phase] || d.phase;
-
-    if (d.phase === "complete") {
-      dotEl.classList.remove("active");
-      dotEl.style.background = "#888";
-      if (!stopScheduled) {
-        stopScheduled = true;
-        setTimeout(function() {
-          if (!isResultsMode) fetchFindings();
-          pollActive = false;
-          if (timerIval) clearInterval(timerIval);
-          clearInterval(progressIval);
-          if (findingsIval) clearInterval(findingsIval);
-        }, 2000);
-      }
-    } else {
-      dotEl.classList.add("active");
-      dotEl.style.background = "#27ae60";
-    }
-
-    document.getElementById("card-dns").textContent = (d.dns_resolved || 0).toLocaleString();
-    document.getElementById("card-computers").textContent =
-      (d.computers_done || 0).toLocaleString() + " / " + (d.computers_total || 0).toLocaleString();
-    document.getElementById("card-shares").textContent =
-      (d.shares_walked || 0).toLocaleString() + " / " + (d.shares_total || d.shares_found || 0).toLocaleString();
-    document.getElementById("card-files").textContent =
-      (d.files_scanned || 0).toLocaleString() + " / " + (d.files_total || 0).toLocaleString();
-
-    document.getElementById("sev-black").textContent = (d.severity_black || 0).toLocaleString();
-    document.getElementById("sev-red").textContent = (d.severity_red || 0).toLocaleString();
-    document.getElementById("sev-yellow").textContent = (d.severity_yellow || 0).toLocaleString();
-    document.getElementById("sev-green").textContent = (d.severity_green || 0).toLocaleString();
-
-    var total = (d.severity_black || 0) + (d.severity_red || 0) + (d.severity_yellow || 0) + (d.severity_green || 0);
-    document.getElementById("findings-count").textContent = total.toLocaleString();
-
-    if (!isResultsMode) {
-      var now = Date.now();
-      var dt = (now - prevRateTime) / 1000;
-      if (dt >= 2) {
-        var filesDelta = (d.files_scanned || 0) - prevFilesScanned;
-        var filesPerSec = dt > 0 ? (filesDelta / dt) : 0;
-        var findingsDelta = total - prevFindingsTotal;
-        var findingsPerMin = dt > 0 ? (findingsDelta / dt * 60) : 0;
-        document.getElementById("rate-files").textContent =
-          filesPerSec > 0 ? Math.round(filesPerSec).toLocaleString() : "--";
-        document.getElementById("rate-findings").textContent =
-          findingsPerMin > 0 ? Math.round(findingsPerMin).toLocaleString() : "--";
-        prevFilesScanned = d.files_scanned || 0;
-        prevFindingsTotal = total;
-        prevRateTime = now;
-      }
-    }
+    updatePhase(d);
+    updateCards(d);
+    var total = updateSeverities(d);
+    if (!isResultsMode) updateRates(d, total);
   }).catch(function() {});
 }
 

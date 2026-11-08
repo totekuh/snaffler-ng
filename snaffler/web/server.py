@@ -321,9 +321,10 @@ def serve_results(db_path, port=8080):
     progress = _make_results_progress(db_path)
     app = create_app(progress, db_path, datetime.now(), mode="results")
 
-    print(f"Serving results: http://127.0.0.1:{port}")
-    print("Press Ctrl+C to stop")
+    print(f"Serving results: http://127.0.0.1:{port} (Ctrl+C to stop)")
     try:
+        import logging as _logging
+        _logging.getLogger("werkzeug").setLevel(_logging.CRITICAL)
         app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
     except OSError as exc:
         logger.error(f"Web dashboard failed to start on port {port}: {exc}")
