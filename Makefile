@@ -1,6 +1,4 @@
-.PHONY: test test-all test-unit test-integration build-deb clean
-
-test: test-unit
+.PHONY: test-all test-unit test-integration test-integration-ad build-deb clean
 
 test-all: test-unit test-integration
 
@@ -8,10 +6,13 @@ test-unit:
 	python -m pytest tests/unit/ -v --tb=short
 
 test-integration:
-	./tests/integration/docker/run.sh
+	./tests/docker/run.sh
+
+test-integration-ad:
+	./tests/docker/run.sh --profile ad
 
 build-deb:
-	docker build -t snaffler-ng-integration -f tests/integration/docker/Dockerfile .
+	docker compose -f tests/docker-compose.yml build testrunner
 
 clean:
 	rm -rf build/ dist/ *.egg-info .pytest_cache

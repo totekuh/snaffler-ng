@@ -9,6 +9,7 @@ from snaffler.analysis.certificates import CertificateChecker
 from snaffler.analysis.model.file_context import FileContext
 from snaffler.analysis.model.file_result import FileResult
 from snaffler.analysis.scanner_types import FileCheckStatus, FileCheckResult
+from snaffler.analysis.binary_detect import read_magic
 from snaffler.analysis.content_scanner import evaluate_content
 from snaffler.analysis.archive_scanner import evaluate_archive, list_archive_members, MAX_ARCHIVE_MEMBERS
 from snaffler.classifiers.evaluator import RuleEvaluator
@@ -48,6 +49,7 @@ class FileScanner:
                 raise SystemExit(1)
         self._max_read_bytes = cfg.scanning.max_read_bytes
         self._match_context_bytes = cfg.scanning.match_context_bytes
+        self._skip_binary = getattr(cfg.scanning, 'skip_binary', False)
 
     def _filter_result(
             self,
@@ -189,25 +191,28 @@ class FileScanner:
             best_result = FileResult.pick_best(best_result, archive)
 
         if prior._can_scan_content:
-            targeted_names = set(prior.content_rule_names)
-            if targeted_names:
-                content_rules = sorted(
-                    (
-                        self.rule_evaluator.content_rules_by_name[n]
-                        for n in targeted_names
-                        if n in self.rule_evaluator.content_rules_by_name
-                    ),
-                    key=lambda r: r.triage.level,
-                    reverse=True,
-                )
+            if self._skip_binary and read_magic(data):
+                logger.debug(f"Skipping content scan (binary): {ctx.unc_path}")
             else:
-                content_rules = self.rule_evaluator.content_rules
+                targeted_names = set(prior.content_rule_names)
+                if targeted_names:
+                    content_rules = sorted(
+                        (
+                            self.rule_evaluator.content_rules_by_name[n]
+                            for n in targeted_names
+                            if n in self.rule_evaluator.content_rules_by_name
+                        ),
+                        key=lambda r: r.triage.level,
+                        reverse=True,
+                    )
+                else:
+                    content_rules = self.rule_evaluator.content_rules
 
-            content = evaluate_content(
-                ctx, data, content_rules,
-                self.rule_evaluator, self._match_context_bytes,
-            )
-            best_result = FileResult.pick_best(best_result, content)
+                content = evaluate_content(
+                    ctx, data, content_rules,
+                    self.rule_evaluator, self._match_context_bytes,
+                )
+                best_result = FileResult.pick_best(best_result, content)
 
         return best_result
 

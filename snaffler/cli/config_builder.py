@@ -27,7 +27,7 @@ def build_config(
     grab, include_disabled, stdin_mode,
     share, exclude_share, exclude_unc, exclusions_file, max_hosts,
     min_interest, max_read_bytes, max_file_bytes, context, max_depth,
-    fast, match_filter, snaffle_path,
+    fast, match_filter, skip_binary, snaffle_path,
     max_threads, dns_threads, max_threads_per_share,
     stealth, rule_dir,
     output_file, log_level, log_type, no_color,
@@ -186,6 +186,8 @@ def build_config(
     if _explicit("max_file_bytes"): cfg.scanning.max_file_bytes = max_file_bytes
     if _explicit("context"):        cfg.scanning.match_context_bytes = context
     if _explicit("max_depth"):      cfg.scanning.max_depth = max_depth
+
+    if _explicit("skip_binary"):    cfg.scanning.skip_binary = skip_binary
 
     if match_filter:
         import re

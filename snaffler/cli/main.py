@@ -345,6 +345,11 @@ def main(
             help="Only output findings matching this regex (applied to path, rule, match, context)",
             rich_help_panel="Scanning",
         ),
+        skip_binary: bool = typer.Option(
+            False, "--skip-binary", "-I",
+            help="Skip content scanning for native compiled binaries (ELF, PE, Mach-O) detected by magic bytes",
+            rich_help_panel="Scanning",
+        ),
 
         # ---------------- ADVANCED ----------------
         max_threads: int = typer.Option(
@@ -431,7 +436,8 @@ def main(
         exclusions_file=exclusions_file, max_hosts=max_hosts,
         min_interest=min_interest, max_read_bytes=max_read_bytes,
         max_file_bytes=max_file_bytes, context=context, max_depth=max_depth,
-        fast=fast, match_filter=match_filter, snaffle_path=snaffle_path,
+        fast=fast, match_filter=match_filter, skip_binary=skip_binary,
+        snaffle_path=snaffle_path,
         max_threads=max_threads, dns_threads=dns_threads,
         max_threads_per_share=max_threads_per_share,
         stealth=stealth, rule_dir=rule_dir,

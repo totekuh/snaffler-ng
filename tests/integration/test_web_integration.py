@@ -6,28 +6,30 @@ web dashboard serving the resulting DB, hit with real browser via Playwright.
 
 import csv
 import io
+import os
 import sqlite3
 
 import pytest
 import requests
 from playwright.sync_api import sync_playwright
 
-SCAN_DB = "/work/scan.db"
+IN_DOCKER = os.environ.get("SNAFFLER_TEST_DOCKER") == "1"
+pytestmark = pytest.mark.skipif(not IN_DOCKER, reason="Docker-only test")
 
 
 @pytest.fixture(scope="module")
-def finding_count():
+def finding_count(scan_db):
     """Total findings from the real scan — single source of truth for assertions."""
-    conn = sqlite3.connect(SCAN_DB)
+    conn = sqlite3.connect(scan_db)
     total = conn.execute("SELECT COUNT(*) FROM finding").fetchone()[0]
     conn.close()
     return total
 
 
 @pytest.fixture(scope="module")
-def triage_counts():
+def triage_counts(scan_db):
     """Per-triage counts from the real scan."""
-    conn = sqlite3.connect(SCAN_DB)
+    conn = sqlite3.connect(scan_db)
     rows = conn.execute("SELECT triage, COUNT(*) FROM finding GROUP BY triage").fetchall()
     conn.close()
     return dict(rows)

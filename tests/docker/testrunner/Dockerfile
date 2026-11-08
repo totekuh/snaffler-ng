@@ -24,8 +24,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip=26.1.2+dfsg-1 \
     python3-pyftpdlib \
     python3-dnslib \
-    # Samba for real SMB share testing
-    samba \
     smbclient \
     procps \
     sqlite3 \
@@ -47,12 +45,6 @@ RUN dpkg-buildpackage -us -uc -b 2>&1 | tail -5
 RUN dpkg -i --force-overwrite /snaffler-ng_*.deb
 RUN snaffler --help > /dev/null
 
-# Samba config — serves tests/data/ as SMB shares
-COPY tests/integration/docker/smb.conf /etc/samba/smb.conf
-
-# Test data is the single source of truth
-RUN chmod -R 0755 /build/tests/data
-
 # Reproduce source tree layout so `from tests.*` imports work
 RUN mkdir -p /work/tests/integration && \
     cp -r /build/tests/__init__.py /work/tests/ 2>/dev/null; true && \
@@ -65,7 +57,7 @@ RUN mkdir -p /work/tests/integration && \
 # Non-root test user
 RUN useradd -m -s /bin/bash testrunner && chown -R testrunner:testrunner /work
 
-COPY tests/integration/docker/entrypoint.sh /entrypoint.sh
+COPY tests/docker/testrunner/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 WORKDIR /work

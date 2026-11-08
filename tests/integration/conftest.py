@@ -1,7 +1,7 @@
 """Integration test fixtures.
 
 - AD fixtures: imported from tests.ad_env when available
-- Deb/web fixtures: activate when running inside Docker (scan DB exists)
+- Scan fixtures: run snaffler against SMB_HOST inside Docker
 """
 
 import os
@@ -18,22 +18,51 @@ try:
 except ImportError:
     pass
 
-# ── Deb integration fixtures (Docker only) ──────────────────────
+# ── Docker detection ──────────────────────────────────────────────
 
-SCAN_DB = "/work/scan.db"
-IN_DOCKER = os.path.exists(SCAN_DB)
+SMB_HOST = os.environ.get("SMB_HOST", "samba")
+IN_DOCKER = os.environ.get("SNAFFLER_TEST_DOCKER") == "1"
+
+
+def _run_scan(db_path, extra_args=None):
+    cmd = [
+        "snaffler",
+        "--unc", f"\\\\{SMB_HOST}\\testdata",
+        "--state", db_path,
+        "--fresh", "--no-banner", "--log-level", "data",
+    ]
+    if extra_args:
+        cmd.extend(extra_args)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"snaffler scan failed (exit {result.returncode}):\n{result.stderr}"
+        )
+    return db_path
 
 
 @pytest.fixture(scope="session")
 def scan_db():
-    """Path to the real scan DB produced by entrypoint.sh."""
+    """Run snaffler against Samba share, return path to scan DB."""
     if not IN_DOCKER:
-        pytest.skip("Not in Docker — scan DB not available")
-    conn = sqlite3.connect(SCAN_DB)
+        pytest.skip("Not in Docker — SMB target not available")
+    db_path = "/work/scan.db"
+    _run_scan(db_path)
+    conn = sqlite3.connect(db_path)
     count = conn.execute("SELECT COUNT(*) FROM finding").fetchone()[0]
     conn.close()
     assert count > 0, "Scan DB has no findings — snaffler scan may have failed"
-    return SCAN_DB
+    return db_path
+
+
+@pytest.fixture(scope="session")
+def scan_db_skip_binary():
+    """Run snaffler with --skip-binary against Samba share."""
+    if not IN_DOCKER:
+        pytest.skip("Not in Docker — SMB target not available")
+    db_path = "/work/scan_skipbin.db"
+    _run_scan(db_path, extra_args=["--skip-binary"])
+    return db_path
 
 
 @pytest.fixture(scope="session")

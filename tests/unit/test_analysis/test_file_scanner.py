@@ -584,3 +584,313 @@ def test_match_filter_none_passes_all():
 
     assert isinstance(result, FileResult)
     assert result.rule_name == "AnyRule"
+
+
+# ---------------- skip_binary tests ----------------
+
+def make_cfg_skip_binary(skip=True, match_filter=None):
+    cfg = make_cfg(match_filter=match_filter)
+    cfg.scanning.skip_binary = skip
+    return cfg
+
+
+def test_skip_binary_skips_content_scan_for_elf():
+    """With skip_binary=True, content rules are not run on ELF data."""
+    accessor = MagicMock()
+    accessor.read.return_value = b"\x7fELF" + b"\x00" * 100
+
+    content_rule = MagicMock()
+    content_rule.match_action = MatchAction.SNAFFLE
+    content_rule.match_location = MatchLocation.FILE_CONTENT_AS_STRING
+    content_rule.triage = Triage.RED
+    content_rule.rule_name = "ContentSecret"
+
+    evaluator = RuleEvaluator(
+        file_rules=[],
+        content_rules=[content_rule],
+        postmatch_rules=[],
+    )
+
+    scanner = FileScanner(make_cfg_skip_binary(skip=True), accessor, evaluator)
+    result = scanner.scan_file("//srv/share/program", 104, 1700000000.0)
+
+    assert result is None
+
+
+def test_skip_binary_false_still_scans_elf_content():
+    """With skip_binary=False (default), content rules run on ELF data."""
+    accessor = MagicMock()
+    elf_with_secret = b"\x7fELF" + b"\x00" * 50 + b"password=hunter2" + b"\x00" * 50
+    accessor.read.return_value = elf_with_secret
+
+    from snaffler.classifiers.rules import ClassifierRule, EnumerationScope, MatchListType
+    content_rule = ClassifierRule(
+        rule_name="FindPassword",
+        enumeration_scope=EnumerationScope.CONTENTS_ENUMERATION,
+        match_action=MatchAction.SNAFFLE,
+        match_location=MatchLocation.FILE_CONTENT_AS_STRING,
+        wordlist_type=MatchListType.CONTAINS,
+        wordlist=["password="],
+        triage=Triage.RED,
+    )
+
+    evaluator = RuleEvaluator(
+        file_rules=[],
+        content_rules=[content_rule],
+        postmatch_rules=[],
+    )
+
+    scanner = FileScanner(make_cfg_skip_binary(skip=False), accessor, evaluator)
+    result = scanner.scan_file("//srv/share/program", len(elf_with_secret), 1700000000.0)
+
+    assert isinstance(result, FileResult)
+    assert result.rule_name == "FindPassword"
+
+
+def test_skip_binary_does_not_skip_text():
+    """With skip_binary=True, text files still get content scanned."""
+    accessor = MagicMock()
+    accessor.read.return_value = b"DB_PASSWORD=hunter2\n"
+
+    from snaffler.classifiers.rules import ClassifierRule, EnumerationScope, MatchListType
+    content_rule = ClassifierRule(
+        rule_name="FindPassword",
+        enumeration_scope=EnumerationScope.CONTENTS_ENUMERATION,
+        match_action=MatchAction.SNAFFLE,
+        match_location=MatchLocation.FILE_CONTENT_AS_STRING,
+        wordlist_type=MatchListType.CONTAINS,
+        wordlist=["DB_PASSWORD"],
+        triage=Triage.RED,
+    )
+
+    evaluator = RuleEvaluator(
+        file_rules=[],
+        content_rules=[content_rule],
+        postmatch_rules=[],
+    )
+
+    scanner = FileScanner(make_cfg_skip_binary(skip=True), accessor, evaluator)
+    result = scanner.scan_file("//srv/share/config.txt", 20, 1700000000.0)
+
+    assert isinstance(result, FileResult)
+    assert result.rule_name == "FindPassword"
+
+
+def test_skip_binary_pe_skips_content():
+    """PE/MZ binaries are skipped with skip_binary=True."""
+    accessor = MagicMock()
+    accessor.read.return_value = b"MZ" + b"\x00" * 100
+
+    content_rule = MagicMock()
+    content_rule.match_action = MatchAction.SNAFFLE
+    content_rule.match_location = MatchLocation.FILE_CONTENT_AS_STRING
+    content_rule.triage = Triage.RED
+    content_rule.rule_name = "ContentSecret"
+
+    evaluator = RuleEvaluator(
+        file_rules=[],
+        content_rules=[content_rule],
+        postmatch_rules=[],
+    )
+
+    scanner = FileScanner(make_cfg_skip_binary(skip=True), accessor, evaluator)
+    result = scanner.scan_file("//srv/share/app.exe", 102, 1700000000.0)
+
+    assert result is None
+
+
+def test_skip_binary_preserves_filename_snaffle():
+    """Phase 1 filename SNAFFLE still works with skip_binary=True."""
+    accessor = MagicMock()
+    accessor.read.return_value = b"\x7fELF" + b"\x00" * 100
+
+    file_rule = make_rule(
+        action=MatchAction.SNAFFLE,
+        location=MatchLocation.FILE_NAME,
+        triage=Triage.BLACK,
+        name="InterestingFileName",
+    )
+
+    evaluator = MagicMock()
+    evaluator.file_rules = [file_rule]
+    evaluator.content_rules = []
+    evaluator.postmatch_rules = []
+    evaluator.should_discard_postmatch.return_value = False
+    evaluator.evaluate_file_rule.return_value = RuleDecision(
+        action=MatchAction.SNAFFLE,
+        match="id_rsa",
+    )
+
+    scanner = FileScanner(make_cfg_skip_binary(skip=True), accessor, evaluator)
+    result = scanner.scan_file("//srv/share/id_rsa", 104, 1700000000.0)
+
+    assert isinstance(result, FileResult)
+    assert result.rule_name == "InterestingFileName"
+
+
+def test_skip_binary_cert_check_still_runs():
+    """Cert check path is NOT skipped even with skip_binary=True."""
+    accessor = MagicMock()
+
+    from snaffler.classifiers.rules import ClassifierRule, EnumerationScope, MatchListType
+    file_rule = ClassifierRule(
+        rule_name="CertByExt",
+        enumeration_scope=EnumerationScope.FILE_ENUMERATION,
+        match_action=MatchAction.CHECK_FOR_KEYS,
+        match_location=MatchLocation.FILE_EXTENSION,
+        wordlist_type=MatchListType.EXACT,
+        wordlist=[".pfx"],
+        triage=Triage.RED,
+    )
+
+    evaluator = RuleEvaluator(
+        file_rules=[file_rule],
+        content_rules=[],
+        postmatch_rules=[],
+    )
+
+    scanner = FileScanner(make_cfg_skip_binary(skip=True), accessor, evaluator)
+
+    check = scanner.check_file("//srv/share/cert.pfx", 500, 1700000000.0)
+
+    from snaffler.analysis.scanner_types import FileCheckStatus
+    assert check.status == FileCheckStatus.CHECK_KEYS
+
+
+def test_skip_binary_macho_skips_content():
+    """Mach-O binaries are skipped with skip_binary=True."""
+    accessor = MagicMock()
+    accessor.read.return_value = b"\xcf\xfa\xed\xfe" + b"\x00" * 100
+
+    content_rule = MagicMock()
+    content_rule.match_action = MatchAction.SNAFFLE
+    content_rule.match_location = MatchLocation.FILE_CONTENT_AS_STRING
+    content_rule.triage = Triage.RED
+    content_rule.rule_name = "ContentSecret"
+
+    evaluator = RuleEvaluator(
+        file_rules=[],
+        content_rules=[content_rule],
+        postmatch_rules=[],
+    )
+
+    scanner = FileScanner(make_cfg_skip_binary(skip=True), accessor, evaluator)
+    result = scanner.scan_file("//srv/share/app.dylib", 104, 1700000000.0)
+
+    assert result is None
+
+
+def test_skip_binary_archive_peek_still_runs():
+    """Archive peek is NOT skipped even with skip_binary=True."""
+    import zipfile
+    import io
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("id_rsa", "fake key")
+    zip_bytes = buf.getvalue()
+
+    accessor = MagicMock()
+    accessor.read.return_value = zip_bytes
+
+    from snaffler.classifiers.rules import ClassifierRule, EnumerationScope, MatchListType
+    file_rule = ClassifierRule(
+        rule_name="ArchiveByExt",
+        enumeration_scope=EnumerationScope.FILE_ENUMERATION,
+        match_action=MatchAction.ENTER_ARCHIVE,
+        match_location=MatchLocation.FILE_EXTENSION,
+        wordlist_type=MatchListType.EXACT,
+        wordlist=[".zip"],
+        triage=Triage.GREEN,
+    )
+
+    member_rule = ClassifierRule(
+        rule_name="KeepSSHKeysByFileName",
+        enumeration_scope=EnumerationScope.FILE_ENUMERATION,
+        match_action=MatchAction.SNAFFLE,
+        match_location=MatchLocation.FILE_NAME,
+        wordlist_type=MatchListType.EXACT,
+        wordlist=["id_rsa"],
+        triage=Triage.RED,
+    )
+
+    evaluator = RuleEvaluator(
+        file_rules=[file_rule, member_rule],
+        content_rules=[],
+        postmatch_rules=[],
+    )
+
+    scanner = FileScanner(make_cfg_skip_binary(skip=True), accessor, evaluator)
+    result = scanner.scan_file("//srv/share/backup.zip", len(zip_bytes), 1700000000.0)
+
+    assert isinstance(result, FileResult)
+    assert result.rule_name == "KeepSSHKeysByFileName"
+
+
+def test_skip_binary_png_not_skipped():
+    """PNG data is NOT considered a native binary — content rules still run."""
+    accessor = MagicMock()
+    png_with_secret = b"\x89PNG\r\n\x1a\n" + b"\x00" * 50 + b"password=secret" + b"\x00" * 50
+    accessor.read.return_value = png_with_secret
+
+    from snaffler.classifiers.rules import ClassifierRule, EnumerationScope, MatchListType
+    content_rule = ClassifierRule(
+        rule_name="FindPassword",
+        enumeration_scope=EnumerationScope.CONTENTS_ENUMERATION,
+        match_action=MatchAction.SNAFFLE,
+        match_location=MatchLocation.FILE_CONTENT_AS_STRING,
+        wordlist_type=MatchListType.CONTAINS,
+        wordlist=["password="],
+        triage=Triage.RED,
+    )
+
+    evaluator = RuleEvaluator(
+        file_rules=[],
+        content_rules=[content_rule],
+        postmatch_rules=[],
+    )
+
+    scanner = FileScanner(make_cfg_skip_binary(skip=True), accessor, evaluator)
+    result = scanner.scan_file("//srv/share/image.dat", len(png_with_secret), 1700000000.0)
+
+    assert isinstance(result, FileResult)
+    assert result.rule_name == "FindPassword"
+
+
+def test_skip_binary_relay_to_content_skipped_on_binary():
+    """Relay rule fires but content scan is skipped because data is ELF."""
+    accessor = MagicMock()
+    accessor.read.return_value = b"\x7fELF" + b"\x00" * 200
+
+    from snaffler.classifiers.rules import ClassifierRule, EnumerationScope, MatchListType
+    file_rule = ClassifierRule(
+        rule_name="RelayConfigByExt",
+        enumeration_scope=EnumerationScope.FILE_ENUMERATION,
+        match_action=MatchAction.RELAY,
+        match_location=MatchLocation.FILE_EXTENSION,
+        wordlist_type=MatchListType.EXACT,
+        wordlist=[".config"],
+        triage=Triage.GREEN,
+        content_rule_names=["PythonContentRule"],
+    )
+
+    content_rule = ClassifierRule(
+        rule_name="PythonContentRule",
+        enumeration_scope=EnumerationScope.CONTENTS_ENUMERATION,
+        match_action=MatchAction.SNAFFLE,
+        match_location=MatchLocation.FILE_CONTENT_AS_STRING,
+        wordlist_type=MatchListType.CONTAINS,
+        wordlist=["import os"],
+        triage=Triage.YELLOW,
+    )
+
+    evaluator = RuleEvaluator(
+        file_rules=[file_rule],
+        content_rules=[content_rule],
+        postmatch_rules=[],
+    )
+
+    scanner = FileScanner(make_cfg_skip_binary(skip=True), accessor, evaluator)
+    result = scanner.scan_file("//srv/share/settings.config", 204, 1700000000.0)
+
+    assert result is None

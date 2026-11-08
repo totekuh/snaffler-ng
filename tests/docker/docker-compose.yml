@@ -1,0 +1,52 @@
+services:
+  samba:
+    build:
+      context: samba
+    volumes:
+      - ../data:/srv/testdata:ro
+    healthcheck:
+      test: ["CMD", "smbclient", "-L", "//127.0.0.1", "-N"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+
+  dc:
+    build:
+      context: dc
+    hostname: dc01
+    domainname: testlab.local
+    privileged: true
+    environment:
+      REALM: TESTLAB.LOCAL
+      DOMAIN: TESTLAB
+      ADMIN_PASS: "Passw0rd!Testing"
+    volumes:
+      - samba-data:/var/lib/samba
+      - samba-etc:/etc/samba
+      - samba-shares:/srv/shares
+    tmpfs:
+      - /run
+    healthcheck:
+      test: ["CMD", "samba-tool", "domain", "info", "127.0.0.1"]
+      interval: 5s
+      timeout: 10s
+      retries: 24
+    profiles: ["ad"]
+
+  testrunner:
+    build:
+      context: ../../
+      dockerfile: tests/docker/testrunner/Dockerfile
+    depends_on:
+      samba:
+        condition: service_healthy
+    environment:
+      - SMB_HOST=samba
+      - AD_DC_HOST=dc
+      - SNAFFLER_TEST_DOCKER=1
+    command: python3 -m pytest tests/integration/ -v --tb=short
+
+volumes:
+  samba-data:
+  samba-etc:
+  samba-shares:

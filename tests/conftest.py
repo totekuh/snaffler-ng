@@ -92,4 +92,5 @@ def make_scanner_cfg(match_filter=None, max_read=1024 * 1024):
     cfg.scanning.snaffle_path = None
     cfg.scanning.cert_passwords = []
     cfg.scanning.match_filter = match_filter
+    cfg.scanning.skip_binary = False
     return cfg
