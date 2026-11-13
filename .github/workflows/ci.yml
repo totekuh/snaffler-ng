@@ -31,6 +31,14 @@ jobs:
       - name: Mypy type check
         run: mypy snaffler/
 
+      - name: Install project and audit tools
+        run: |
+          pip install -e .
+          pip install pip-audit>=2.7.0
+
+      - name: Dependency vulnerability check
+        run: pip-audit
+
   test-build:
     needs: lint
     runs-on: ubuntu-latest
