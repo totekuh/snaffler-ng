@@ -42,9 +42,7 @@ def parse_socks_url(url: str) -> tuple:
     elif scheme == "socks4":
         proxy_type = SOCKS4
     else:
-        raise ValueError(
-            f"Unsupported SOCKS scheme: {scheme!r} (use socks4 or socks5)"
-        )
+        raise ValueError(f"Unsupported SOCKS scheme: {scheme!r} (use socks4 or socks5)")
 
     host = parsed.hostname
     if not host:
@@ -72,10 +70,7 @@ def setup_socks_proxy(proxy_url: str) -> None:
     try:
         import socks
     except ImportError:
-        raise ImportError(
-            "PySocks is required for --socks support. "
-            "Install it with: pip install pysocks"
-        )
+        raise ImportError("PySocks is required for --socks support. Install it with: pip install pysocks")
 
     proxy_type, host, port, username, password = parse_socks_url(proxy_url)
 
@@ -87,4 +82,4 @@ def setup_socks_proxy(proxy_url: str) -> None:
         username=username,
         password=password,
     )
-    socket.socket = socks.socksocket
+    socket.socket = socks.socksocket  # type: ignore[assignment,misc]

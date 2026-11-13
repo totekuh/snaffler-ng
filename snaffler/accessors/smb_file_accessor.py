@@ -1,12 +1,11 @@
 # snaffler/accessors/smb_file_accessor.py
 
+import logging
 from pathlib import Path
 from typing import Optional
 
-from impacket.smb import FILE_READ_DATA, FILE_READ_ATTRIBUTES, FILE_SHARE_READ
+from impacket.smb import FILE_READ_ATTRIBUTES, FILE_READ_DATA, FILE_SHARE_READ
 from impacket.smbconnection import SessionError
-
-import logging
 
 from snaffler.accessors.file_accessor import FileAccessor
 from snaffler.transport.smb import SMBTransport

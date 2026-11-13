@@ -15,6 +15,7 @@ logger = logging.getLogger("snaffler")
 
 class EnumerationScope(Enum):
     """When to apply a rule"""
+
     SHARE_ENUMERATION = "ShareEnumeration"
     DIRECTORY_ENUMERATION = "DirectoryEnumeration"
     FILE_ENUMERATION = "FileEnumeration"
@@ -24,6 +25,7 @@ class EnumerationScope(Enum):
 
 class MatchLocation(Enum):
     """What part of the file/share to match against"""
+
     SHARE_NAME = "ShareName"
     FILE_PATH = "FilePath"
     FILE_NAME = "FileName"
@@ -36,6 +38,7 @@ class MatchLocation(Enum):
 
 class MatchListType(Enum):
     """How to match the wordlist"""
+
     EXACT = "Exact"
     CONTAINS = "Contains"
     REGEX = "Regex"
@@ -45,6 +48,7 @@ class MatchListType(Enum):
 
 class MatchAction(Enum):
     """What to do when a rule matches"""
+
     DISCARD = "Discard"
     SEND_TO_NEXT_SCOPE = "SendToNextScope"
     SNAFFLE = "Snaffle"
@@ -101,12 +105,8 @@ class ClassifierRule:
             # Plain upper() comparison — no regex needed
             self._exact_set = frozenset(w.upper() for w in self.wordlist)
         elif self.wordlist_type == MatchListType.REGEX:
-            self.regexes = [
-                re.compile(pattern, re.IGNORECASE | re.MULTILINE)
-                for pattern in self.wordlist
-            ]
-        elif self.wordlist_type in [MatchListType.CONTAINS,
-                                    MatchListType.STARTS_WITH, MatchListType.ENDS_WITH]:
+            self.regexes = [re.compile(pattern, re.IGNORECASE | re.MULTILINE) for pattern in self.wordlist]
+        elif self.wordlist_type in [MatchListType.CONTAINS, MatchListType.STARTS_WITH, MatchListType.ENDS_WITH]:
             # Convert to regex for consistent matching
             patterns = []
             for word in self.wordlist:
@@ -119,10 +119,7 @@ class ClassifierRule:
                     pattern = f"{escaped}$"
                 patterns.append(pattern)
 
-            self.regexes = [
-                re.compile(pattern, re.IGNORECASE)
-                for pattern in patterns
-            ]
+            self.regexes = [re.compile(pattern, re.IGNORECASE) for pattern in patterns]
 
     def matches(self, text: str):
         """
@@ -150,20 +147,20 @@ class ClassifierRule:
         return None
 
     @classmethod
-    def from_toml(cls, toml_data: dict) -> 'ClassifierRule':
+    def from_toml(cls, toml_data: dict) -> "ClassifierRule":
         """Create a ClassifierRule from TOML data"""
         return cls(
-            rule_name=toml_data.get('RuleName', 'Unknown'),
-            enumeration_scope=EnumerationScope(toml_data.get('EnumerationScope', 'FileEnumeration')),
-            match_action=MatchAction(toml_data.get('MatchAction', 'Snaffle')),
-            match_location=MatchLocation(toml_data.get('MatchLocation', 'FileName')),
-            wordlist_type=MatchListType(toml_data.get('WordListType', 'Contains')),
-            wordlist=toml_data.get('WordList', []),
-            triage=Triage.from_label(toml_data.get('Triage', 'Green')),
-            description=toml_data.get('Description', ''),
-            content_rule_names=toml_data.get('RelayTargets', []),
-            match_length=toml_data.get('MatchLength', 0),
-            match_md5=toml_data.get('MatchMD5'),
+            rule_name=toml_data.get("RuleName", "Unknown"),
+            enumeration_scope=EnumerationScope(toml_data.get("EnumerationScope", "FileEnumeration")),
+            match_action=MatchAction(toml_data.get("MatchAction", "Snaffle")),
+            match_location=MatchLocation(toml_data.get("MatchLocation", "FileName")),
+            wordlist_type=MatchListType(toml_data.get("WordListType", "Contains")),
+            wordlist=toml_data.get("WordList", []),
+            triage=Triage.from_label(toml_data.get("Triage", "Green")),
+            description=toml_data.get("Description", ""),
+            content_rule_names=toml_data.get("RelayTargets", []),
+            match_length=toml_data.get("MatchLength", 0),
+            match_md5=toml_data.get("MatchMD5"),
         )
 
 
@@ -177,14 +174,14 @@ def load_rules_from_toml(toml_path: str) -> List[ClassifierRule]:
     Returns:
         List of ClassifierRule objects
     """
-    with open(toml_path, 'r') as f:
+    with open(toml_path) as f:
         data = tomlkit.load(f)
 
     rules = []
-    if 'ClassifierRules' in data:
-        for rule_data in data['ClassifierRules']:
+    if "ClassifierRules" in data:
+        for rule_data in data["ClassifierRules"]:  # type: ignore[union-attr]
             try:
-                rule = ClassifierRule.from_toml(rule_data)
+                rule = ClassifierRule.from_toml(rule_data)  # type: ignore[arg-type]
                 rules.append(rule)
             except Exception as e:
                 logger.warning(f"Error loading rule: {e}")
@@ -209,7 +206,7 @@ def load_rules_from_directory(rules_dir: str) -> List[ClassifierRule]:
     rules_path = Path(rules_dir)
 
     # Find all .toml files recursively
-    for toml_file in rules_path.rglob('*.toml'):
+    for toml_file in rules_path.rglob("*.toml"):
         try:
             file_rules = load_rules_from_toml(str(toml_file))
             rules.extend(file_rules)

@@ -6,8 +6,12 @@ from typing import List
 
 from snaffler.classifiers.default_rules import get_default_rules
 from snaffler.classifiers.rules import (
-    ClassifierRule, EnumerationScope, MatchAction,
-    MatchLocation, MatchListType, Triage,
+    ClassifierRule,
+    EnumerationScope,
+    MatchAction,
+    MatchListType,
+    MatchLocation,
+    Triage,
     load_rules_from_directory,
 )
 from snaffler.config.configuration import SnafflerConfiguration
@@ -28,21 +32,11 @@ class RuleLoader:
         if not rules:
             raise RuntimeError("No classification rules loaded")
 
-        cfg.rules.share = [
-            r for r in rules if r.enumeration_scope == EnumerationScope.SHARE_ENUMERATION
-        ]
-        cfg.rules.directory = [
-            r for r in rules if r.enumeration_scope == EnumerationScope.DIRECTORY_ENUMERATION
-        ]
-        cfg.rules.file = [
-            r for r in rules if r.enumeration_scope == EnumerationScope.FILE_ENUMERATION
-        ]
-        cfg.rules.content = [
-            r for r in rules if r.enumeration_scope == EnumerationScope.CONTENTS_ENUMERATION
-        ]
-        cfg.rules.postmatch = [
-            r for r in rules if r.enumeration_scope == EnumerationScope.POST_MATCH
-        ]
+        cfg.rules.share = [r for r in rules if r.enumeration_scope == EnumerationScope.SHARE_ENUMERATION]
+        cfg.rules.directory = [r for r in rules if r.enumeration_scope == EnumerationScope.DIRECTORY_ENUMERATION]
+        cfg.rules.file = [r for r in rules if r.enumeration_scope == EnumerationScope.FILE_ENUMERATION]
+        cfg.rules.content = [r for r in rules if r.enumeration_scope == EnumerationScope.CONTENTS_ENUMERATION]
+        cfg.rules.postmatch = [r for r in rules if r.enumeration_scope == EnumerationScope.POST_MATCH]
 
         logger.info(f"Loaded {len(rules)} classification rules")
 

@@ -2,7 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import Optional, List
 
 import typer
 
@@ -19,20 +18,59 @@ def _is_explicit(ctx: typer.Context, param: str) -> bool:
 def build_config(
     ctx: typer.Context,
     *,
-    config_file, username, password, nthash, domain, dc_host, smb_timeout,
-    kerberos, use_kcache,
-    unc_targets, local, ftp, ftp_file, ftp_tls,
-    computer, computer_file, shares_only, no_check_writable, check_writable,
-    rescan_unreadable, domain_users, user_match, user_min_len,
-    grab, include_disabled, stdin_mode,
-    share, exclude_share, exclude_unc, exclusions_file, max_hosts,
-    min_interest, max_read_bytes, max_file_bytes, context, max_depth,
-    fast, match_filter, skip_binary, snaffle_path,
-    max_threads, dns_threads, max_threads_per_share,
-    stealth, rule_dir,
-    output_file, log_level, log_type, no_color,
-    state, fresh,
-    web, web_port,
+    config_file,
+    username,
+    password,
+    nthash,
+    domain,
+    dc_host,
+    smb_timeout,
+    kerberos,
+    use_kcache,
+    unc_targets,
+    local,
+    ftp,
+    ftp_file,
+    ftp_tls,
+    computer,
+    computer_file,
+    shares_only,
+    no_check_writable,
+    check_writable,
+    rescan_unreadable,
+    domain_users,
+    user_match,
+    user_min_len,
+    grab,
+    include_disabled,
+    stdin_mode,
+    share,
+    exclude_share,
+    exclude_unc,
+    exclusions_file,
+    max_hosts,
+    min_interest,
+    max_read_bytes,
+    max_file_bytes,
+    context,
+    max_depth,
+    fast,
+    match_filter,
+    skip_binary,
+    snaffle_path,
+    max_threads,
+    dns_threads,
+    max_threads_per_share,
+    stealth,
+    rule_dir,
+    output_file,
+    log_level,
+    log_type,
+    no_color,
+    state,
+    fresh,
+    web,
+    web_port,
     default_log_type: str = "plain",
 ) -> SnafflerConfiguration:
 
@@ -45,45 +83,68 @@ def build_config(
         cfg.load_from_toml(str(config_file))
 
     # ---------- AUTH ----------
-    if _explicit("username"):     cfg.auth.username = username
-    if _explicit("password"):     cfg.auth.password = password
-    if _explicit("nthash"):       cfg.auth.nthash = nthash
-    if _explicit("domain"):       cfg.auth.domain = domain
-    if _explicit("dc_host"):      cfg.auth.dc_host = dc_host
-    if _explicit("smb_timeout"):  cfg.auth.smb_timeout = smb_timeout
-    if _explicit("kerberos"):     cfg.auth.kerberos = kerberos
-    if _explicit("use_kcache"):   cfg.auth.use_kcache = use_kcache
+    if _explicit("username"):
+        cfg.auth.username = username
+    if _explicit("password"):
+        cfg.auth.password = password
+    if _explicit("nthash"):
+        cfg.auth.nthash = nthash
+    if _explicit("domain"):
+        cfg.auth.domain = domain
+    if _explicit("dc_host"):
+        cfg.auth.dc_host = dc_host
+    if _explicit("smb_timeout"):
+        cfg.auth.smb_timeout = smb_timeout
+    if _explicit("kerberos"):
+        cfg.auth.kerberos = kerberos
+    if _explicit("use_kcache"):
+        cfg.auth.use_kcache = use_kcache
 
     # ---------- TARGETING ----------
-    if _explicit("unc_targets"):      cfg.targets.unc_targets = unc_targets or []
-    if _explicit("local"):            cfg.targets.local_targets = local or []
-    if _explicit("shares_only"):      cfg.targets.shares_only = shares_only
-    if _explicit("no_check_writable"): cfg.targets.check_writable = not no_check_writable
-    if _explicit("check_writable"):    cfg.targets.check_writable = check_writable
-    if _explicit("include_disabled"): cfg.targets.skip_disabled_computers = not include_disabled
-    if _explicit("rescan_unreadable"): cfg.targets.rescan_unreadable = rescan_unreadable
-    if _explicit("domain_users"):     cfg.targets.domain_users = domain_users
-    if _explicit("user_match"):       cfg.targets.user_match_strings = user_match or []
-    if _explicit("user_min_len"):     cfg.targets.user_min_len = user_min_len
-    if _explicit("share"):            cfg.targets.share_filter = share or []
-    if _explicit("exclude_share"):    cfg.targets.exclude_share = exclude_share or []
-    if _explicit("exclude_unc"):      cfg.targets.exclude_unc = exclude_unc or []
+    if _explicit("unc_targets"):
+        cfg.targets.unc_targets = unc_targets or []
+    if _explicit("local"):
+        cfg.targets.local_targets = local or []
+    if _explicit("shares_only"):
+        cfg.targets.shares_only = shares_only
+    if _explicit("no_check_writable"):
+        cfg.targets.check_writable = not no_check_writable
+    if _explicit("check_writable"):
+        cfg.targets.check_writable = check_writable
+    if _explicit("include_disabled"):
+        cfg.targets.skip_disabled_computers = not include_disabled
+    if _explicit("rescan_unreadable"):
+        cfg.targets.rescan_unreadable = rescan_unreadable
+    if _explicit("domain_users"):
+        cfg.targets.domain_users = domain_users
+    if _explicit("user_match"):
+        cfg.targets.user_match_strings = user_match or []
+    if _explicit("user_min_len"):
+        cfg.targets.user_min_len = user_min_len
+    if _explicit("share"):
+        cfg.targets.share_filter = share or []
+    if _explicit("exclude_share"):
+        cfg.targets.exclude_share = exclude_share or []
+    if _explicit("exclude_unc"):
+        cfg.targets.exclude_unc = exclude_unc or []
 
     if computer and computer_file:
         raise typer.BadParameter("Use either --computer or --computer-file, not both")
 
     if computer:
         from snaffler.utils.target_parser import expand_targets
+
         cfg.targets.computer_targets = expand_targets([h.upper() for h in computer])
 
     if computer_file:
         from snaffler.utils.target_parser import expand_targets
-        raw = [l.strip().upper() for l in computer_file.read_text().splitlines() if l.strip()]
+
+        raw = [line.strip().upper() for line in computer_file.read_text().splitlines() if line.strip()]
         cfg.targets.computer_targets = expand_targets(raw)
 
     if exclusions_file:
         cfg.targets.exclusions = [
-            l.strip().upper() for l in exclusions_file.read_text().splitlines() if l.strip()
+            line.strip().upper() for line in exclusions_file.read_text().splitlines() if line.strip()
         ]
 
     if _explicit("max_hosts"):
@@ -93,13 +154,16 @@ def build_config(
     if grab:
         if not snaffle_path:
             raise typer.BadParameter("--grab requires -m/--snaffle-path")
-        if (cfg.targets.unc_targets or cfg.targets.computer_targets
-                or cfg.targets.local_targets or cfg.auth.domain
-                or cfg.targets.ftp_targets or stdin_mode
-                or cfg.targets.rescan_unreadable):
-            raise typer.BadParameter(
-                "--grab is mutually exclusive with all other targeting modes"
-            )
+        if (
+            cfg.targets.unc_targets
+            or cfg.targets.computer_targets
+            or cfg.targets.local_targets
+            or cfg.auth.domain
+            or cfg.targets.ftp_targets
+            or stdin_mode
+            or cfg.targets.rescan_unreadable
+        ):
+            raise typer.BadParameter("--grab is mutually exclusive with all other targeting modes")
 
     # ---------- LOCAL TARGET VALIDATION ----------
     if cfg.targets.local_targets:
@@ -124,6 +188,7 @@ def build_config(
             url = f"ftp://{url}"
         url = url.rstrip("/") or url
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
         if not parsed.hostname:
             raise typer.BadParameter(f"Invalid FTP URL (no host): {raw_url}")
@@ -132,13 +197,23 @@ def build_config(
     if ftp:
         cfg.targets.ftp_targets = [_normalize_ftp(r) for r in ftp]
     if ftp_file:
-        lines = [l.strip() for l in ftp_file.read_text().splitlines() if l.strip() and not l.strip().startswith("#")]
+        lines = [
+            line.strip()
+            for line in ftp_file.read_text().splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
         cfg.targets.ftp_targets = [_normalize_ftp(r) for r in lines]
     if _explicit("ftp_tls"):
         cfg.targets.ftp_tls = ftp_tls
 
     if cfg.targets.ftp_targets:
-        if cfg.targets.unc_targets or cfg.targets.computer_targets or cfg.targets.local_targets or cfg.auth.domain or stdin_mode:
+        if (
+            cfg.targets.unc_targets
+            or cfg.targets.computer_targets
+            or cfg.targets.local_targets
+            or cfg.auth.domain
+            or stdin_mode
+        ):
             raise typer.BadParameter(
                 "--ftp is mutually exclusive with --unc, --computer, --computer-file, --local-fs, --domain, and --stdin"
             )
@@ -150,14 +225,13 @@ def build_config(
                 "--stdin is mutually exclusive with --unc, --computer, --computer-file, --local-fs, and --domain"
             )
         import sys
+
         from snaffler.utils.nxc_parser import parse_nxc_shares
 
-        raw = sys.stdin.read()
-        parsed = parse_nxc_shares(raw)
+        stdin_raw = sys.stdin.read()
+        parsed = parse_nxc_shares(stdin_raw)
         if not parsed:
-            raise typer.BadParameter(
-                "No shares found in stdin (expected NXC SMB --shares output)"
-            )
+            raise typer.BadParameter("No shares found in stdin (expected NXC SMB --shares output)")
         cfg.targets.unc_targets = parsed
 
     # ---------- TARGET MODE VALIDATION ----------
@@ -168,12 +242,11 @@ def build_config(
     has_ftp = bool(cfg.targets.ftp_targets)
 
     if cfg.targets.rescan_unreadable and (has_local or has_ftp):
-        raise typer.BadParameter(
-            "--rescan-unreadable is mutually exclusive with --local-fs and --ftp"
-        )
+        raise typer.BadParameter("--rescan-unreadable is mutually exclusive with --local-fs and --ftp")
 
-    if not grab and not (has_unc or has_local or has_computers or has_domain or has_ftp
-            or cfg.targets.rescan_unreadable):
+    if not grab and not (
+        has_unc or has_local or has_computers or has_domain or has_ftp or cfg.targets.rescan_unreadable
+    ):
         raise typer.BadParameter(
             "No targets specified. Use one of: "
             "--unc, --local-fs, --ftp, --computer/--computer-file, --stdin, --domain, "
@@ -181,16 +254,23 @@ def build_config(
         )
 
     # ---------- SCANNING ----------
-    if _explicit("min_interest"):   cfg.scanning.min_interest = min_interest
-    if _explicit("max_read_bytes"): cfg.scanning.max_read_bytes = max_read_bytes
-    if _explicit("max_file_bytes"): cfg.scanning.max_file_bytes = max_file_bytes
-    if _explicit("context"):        cfg.scanning.match_context_bytes = context
-    if _explicit("max_depth"):      cfg.scanning.max_depth = max_depth
+    if _explicit("min_interest"):
+        cfg.scanning.min_interest = min_interest
+    if _explicit("max_read_bytes"):
+        cfg.scanning.max_read_bytes = max_read_bytes
+    if _explicit("max_file_bytes"):
+        cfg.scanning.max_file_bytes = max_file_bytes
+    if _explicit("context"):
+        cfg.scanning.match_context_bytes = context
+    if _explicit("max_depth"):
+        cfg.scanning.max_depth = max_depth
 
-    if _explicit("skip_binary"):    cfg.scanning.skip_binary = skip_binary
+    if _explicit("skip_binary"):
+        cfg.scanning.skip_binary = skip_binary
 
     if match_filter:
         import re
+
         try:
             re.compile(match_filter)
         except re.error as exc:
@@ -202,9 +282,12 @@ def build_config(
         cfg.scanning.snaffle_path = str(snaffle_path)
 
     # ---------- ADVANCED ----------
-    if _explicit("max_threads"):  cfg.advanced.max_threads = max_threads
-    if _explicit("dns_threads"):  cfg.advanced.dns_threads = dns_threads
-    if _explicit("stealth"):      cfg.advanced.stealth = stealth
+    if _explicit("max_threads"):
+        cfg.advanced.max_threads = max_threads
+    if _explicit("dns_threads"):
+        cfg.advanced.dns_threads = dns_threads
+    if _explicit("stealth"):
+        cfg.advanced.stealth = stealth
 
     per_bucket = max(1, cfg.advanced.max_threads // 3)
     cfg.advanced.share_threads = per_bucket
@@ -217,6 +300,7 @@ def build_config(
     # ---------- --fast mode ----------
     if fast:
         from snaffler.config.configuration import FAST_MODE_EXCLUSIONS
+
         cfg.targets.exclude_unc = list(FAST_MODE_EXCLUSIONS) + cfg.targets.exclude_unc
         if not _explicit("max_threads_per_share"):
             cfg.advanced.max_tree_threads_per_share = max(2, per_bucket // 4)
@@ -238,6 +322,7 @@ def build_config(
 
     if no_color:
         from snaffler.utils import logger as _logger_mod
+
         _logger_mod.NO_COLOR = True
 
     # ---------- STATE ----------
@@ -249,8 +334,10 @@ def build_config(
     cfg.state.state_db = str(state_path)
 
     # ---------- WEB DASHBOARD ----------
-    if _explicit("web"):        cfg.web.enabled = web
-    if _explicit("web_port"):   cfg.web.port = web_port
+    if _explicit("web"):
+        cfg.web.enabled = web
+    if _explicit("web_port"):
+        cfg.web.port = web_port
     if _explicit("web_port") and not cfg.web.enabled:
         typer.echo("Warning: --web-port has no effect without --web", err=True)
 

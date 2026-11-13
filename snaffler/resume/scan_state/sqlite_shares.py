@@ -2,7 +2,6 @@
 
 
 class SharesMixin:
-
     def store_shares(self, shares: list):
         """Store shares. Accepts plain strings or (unc_path, readable) tuples."""
         with self.lock:
@@ -31,9 +30,7 @@ class SharesMixin:
 
     def load_unreadable_shares(self) -> list:
         with self.lock:
-            rows = self.conn.execute(
-                "SELECT unc_path FROM target_share WHERE readable = 0"
-            ).fetchall()
+            rows = self.conn.execute("SELECT unc_path FROM target_share WHERE readable = 0").fetchall()
             return [r[0] for r in rows]
 
     def update_share_readable(self, unc_path: str):
@@ -67,6 +64,4 @@ class SharesMixin:
 
     def count_checked_shares(self) -> int:
         with self.lock:
-            return self.conn.execute(
-                "SELECT COUNT(*) FROM target_share WHERE done = 1"
-            ).fetchone()[0]
+            return self.conn.execute("SELECT COUNT(*) FROM target_share WHERE done = 1").fetchone()[0]

@@ -37,29 +37,23 @@ def _open_db(path: Path) -> sqlite3.Connection:
 def _query_stats(conn: sqlite3.Connection) -> dict:
     def _count(table, col=None, val=None):
         if col:
-            total = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]  # noqa: S608
-            done = conn.execute(
-                f"SELECT COUNT(*) FROM {table} WHERE {col} = ?", (val,)  # noqa: S608
-            ).fetchone()[0]
+            total = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            done = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE {col} = ?", (val,)).fetchone()[0]
             return {"total": total, "done": done}
-        return {"total": conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]}  # noqa: S608
+        return {"total": conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]}
 
     stats = {}
 
     # Computers
     comp = _count("target_computer", "done", 1)
-    resolved = conn.execute(
-        "SELECT COUNT(*) FROM target_computer WHERE ip IS NOT NULL"
-    ).fetchone()[0]
+    resolved = conn.execute("SELECT COUNT(*) FROM target_computer WHERE ip IS NOT NULL").fetchone()[0]
     comp["resolved"] = resolved
     stats["computers"] = comp
 
     # Shares
     share_stats = _count("target_share", "done", 1)
     try:
-        unreadable = conn.execute(
-            "SELECT COUNT(*) FROM target_share WHERE readable = 0"
-        ).fetchone()[0]
+        unreadable = conn.execute("SELECT COUNT(*) FROM target_share WHERE readable = 0").fetchone()[0]
     except Exception:
         unreadable = 0
     share_stats["unreadable"] = unreadable
@@ -74,9 +68,7 @@ def _query_stats(conn: sqlite3.Connection) -> dict:
     stats["files"] = {"total": file_stats["total"], "checked": file_stats["done"]}
 
     # Findings by triage
-    rows = conn.execute(
-        "SELECT triage, COUNT(*) as cnt FROM finding GROUP BY triage"
-    ).fetchall()
+    rows = conn.execute("SELECT triage, COUNT(*) as cnt FROM finding GROUP BY triage").fetchall()
     triage_counts = {row["triage"]: row["cnt"] for row in rows}
     finding_total = sum(triage_counts.values())
     stats["findings"] = {
@@ -92,9 +84,7 @@ def _query_stats(conn: sqlite3.Connection) -> dict:
 
 def _query_unreadable_shares(conn: sqlite3.Connection) -> list:
     try:
-        rows = conn.execute(
-            "SELECT unc_path FROM target_share WHERE readable = 0 ORDER BY unc_path"
-        ).fetchall()
+        rows = conn.execute("SELECT unc_path FROM target_share WHERE readable = 0 ORDER BY unc_path").fetchall()
         return [row[0] for row in rows]
     except Exception:
         return []
@@ -110,7 +100,7 @@ def _query_findings(conn: sqlite3.Connection, min_interest: int) -> list:
 
     placeholders = ",".join("?" for _ in allowed)
     rows = conn.execute(
-        f"SELECT finding_id, file_path, triage, rule_name, "  # noqa: S608
+        f"SELECT finding_id, file_path, triage, rule_name, "
         f"match_text, context, size, mtime, found_at "
         f"FROM finding WHERE triage IN ({placeholders}) "
         f"ORDER BY found_at",
@@ -131,7 +121,7 @@ def _query_rule_counts(conn: sqlite3.Connection, min_interest: int = 0) -> list:
 
     placeholders = ",".join("?" for _ in allowed)
     rows = conn.execute(
-        f"SELECT rule_name, triage, COUNT(*) as cnt "  # noqa: S608
+        f"SELECT rule_name, triage, COUNT(*) as cnt "
         f"FROM finding WHERE triage IN ({placeholders}) "
         f"GROUP BY rule_name, triage "
         f"ORDER BY cnt DESC",

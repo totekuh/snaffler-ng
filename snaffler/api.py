@@ -107,33 +107,25 @@ class Snaffler:
             raise RuntimeError("No classification rules loaded")
 
         dir_rules: List[ClassifierRule] = [
-            r for r in rules
-            if r.enumeration_scope == EnumerationScope.DIRECTORY_ENUMERATION
+            r for r in rules if r.enumeration_scope == EnumerationScope.DIRECTORY_ENUMERATION
         ]
-        file_rules = [
-            r for r in rules
-            if r.enumeration_scope == EnumerationScope.FILE_ENUMERATION
-        ]
-        content_rules = [
-            r for r in rules
-            if r.enumeration_scope == EnumerationScope.CONTENTS_ENUMERATION
-        ]
-        postmatch_rules = [
-            r for r in rules
-            if r.enumeration_scope == EnumerationScope.POST_MATCH
-        ]
+        file_rules = [r for r in rules if r.enumeration_scope == EnumerationScope.FILE_ENUMERATION]
+        content_rules = [r for r in rules if r.enumeration_scope == EnumerationScope.CONTENTS_ENUMERATION]
+        postmatch_rules = [r for r in rules if r.enumeration_scope == EnumerationScope.POST_MATCH]
 
         # ---- transport (lazy imports to avoid hard dependency) ----
         _exclude = exclude_unc or []
 
         if walker is None:
             from snaffler.discovery.local_tree_walker import LocalTreeWalker
+
             walker = LocalTreeWalker(
                 dir_rules=dir_rules,
                 exclude_unc=_exclude,
             )
         if reader is None:
             from snaffler.accessors.local_file_accessor import LocalFileAccessor
+
             reader = LocalFileAccessor()
 
         self._walker = walker
@@ -171,10 +163,7 @@ class Snaffler:
         self._dir_rules = dir_rules
         self._exclude_unc = _exclude
         self._min_interest = min_interest
-        self._match_re = (
-            re.compile(match_filter, re.IGNORECASE)
-            if match_filter else None
-        )
+        self._match_re = re.compile(match_filter, re.IGNORECASE) if match_filter else None
 
     # ------------------------------------------------------------------ walk
 
@@ -215,14 +204,16 @@ class Snaffler:
             subdirs_from_cb = []
 
             def _on_file(path, size, mtime, ctime=0.0, atime=0.0):
-                files.append((path, size, mtime, ctime, atime))
+                files.append((path, size, mtime, ctime, atime))  # noqa: B023
 
             def _on_dir(path):
-                subdirs_from_cb.append(path)
+                subdirs_from_cb.append(path)  # noqa: B023
 
             try:
                 subdirs = self._walker.walk_directory(
-                    dir_path, on_file=_on_file, on_dir=_on_dir,
+                    dir_path,
+                    on_file=_on_file,
+                    on_dir=_on_dir,
                     cancel=cancel,
                 )
                 # Use return value if provided, fall back to on_dir callback
@@ -237,26 +228,36 @@ class Snaffler:
             # ran inside walk_directory(), so subdirs are pre-filtered.
             # For duck-typed walkers, _check_dir() runs at pop time.
             if self._max_depth is None or depth < self._max_depth:
-                stack.extend(
-                    (d, depth + 1) for d in reversed(subdirs)
-                )
+                stack.extend((d, depth + 1) for d in reversed(subdirs))
 
             # Classify each file
             for file_path, size, mtime_epoch, ctime_epoch, atime_epoch in files:
                 finding = self._scan_one(
-                    file_path, size, mtime_epoch, ctime_epoch, atime_epoch,
+                    file_path,
+                    size,
+                    mtime_epoch,
+                    ctime_epoch,
+                    atime_epoch,
                 )
                 if finding is not None:
                     yield finding
 
     def _scan_one(
-        self, file_path: str, size: int, mtime_epoch: float,
-        ctime_epoch: float = 0.0, atime_epoch: float = 0.0,
+        self,
+        file_path: str,
+        size: int,
+        mtime_epoch: float,
+        ctime_epoch: float = 0.0,
+        atime_epoch: float = 0.0,
     ) -> Optional[FileResult]:
         """Scan a single file: check_file -> optional read -> classify -> filter."""
         try:
             check = self._scanner.check_file(
-                file_path, size, mtime_epoch, ctime_epoch, atime_epoch,
+                file_path,
+                size,
+                mtime_epoch,
+                ctime_epoch,
+                atime_epoch,
             )
 
             if check.status == FileCheckStatus.DISCARD:
@@ -302,7 +303,9 @@ class Snaffler:
         # Fallback for duck-typed walkers that don't extend TreeWalker:
         # use the same shared function from tree.py.
         return should_scan_directory(
-            dir_path, self._dir_rules, self._exclude_unc,
+            dir_path,
+            self._dir_rules,
+            self._exclude_unc,
         )
 
     # ------------------------------------------------------------------ files
@@ -322,7 +325,11 @@ class Snaffler:
         finding's created/accessed timestamps (``0.0`` means "unknown").
         """
         return self._scanner.check_file(
-            file_path, size, mtime_epoch, ctime_epoch, atime_epoch,
+            file_path,
+            size,
+            mtime_epoch,
+            ctime_epoch,
+            atime_epoch,
         )
 
     # ------------------------------------------------------------------ content
@@ -348,12 +355,13 @@ class Snaffler:
         """
         if prior is None:
             if file_path is None or size is None or mtime_epoch is None:
-                raise ValueError(
-                    "file_path, size, and mtime_epoch are required "
-                    "when prior is not provided"
-                )
+                raise ValueError("file_path, size, and mtime_epoch are required when prior is not provided")
             prior = self._scanner.check_file(
-                file_path, size, mtime_epoch, ctime_epoch, atime_epoch,
+                file_path,
+                size,
+                mtime_epoch,
+                ctime_epoch,
+                atime_epoch,
             )
             if prior.status == FileCheckStatus.DISCARD:
                 return None
@@ -396,7 +404,11 @@ class Snaffler:
         :meth:`scan_content` for the full classification pipeline.
         """
         ctx = FileContext.from_path(
-            file_path, size, mtime_epoch, ctime_epoch, atime_epoch,
+            file_path,
+            size,
+            mtime_epoch,
+            ctime_epoch,
+            atime_epoch,
         )
         result = self._scanner._evaluate_certificate(ctx, data)
         return self._apply_filters(result)

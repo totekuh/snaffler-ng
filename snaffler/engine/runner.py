@@ -1,31 +1,27 @@
 """
 Main Snaffler controller - orchestrates all components
 """
+
 import logging
 import signal
-import socket
 import threading
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from snaffler.config.configuration import SnafflerConfiguration
-from snaffler.discovery.shares import share_matches_filter
 from snaffler.engine.domain_pipeline import DomainPipeline
 from snaffler.engine.file_pipeline import FilePipeline
-from snaffler.engine.share_pipeline import SharePipeline
-from snaffler.engine.runner_filters import FilterMixin
-from snaffler.engine.runner_discovery import DiscoveryMixin
 from snaffler.engine.runner_auth import AuthMixin
-from snaffler.resume.scan_state import SQLiteStateStore, ScanState
+from snaffler.engine.runner_discovery import DiscoveryMixin
+from snaffler.engine.runner_filters import FilterMixin
+from snaffler.engine.share_pipeline import SharePipeline
+from snaffler.resume.scan_state import ScanState, SQLiteStateStore
 from snaffler.utils.hotkeys import start_hotkey_listener, stop_hotkey_listener
 from snaffler.utils.logger import print_completion_stats, set_finding_store
-from snaffler.utils.fatal import check_fatal_os_error
-from snaffler.utils.path_utils import extract_unc_host, extract_unc_share_name
+from snaffler.utils.path_utils import extract_unc_host
 from snaffler.utils.progress import ProgressState
 
-logger = logging.getLogger('snaffler')
+logger = logging.getLogger("snaffler")
 
 
 def _deduplicate_paths(share_paths: List[str], dfs_paths: List[str]) -> List[str]:
@@ -66,10 +62,13 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
         set_finding_store(self.state.store_finding)
         logger.info(f"State DB: {cfg.state.state_db}")
 
+        self.share_pipeline: Optional[SharePipeline] = None
         # SharePipeline is only needed for SMB-based modes
         if not cfg.targets.ftp_targets and not cfg.targets.local_targets:
             self.share_pipeline = SharePipeline(
-                cfg=cfg, state=self.state, progress=self.progress,
+                cfg=cfg,
+                state=self.state,
+                progress=self.progress,
             )
         else:
             self.share_pipeline = None
@@ -92,31 +91,35 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
             tree_walker = FTPTreeWalker(cfg)
             file_accessor = FTPFileAccessor(cfg)
             self.file_pipeline = FilePipeline(
-                cfg=cfg, state=self.state, progress=self.progress,
-                tree_walker=tree_walker, file_accessor=file_accessor,
+                cfg=cfg,
+                state=self.state,
+                progress=self.progress,
+                tree_walker=tree_walker,
+                file_accessor=file_accessor,
             )
         # Inject local transport when --local-fs is used
         elif cfg.targets.local_targets:
             from snaffler.accessors.local_file_accessor import LocalFileAccessor
             from snaffler.discovery.local_tree_walker import LocalTreeWalker
 
-            tree_walker = LocalTreeWalker(
+            tree_walker = LocalTreeWalker(  # type: ignore[assignment]
                 dir_rules=cfg.rules.directory,
                 exclude_unc=cfg.targets.exclude_unc,
             )
-            file_accessor = LocalFileAccessor()
+            file_accessor = LocalFileAccessor()  # type: ignore[assignment]
             self.file_pipeline = FilePipeline(
-                cfg=cfg, state=self.state, progress=self.progress,
-                tree_walker=tree_walker, file_accessor=file_accessor,
+                cfg=cfg,
+                state=self.state,
+                progress=self.progress,
+                tree_walker=tree_walker,
+                file_accessor=file_accessor,
             )
         else:
             self.file_pipeline = FilePipeline(cfg=cfg, state=self.state, progress=self.progress)
 
     def _start_status_thread(self):
         self._stop_event.clear()
-        self._status_thread = threading.Thread(
-            target=self._status_loop, daemon=True
-        )
+        self._status_thread = threading.Thread(target=self._status_loop, daemon=True)
         self._status_thread.start()
 
     def _stop_status_thread(self):
@@ -162,8 +165,7 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
         prev = self.state.get_sync_value(_SYNC_SCAN_MODE)
         if prev and prev != mode:
             logger.warning(
-                f"Scan mode changed ({prev} -> {mode}) — "
-                f"resetting discovery phase flags (findings preserved)"
+                f"Scan mode changed ({prev} -> {mode}) — resetting discovery phase flags (findings preserved)"
             )
             self.state.clear_phase_flags()
         self.state.set_sync_value(_SYNC_SCAN_MODE, mode)
@@ -182,11 +184,11 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
             if self.cfg.web.enabled:
                 try:
                     from snaffler.web.server import start_web_server
+
                     start_web_server(self.progress, self.cfg.state.state_db, self.start_time, self.cfg.web.port)
                 except ImportError as exc:
                     raise SystemExit(
-                        f"FATAL: --web requires Flask: {exc}\n"
-                        f"Install with: pip install snaffler-ng[web]"
+                        f"FATAL: --web requires Flask: {exc}\nInstall with: pip install snaffler-ng[web]"
                     ) from exc
 
             # ---------- rescan unreadable shares ----------
@@ -199,9 +201,7 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
                 if self.cfg.auth.domain:
                     other.append("--domain")
                 if other:
-                    logger.warning(
-                        f"--rescan-unreadable takes priority — ignoring {', '.join(other)}"
-                    )
+                    logger.warning(f"--rescan-unreadable takes priority — ignoring {', '.join(other)}")
                 self._rescan_unreadable()
 
             # ---------- FTP targets ----------
@@ -245,13 +245,11 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
                             seen_hosts[host] = True
                         capped.append(p)
                     if len(paths) != len(capped):
-                        logger.info(f"--max-hosts {limit}: kept {len(seen_hosts)} hosts, {len(capped)}/{len(paths)} paths")
+                        logger.info(
+                            f"--max-hosts {limit}: kept {len(seen_hosts)} hosts, {len(capped)}/{len(paths)} paths"
+                        )
                     paths = capped
-                hosts = {
-                    extract_unc_host(p)
-                    for p in paths
-                    if extract_unc_host(p) is not None
-                }
+                hosts = {extract_unc_host(p) for p in paths if extract_unc_host(p) is not None}
                 self.progress.computers_total = len(hosts)
                 self.progress.computers_done = len(hosts)
                 self.progress.shares_found = len(paths)
@@ -259,9 +257,7 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
 
             # ---------- Explicit computer list ----------
             elif self.cfg.targets.computer_targets:
-                computers = self._apply_exclusions(
-                    self.cfg.targets.computer_targets
-                )
+                computers = self._apply_exclusions(self.cfg.targets.computer_targets)
                 computers = self._cap_hosts(computers)
                 resolved = self._resolve_computers(computers) if computers else []
                 share_paths = self._resume_share_discovery(resolved) if resolved else []
@@ -315,6 +311,7 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
                 if self.cfg.web.enabled:
                     try:
                         from snaffler.web.server import stop_web_server
+
                         stop_web_server()
                     except Exception:
                         pass

@@ -6,26 +6,19 @@ from typing import List
 from snaffler.discovery.shares import share_matches_filter
 from snaffler.utils.path_utils import extract_unc_host, extract_unc_share_name
 
-logger = logging.getLogger('snaffler')
+logger = logging.getLogger("snaffler")
 
 
 class FilterMixin:
-
     def _sync_progress_from_state(self):
         """Refresh progress counters from resume database."""
         if not self.state:
             return
         try:
             p = self.progress
-            p.computers_done = max(
-                p.computers_done, self.state.count_checked_computers()
-            )
-            p.shares_walked = max(
-                p.shares_walked, self.state.count_checked_shares()
-            )
-            p.files_scanned = max(
-                p.files_scanned, self.state.count_checked_files()
-            )
+            p.computers_done = max(p.computers_done, self.state.count_checked_computers())
+            p.shares_walked = max(p.shares_walked, self.state.count_checked_shares())
+            p.files_scanned = max(p.files_scanned, self.state.count_checked_files())
             # shares_found is set by _resume_share_discovery (filtered);
             # don't overwrite with unfiltered DB count.
             # Ensure totals are never less than done counts

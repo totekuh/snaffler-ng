@@ -49,6 +49,7 @@ def extract_share_root(path: str) -> str:
     """
     if path.startswith("ftp://"):
         from snaffler.discovery.ftp_tree_walker import extract_ftp_root
+
         return extract_ftp_root(path)
     normalized = path.replace("\\", "/")
     if not normalized.startswith("//"):

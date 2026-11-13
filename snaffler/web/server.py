@@ -15,13 +15,11 @@ _server_thread = None
 def _check_flask():
     """Import guard — raises ImportError with install hint if Flask is missing."""
     try:
-        import flask  # noqa: F401
+        import flask
+
         return flask
     except ImportError:
-        raise ImportError(
-            "Flask is required for --web support. "
-            "Install it with: pip install snaffler-ng[web]"
-        )
+        raise ImportError("Flask is required for --web support. Install it with: pip install snaffler-ng[web]")
 
 
 def _detect_phase(progress) -> str:
@@ -77,6 +75,7 @@ def create_app(progress, db_path, start_time, mode="live"):
     """
     flask = _check_flask()
     from pathlib import Path
+
     from snaffler.web.dashboard import render_dashboard
 
     static_dir = Path(__file__).parent / "static"
@@ -108,6 +107,7 @@ def create_app(progress, db_path, start_time, mode="live"):
             conn.row_factory = sqlite3.Row
             try:
                 from snaffler.cli.results import _query_stats
+
                 stats = _query_stats(conn)
             finally:
                 conn.close()
@@ -136,7 +136,7 @@ def create_app(progress, db_path, start_time, mode="live"):
             try:
                 placeholders = ",".join("?" for _ in allowed)
                 query = (
-                    f"SELECT rowid, finding_id, file_path, triage, rule_name, "  # noqa: S608
+                    f"SELECT rowid, finding_id, file_path, triage, rule_name, "
                     f"match_text, context, size, mtime, found_at "
                     f"FROM finding "
                     f"WHERE triage IN ({placeholders}) AND rowid > ? "
@@ -165,7 +165,9 @@ def create_app(progress, db_path, start_time, mode="live"):
             return flask.jsonify({"findings": findings, "max_rowid": max_rowid, "has_more": has_more})
         except Exception as exc:
             logger.debug(f"/api/findings error: {exc}")
-            return flask.jsonify({"error": "Internal server error", "findings": [], "max_rowid": since_rowid, "has_more": False}), 500
+            return flask.jsonify(
+                {"error": "Internal server error", "findings": [], "max_rowid": since_rowid, "has_more": False}
+            ), 500
 
     @app.route("/api/export/csv")
     def api_export_csv():
@@ -187,7 +189,7 @@ def create_app(progress, db_path, start_time, mode="live"):
                 try:
                     placeholders = ",".join("?" for _ in allowed)
                     rows = conn.execute(
-                        f"SELECT triage, rule_name, file_path, size, mtime, "  # noqa: S608
+                        f"SELECT triage, rule_name, file_path, size, mtime, "
                         f"match_text, context FROM finding "
                         f"WHERE triage IN ({placeholders}) ORDER BY rowid",
                         allowed,
@@ -195,8 +197,12 @@ def create_app(progress, db_path, start_time, mode="live"):
                     for row in rows:
                         buf = io.StringIO()
                         w = csv.writer(buf)
-                        w.writerow([row[k] if row[k] is not None else "" for k in
-                                    ("triage", "rule_name", "file_path", "size", "mtime", "match_text", "context")])
+                        w.writerow(
+                            [
+                                row[k] if row[k] is not None else ""
+                                for k in ("triage", "rule_name", "file_path", "size", "mtime", "match_text", "context")
+                            ]
+                        )
                         yield buf.getvalue()
                 finally:
                     conn.close()
@@ -224,7 +230,7 @@ def create_app(progress, db_path, start_time, mode="live"):
                 try:
                     placeholders = ",".join("?" for _ in allowed)
                     rows = conn.execute(
-                        f"SELECT finding_id, file_path, triage, rule_name, "  # noqa: S608
+                        f"SELECT finding_id, file_path, triage, rule_name, "
                         f"match_text, context, size, mtime, found_at "
                         f"FROM finding WHERE triage IN ({placeholders}) ORDER BY rowid",
                         allowed,
@@ -280,8 +286,8 @@ def stop_web_server():
 
 def _make_results_progress(db_path):
     """Build a frozen ProgressState from a completed scan DB."""
-    from snaffler.utils.progress import ProgressState
     from snaffler.cli.results import _query_stats
+    from snaffler.utils.progress import ProgressState
 
     p = ProgressState()
     try:
@@ -314,6 +320,7 @@ def _make_results_progress(db_path):
 def serve_results(db_path, port=8080):
     """Serve a completed scan DB through the web dashboard (blocks until Ctrl+C)."""
     import os
+
     _check_flask()
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Database not found: {db_path}")
@@ -324,6 +331,7 @@ def serve_results(db_path, port=8080):
     print(f"Serving results: http://127.0.0.1:{port} (Ctrl+C to stop)")
     try:
         import logging as _logging
+
         _logging.getLogger("werkzeug").setLevel(_logging.CRITICAL)
         app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
     except OSError as exc:

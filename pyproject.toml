@@ -65,4 +65,49 @@ test = [
     "pytest>=8.0",
     "pytest-cov",
     "pyftpdlib>=2.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.11.0",
 ]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    "UP006",   # List vs list — defer to future-annotations migration
+    "UP035",   # deprecated typing imports — same
+    "UP045",   # Optional[X] vs X | None — same
+    "SIM105",  # contextlib.suppress — scanner intentionally catches broad exceptions to keep going
+    "SIM102",  # collapsible-if — nested ifs often clearer in scan logic
+    "SIM108",  # ternary — style preference, not a bug
+    "B904",    # raise-from — tedious, low value in scanner error paths
+    "B027",    # empty-method-no-abstract — intentional base class stubs
+    "RUF013",  # implicit-optional — related to UP045, defer
+    "E501",    # line-too-long — ruff format handles wrapping, remaining are long strings/URLs
+]
+
+[tool.ruff.lint.per-file-ignores]
+"snaffler/cli/*.py" = ["B008"]  # typer.Option() in defaults is standard pattern
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_return_any = false
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "snaffler.resume.scan_state.sqlite_computers",
+    "snaffler.resume.scan_state.sqlite_shares",
+    "snaffler.resume.scan_state.sqlite_files",
+    "snaffler.resume.scan_state.sqlite_dirs_findings",
+    "snaffler.engine.runner_discovery",
+    "snaffler.engine.runner_filters",
+]
+ignore_errors = true

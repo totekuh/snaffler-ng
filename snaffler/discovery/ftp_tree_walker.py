@@ -62,8 +62,7 @@ class FTPTreeWalker(TreeWalker):
         """Close all cached FTP connections across all threads."""
         self._cache.close_all()
 
-    def walk_directory(self, ftp_path: str, on_file=None, on_dir=None,
-                       cancel: threading.Event | None = None) -> list:
+    def walk_directory(self, ftp_path: str, on_file=None, on_dir=None, cancel: threading.Event | None = None) -> list:
         """Walk a single FTP directory (non-recursive) and return subdirectory paths.
 
         Args:
@@ -80,6 +79,7 @@ class FTPTreeWalker(TreeWalker):
         """
         if cancel and cancel.is_set():
             from concurrent.futures import CancelledError
+
             raise CancelledError("walk cancelled")
 
         parsed = parse_ftp_url(ftp_path)
@@ -136,7 +136,12 @@ class FTPTreeWalker(TreeWalker):
         except Exception as mlsd_err:
             logger.debug(f"MLSD not supported ({mlsd_err}), falling back to NLST")
             subdir_paths = self._list_directory_nlst(
-                ftp, host, port, remote_path, on_file, on_dir,
+                ftp,
+                host,
+                port,
+                remote_path,
+                on_file,
+                on_dir,
             )
 
         return subdir_paths
@@ -180,6 +185,7 @@ class FTPTreeWalker(TreeWalker):
             return 0.0
         try:
             from datetime import datetime, timezone
+
             dt = datetime(
                 int(modify_str[0:4]),
                 int(modify_str[4:6]),

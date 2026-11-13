@@ -1,9 +1,9 @@
 import re
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List, Optional
 
 from snaffler.analysis.model.file_context import FileContext
-from snaffler.classifiers.rules import MatchLocation, MatchAction
+from snaffler.classifiers.rules import MatchAction, MatchLocation
 
 
 @dataclass
@@ -25,9 +25,7 @@ class RuleEvaluator:
         )
         self.postmatch_rules = postmatch_rules
 
-        self.content_rules_by_name = {
-            r.rule_name: r for r in content_rules
-        }
+        self.content_rules_by_name = {r.rule_name: r for r in content_rules}
 
     def evaluate_file_rule(self, rule, ctx: FileContext) -> Optional[RuleDecision]:
         if rule.match_location == MatchLocation.FILE_PATH:
@@ -60,11 +58,7 @@ class RuleEvaluator:
             if rule.match_action != MatchAction.DISCARD:
                 continue
 
-            text = (
-                ctx.unc_path
-                if rule.match_location == MatchLocation.FILE_PATH
-                else ctx.name
-            )
+            text = ctx.unc_path if rule.match_location == MatchLocation.FILE_PATH else ctx.name
 
             if rule.matches(text):
                 return True

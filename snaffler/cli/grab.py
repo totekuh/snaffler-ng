@@ -4,6 +4,7 @@ import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Dict, Optional
 
 import typer
 
@@ -14,6 +15,7 @@ logger = logging.getLogger("snaffler")
 
 def run_grab(cfg: SnafflerConfiguration):
     dest = cfg.scanning.snaffle_path
+    assert dest is not None, "--snaffle-path is required for grab mode"
     Path(dest).mkdir(parents=True, exist_ok=True)
 
     raw = sys.stdin.read()
@@ -35,30 +37,38 @@ def run_grab(cfg: SnafflerConfiguration):
         else:
             local_paths.append(p)
 
-    accessors = {}
+    from snaffler.accessors.file_accessor import FileAccessor
+
+    accessors: Dict[str, FileAccessor] = {}
     if smb_paths:
         from snaffler.accessors.smb_file_accessor import SMBFileAccessor
+
         accessors["smb"] = SMBFileAccessor(cfg)
     if ftp_paths:
         from snaffler.accessors.ftp_file_accessor import FTPFileAccessor
+
         accessors["ftp"] = FTPFileAccessor(cfg)
     if local_paths:
         from snaffler.accessors.local_file_accessor import LocalFileAccessor
+
         accessors["local"] = LocalFileAccessor()
 
     ok = 0
     fail = 0
 
-    def _resolve_local_path(file_path: str) -> Path:
+    def _resolve_local_path(file_path: str) -> Optional[Path]:
         import os
+
         if file_path.startswith("ftp://"):
             from snaffler.discovery.ftp_tree_walker import parse_ftp_url
+
             parsed = parse_ftp_url(file_path)
             if parsed:
                 host, _port, remote = parsed
                 return (Path(dest) / host / remote.lstrip("/")).resolve()
         elif file_path.startswith("//"):
             from snaffler.utils.path_utils import parse_unc_path
+
             parsed = parse_unc_path(file_path)
             if parsed:
                 server, share, smb_path, _name, _ext = parsed

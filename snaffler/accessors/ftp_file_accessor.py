@@ -16,6 +16,7 @@ logger = logging.getLogger("snaffler")
 
 class _TransferAborted(Exception):
     """Raised inside retrbinary callback to abort data transfer early."""
+
     pass
 
 
@@ -81,7 +82,7 @@ class FTPFileAccessor(FileAccessor):
         if not parsed:
             return
 
-        host, port, remote_path = parsed
+        host, _port, remote_path = parsed
         try:
             clean = remote_path.lstrip("/")
             local = (Path(dest_root) / host / clean).resolve()

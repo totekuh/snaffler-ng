@@ -41,18 +41,13 @@ def setup_custom_dns(nameserver: str, port: int = 53) -> None:
     try:
         import dns.resolver
     except ImportError:
-        raise ImportError(
-            "dnspython is required for --nameserver support. "
-            "Install it with: pip install dnspython"
-        )
+        raise ImportError("dnspython is required for --nameserver support. Install it with: pip install dnspython")
 
     # Validate nameserver is an IP address
     try:
         ipaddress.ip_address(nameserver)
     except ValueError:
-        raise ValueError(
-            f"--nameserver must be an IP address, got: {nameserver!r}"
-        )
+        raise ValueError(f"--nameserver must be an IP address, got: {nameserver!r}")
 
     resolver = dns.resolver.Resolver(configure=False)
     resolver.nameservers = [nameserver]
@@ -84,9 +79,7 @@ def setup_custom_dns(nameserver: str, port: int = 53) -> None:
 
             results = []
             for rdata in answers:
-                results.append(
-                    (socket.AF_INET, socket.SOCK_STREAM, 6, "", (str(rdata), port_num))
-                )
+                results.append((socket.AF_INET, socket.SOCK_STREAM, 6, "", (str(rdata), port_num)))
             if results:
                 return results
         except socket.gaierror:

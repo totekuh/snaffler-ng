@@ -4,13 +4,13 @@ Detects certificates with private keys and extracts metadata
 """
 
 import logging
-from typing import List, Optional
+from typing import ClassVar, List, Optional
 
 from cryptography import x509
+from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.serialization import pkcs12
-from cryptography.exceptions import UnsupportedAlgorithm
 
 logger = logging.getLogger("snaffler")
 
@@ -19,7 +19,7 @@ class CertificateChecker:
     """Check certificate files for private keys and extract metadata"""
 
     # Default password list for cracking protected certs
-    DEFAULT_PASSWORDS = [
+    DEFAULT_PASSWORDS: ClassVar[List[str]] = [
         "",  # Try blank password first
         "password",
         "Password",
@@ -56,18 +56,16 @@ class CertificateChecker:
         Returns:
             List of match reasons describing what was found
         """
-        match_reasons = []
+        match_reasons: List[str] = []
 
         # Add filename without extension as password candidate
         passwords_to_try = self.passwords.copy()
-        if '.' in filename:
-            filename_password = filename.rsplit('.', 1)[0]
+        if "." in filename:
+            filename_password = filename.rsplit(".", 1)[0]
             passwords_to_try.append(filename_password)
 
         # Try to parse the certificate
-        cert, private_key, password_used = self._parse_certificate(
-            cert_data, passwords_to_try, filename
-        )
+        cert, private_key, password_used = self._parse_certificate(cert_data, passwords_to_try, filename)
 
         if cert is None and private_key is None:
             return match_reasons  # Could not parse
@@ -131,16 +129,14 @@ class CertificateChecker:
 
         # Try to load private key independently of certificate
         try:
-            private_key = serialization.load_pem_private_key(
-                cert_data, password=None, backend=default_backend()
-            )
+            private_key = serialization.load_pem_private_key(cert_data, password=None, backend=default_backend())
             password_used = None
         except (ValueError, TypeError, UnsupportedAlgorithm):
             # Try with passwords
             for pwd in passwords:
                 try:
                     private_key = serialization.load_pem_private_key(
-                        cert_data, password=pwd.encode('utf-8'), backend=default_backend()
+                        cert_data, password=pwd.encode("utf-8"), backend=default_backend()
                     )
                     password_used = pwd
                     break
@@ -157,7 +153,7 @@ class CertificateChecker:
         """Try to parse as PKCS#12/PFX format"""
         # Try without password first
         try:
-            private_key, cert, additional_certs = pkcs12.load_key_and_certificates(
+            private_key, cert, _additional_certs = pkcs12.load_key_and_certificates(
                 cert_data, password=None, backend=default_backend()
             )
             return cert, private_key, None
@@ -167,8 +163,8 @@ class CertificateChecker:
         # Try with passwords
         for pwd in passwords:
             try:
-                private_key, cert, additional_certs = pkcs12.load_key_and_certificates(
-                    cert_data, password=pwd.encode('utf-8'), backend=default_backend()
+                private_key, cert, _additional_certs = pkcs12.load_key_and_certificates(
+                    cert_data, password=pwd.encode("utf-8"), backend=default_backend()
                 )
                 return cert, private_key, pwd
             except Exception:
@@ -207,10 +203,10 @@ class CertificateChecker:
         # Expiry
         try:
             # Use UTC-aware version to avoid deprecation warning
-            if hasattr(cert, 'not_valid_after_utc'):
-                expiry = cert.not_valid_after_utc.strftime('%Y-%m-%d %H:%M:%S')
+            if hasattr(cert, "not_valid_after_utc"):
+                expiry = cert.not_valid_after_utc.strftime("%Y-%m-%d %H:%M:%S")
             else:
-                expiry = cert.not_valid_after.strftime('%Y-%m-%d %H:%M:%S')
+                expiry = cert.not_valid_after.strftime("%Y-%m-%d %H:%M:%S")
             info.append(f"Expiry:{expiry}")
         except Exception:
             pass
@@ -219,25 +215,21 @@ class CertificateChecker:
         try:
             # Basic Constraints
             try:
-                basic_constraints = cert.extensions.get_extension_for_oid(
-                    x509.oid.ExtensionOID.BASIC_CONSTRAINTS
-                )
-                if basic_constraints.value.ca:
+                basic_constraints = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.BASIC_CONSTRAINTS)
+                if basic_constraints.value.ca:  # type: ignore[attr-defined]
                     info.append("IsCACert")
             except x509.ExtensionNotFound:
                 pass
 
             # Key Usage
             try:
-                key_usage = cert.extensions.get_extension_for_oid(
-                    x509.oid.ExtensionOID.KEY_USAGE
-                )
+                key_usage = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.KEY_USAGE)
                 usages = []
-                if key_usage.value.digital_signature:
+                if key_usage.value.digital_signature:  # type: ignore[attr-defined]
                     usages.append("DigitalSignature")
-                if key_usage.value.key_encipherment:
+                if key_usage.value.key_encipherment:  # type: ignore[attr-defined]
                     usages.append("KeyEncipherment")
-                if key_usage.value.key_cert_sign:
+                if key_usage.value.key_cert_sign:  # type: ignore[attr-defined]
                     usages.append("KeyCertSign")
                 if usages:
                     info.append(",".join(usages))
@@ -246,11 +238,9 @@ class CertificateChecker:
 
             # Enhanced Key Usage
             try:
-                eku = cert.extensions.get_extension_for_oid(
-                    x509.oid.ExtensionOID.EXTENDED_KEY_USAGE
-                )
+                eku = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.EXTENDED_KEY_USAGE)
                 eku_names = []
-                for oid in eku.value:
+                for oid in eku.value:  # type: ignore[attr-defined]
                     # Map common OIDs to friendly names
                     if oid == x509.oid.ExtendedKeyUsageOID.SERVER_AUTH:
                         eku_names.append("ServerAuth")
@@ -269,11 +259,9 @@ class CertificateChecker:
 
             # Subject Alternative Names
             try:
-                san = cert.extensions.get_extension_for_oid(
-                    x509.oid.ExtensionOID.SUBJECT_ALTERNATIVE_NAME
-                )
+                san = cert.extensions.get_extension_for_oid(x509.oid.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
                 san_values = []
-                for name in san.value:
+                for name in san.value:  # type: ignore[attr-defined]
                     if isinstance(name, x509.DNSName):
                         san_values.append(f"DNS:{name.value}")
                     elif isinstance(name, x509.IPAddress):

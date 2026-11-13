@@ -3,6 +3,7 @@ Runtime hotkey listener for switching log levels during a scan.
 
 Press 'd' → DEBUG, 'i' → INFO.  Skipped when stdin is not a TTY.
 """
+
 import logging
 import select
 import sys
@@ -84,6 +85,7 @@ def stop_hotkey_listener() -> None:
     if _original_termios is not None:
         try:
             import termios
+
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, _original_termios)
         except Exception:
             pass

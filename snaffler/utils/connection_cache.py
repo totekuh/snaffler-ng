@@ -37,7 +37,7 @@ class ThreadLocalConnectionCache:
         self._cache_attr = cache_attr
 
         self._thread_local = threading.local()
-        self._all_connections = []
+        self._all_connections: list = []
         self._conn_lock = threading.Lock()
 
     def get(self, key):

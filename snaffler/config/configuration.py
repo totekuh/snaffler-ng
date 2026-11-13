@@ -14,11 +14,23 @@ _cfg_logger = logging.getLogger("snaffler")
 # Shared default cert passwords — used by both CLI (ScanningConfig) and
 # library API (Snaffler).  Keep in one place so they never diverge.
 DEFAULT_CERT_PASSWORDS: List[str] = [
-    "", "password", "mimikatz", "1234", "abcd", "secret",
-    "MyPassword", "myPassword", "MyClearTextPassword",
-    "P@ssw0rd", "testpassword", "changeme", "changeit",
-    "SolarWinds.R0cks", "ThePasswordToKeyonPFXFile",
-    "@OurPassword1", "@de08nt2128",
+    "",
+    "password",
+    "mimikatz",
+    "1234",
+    "abcd",
+    "secret",
+    "MyPassword",
+    "myPassword",
+    "MyClearTextPassword",
+    "P@ssw0rd",
+    "testpassword",
+    "changeme",
+    "changeit",
+    "SolarWinds.R0cks",
+    "ThePasswordToKeyonPFXFile",
+    "@OurPassword1",
+    "@de08nt2128",
 ]
 
 # Directories skipped by --fast mode.  Massive file counts with near-zero
@@ -63,6 +75,7 @@ FAST_MODE_EXCLUSIONS: List[str] = [
 
 # ---------------- AUTH ----------------
 
+
 @dataclass
 class AuthConfig:
     username: str = ""
@@ -82,6 +95,7 @@ class AuthConfig:
 
 
 # ---------------- TARGETING ----------------
+
 
 @dataclass
 class TargetingConfig:
@@ -124,6 +138,7 @@ class TargetingConfig:
 
 # ---------------- SCANNING ----------------
 
+
 @dataclass
 class ScanningConfig:
     min_interest: int = 0
@@ -135,12 +150,11 @@ class ScanningConfig:
     max_depth: Optional[int] = None  # Max directory recursion depth (None = unlimited)
     match_filter: Optional[str] = None  # Regex filter for findings (path/rule/match/context)
     skip_binary: bool = False
-    cert_passwords: List[str] = field(
-        default_factory=lambda: list(DEFAULT_CERT_PASSWORDS)
-    )
+    cert_passwords: List[str] = field(default_factory=lambda: list(DEFAULT_CERT_PASSWORDS))
 
 
 # ---------------- OUTPUT ----------------
+
 
 @dataclass
 class OutputConfig:
@@ -152,6 +166,7 @@ class OutputConfig:
 
 
 # ---------------- ADVANCED ----------------
+
 
 @dataclass
 class AdvancedConfig:
@@ -176,12 +191,14 @@ class RulesConfig:
 
 # ---------------- STATE ----------------
 
+
 @dataclass
 class StateConfig:
     state_db: str = "snaffler.db"
 
 
 # ---------------- WEB DASHBOARD ----------------
+
 
 @dataclass
 class WebConfig:
@@ -220,14 +237,11 @@ class SnafflerConfiguration:
             raise ValueError("Cannot mix UNC targets and computer targets")
 
         if self.targets.local_targets and (
-            self.targets.unc_targets or self.targets.computer_targets
-            or self.targets.ftp_targets
+            self.targets.unc_targets or self.targets.computer_targets or self.targets.ftp_targets
         ):
             raise ValueError("Cannot mix local targets with UNC, computer, or FTP targets")
 
-        if self.targets.ftp_targets and (
-            self.targets.unc_targets or self.targets.computer_targets
-        ):
+        if self.targets.ftp_targets and (self.targets.unc_targets or self.targets.computer_targets):
             raise ValueError("Cannot mix FTP targets with UNC or computer targets")
 
         if self.rules.rule_dir:
@@ -245,26 +259,21 @@ class SnafflerConfiguration:
         # ---------- AUTH VALIDATION ----------
         if self.auth.kerberos:
             if not self.auth.domain:
-                raise ValueError(
-                    "Kerberos authentication requires a domain"
-                )
+                raise ValueError("Kerberos authentication requires a domain")
 
             if self.auth.use_kcache and self.auth.username:
-                raise ValueError(
-                    "Cannot specify username when using Kerberos ccache"
-                )
+                raise ValueError("Cannot specify username when using Kerberos ccache")
 
             if self.auth.use_kcache:
                 import os
+
                 if "KRB5CCNAME" not in os.environ:
-                    raise ValueError(
-                        "KRB5CCNAME not set but Kerberos ccache was requested"
-                    )
+                    raise ValueError("KRB5CCNAME not set but Kerberos ccache was requested")
 
     # ---------- TOML ----------
 
     def load_from_toml(self, path: str):
-        with open(path, "r") as f:
+        with open(path) as f:
             data = tomlkit.load(f)
 
         for section, values in data.items():
@@ -281,14 +290,11 @@ class SnafflerConfiguration:
                     expected_type = type(current)
                     # bool is a subclass of int — check bool first
                     if expected_type is bool and not isinstance(value, bool):
-                        _cfg_logger.warning(
-                            f"Config: {key} expected bool, got {type(value).__name__} — skipping"
-                        )
+                        _cfg_logger.warning(f"Config: {key} expected bool, got {type(value).__name__} — skipping")
                         continue
                     if not isinstance(value, (expected_type, type(None))):
                         _cfg_logger.warning(
-                            f"Config: {key} expected {expected_type.__name__}, "
-                            f"got {type(value).__name__} — skipping"
+                            f"Config: {key} expected {expected_type.__name__}, got {type(value).__name__} — skipping"
                         )
                         continue
                 setattr(obj, key, value)

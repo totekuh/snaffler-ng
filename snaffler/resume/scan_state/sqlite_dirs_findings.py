@@ -4,7 +4,6 @@ from snaffler.utils.path_utils import extract_share_root as _extract_share
 
 
 class DirsFindingsMixin:
-
     # ---------- directories ----------
 
     def store_dir(self, unc_path: str, share: str):
@@ -41,16 +40,12 @@ class DirsFindingsMixin:
                     (share,),
                 ).fetchall()
             else:
-                rows = self.conn.execute(
-                    "SELECT unc_path FROM target_dir WHERE walked = 0"
-                ).fetchall()
+                rows = self.conn.execute("SELECT unc_path FROM target_dir WHERE walked = 0").fetchall()
             return [r[0] for r in rows]
 
     def load_walked_dirs(self) -> list:
         with self.lock:
-            rows = self.conn.execute(
-                "SELECT unc_path FROM target_dir WHERE walked = 1"
-            ).fetchall()
+            rows = self.conn.execute("SELECT unc_path FROM target_dir WHERE walked = 1").fetchall()
             return [r[0] for r in rows]
 
     # ---------- findings ----------
@@ -103,14 +98,10 @@ class DirsFindingsMixin:
 
     def count_findings(self) -> int:
         with self.lock:
-            return self.conn.execute(
-                "SELECT COUNT(*) FROM finding"
-            ).fetchone()[0]
+            return self.conn.execute("SELECT COUNT(*) FROM finding").fetchone()[0]
 
     def count_findings_by_triage(self) -> dict:
         """Return {triage_label: count} for all findings."""
         with self.lock:
-            rows = self.conn.execute(
-                "SELECT triage, COUNT(*) FROM finding GROUP BY triage"
-            ).fetchall()
+            rows = self.conn.execute("SELECT triage, COUNT(*) FROM finding GROUP BY triage").fetchall()
             return {row[0]: row[1] for row in rows}

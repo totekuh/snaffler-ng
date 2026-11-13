@@ -14,6 +14,6 @@ def read_magic(data: bytes) -> str | None:
     if len(data) < 2:
         return None
     for magic, name in BINARY_SIGNATURES:
-        if data[:len(magic)] == magic:
+        if data[: len(magic)] == magic:
             return name
     return None

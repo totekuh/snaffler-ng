@@ -29,9 +29,7 @@ class DomainPipeline:
         if exclusion_set is not None:
             self._exclusion_set = exclusion_set
         else:
-            self._exclusion_set = frozenset(
-                e.upper() for e in (targets.exclusions or [])
-            )
+            self._exclusion_set = frozenset(e.upper() for e in (targets.exclusions or []))
 
         self.ad = ADDiscovery(cfg)
 
@@ -44,9 +42,7 @@ class DomainPipeline:
         """
         logger.info("Running domain discovery pipeline")
 
-        computers = self.ad.get_domain_computers(
-            ldap_filter=self.ldap_filter
-        )
+        computers = self.ad.get_domain_computers(ldap_filter=self.ldap_filter)
 
         if not computers:
             logger.warning("No computers found in AD")
@@ -57,9 +53,7 @@ class DomainPipeline:
         if self._exclusion_set:
             before = len(computers)
             computers = [c for c in computers if c.upper() not in self._exclusion_set]
-            logger.info(
-                f"Excluded {before - len(computers)} computers via exclusions list"
-            )
+            logger.info(f"Excluded {before - len(computers)} computers via exclusions list")
 
         return computers
 
@@ -67,8 +61,5 @@ class DomainPipeline:
         """Query AD for DFS namespace targets, applying exclusion filters."""
         dfs_paths = self.ad.get_dfs_targets()
         if self._exclusion_set:
-            dfs_paths = [
-                p for p in dfs_paths
-                if (extract_unc_host(p) or "").upper() not in self._exclusion_set
-            ]
+            dfs_paths = [p for p in dfs_paths if (extract_unc_host(p) or "").upper() not in self._exclusion_set]
         return dfs_paths

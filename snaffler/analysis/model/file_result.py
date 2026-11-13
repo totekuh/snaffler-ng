@@ -9,28 +9,28 @@ from snaffler.classifiers.rules import Triage
 
 class FileResult:
     __slots__ = (
-        "file_path",
-        "size",
-        "modified",
-        "created",
         "accessed",
-        "triage",
-        "rule_name",
-        "match",
         "context",
+        "created",
+        "file_path",
+        "match",
+        "modified",
+        "rule_name",
+        "size",
+        "triage",
     )
 
     def __init__(
-            self,
-            file_path: str,
-            size: int,
-            modified: Optional[datetime],
-            triage: Triage,
-            rule_name: str,
-            match: str,
-            context: Optional[str] = None,
-            created: Optional[datetime] = None,
-            accessed: Optional[datetime] = None,
+        self,
+        file_path: str,
+        size: int,
+        modified: Optional[datetime],
+        triage: Triage,
+        rule_name: str,
+        match: Optional[str] = None,
+        context: Optional[str] = None,
+        created: Optional[datetime] = None,
+        accessed: Optional[datetime] = None,
     ):
         self.file_path = file_path
         self.size = size
@@ -48,8 +48,8 @@ class FileResult:
 
     @staticmethod
     def pick_best(
-            current: Optional[FileResult],
-            candidate: Optional[FileResult],
+        current: Optional[FileResult],
+        candidate: Optional[FileResult],
     ) -> Optional[FileResult]:
         if not candidate:
             return current

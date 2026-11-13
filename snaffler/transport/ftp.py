@@ -17,6 +17,7 @@ class FTPTransport:
     def connect(self, host: str, port: int = 21) -> ftplib.FTP:
         timeout = self.auth.smb_timeout
 
+        ftp: ftplib.FTP
         if self.cfg.targets.ftp_tls:
             ftp = ftplib.FTP_TLS(timeout=timeout)
         else:
@@ -30,7 +31,7 @@ class FTPTransport:
             ftp.login(username, password)
 
             if self.cfg.targets.ftp_tls:
-                ftp.prot_p()  # secure data channel
+                ftp.prot_p()  # type: ignore[attr-defined]  # FTP_TLS method
 
             ftp.set_pasv(True)
             # Binary mode for consistent transfers

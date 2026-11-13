@@ -5,21 +5,21 @@ import logging
 import re
 from typing import Optional
 
+from snaffler.analysis.archive_scanner import MAX_ARCHIVE_MEMBERS, evaluate_archive, list_archive_members
+from snaffler.analysis.binary_detect import read_magic
 from snaffler.analysis.certificates import CertificateChecker
+from snaffler.analysis.content_scanner import evaluate_content
 from snaffler.analysis.model.file_context import FileContext
 from snaffler.analysis.model.file_result import FileResult
-from snaffler.analysis.scanner_types import FileCheckStatus, FileCheckResult
-from snaffler.analysis.binary_detect import read_magic
-from snaffler.analysis.content_scanner import evaluate_content
-from snaffler.analysis.archive_scanner import evaluate_archive, list_archive_members, MAX_ARCHIVE_MEMBERS
+from snaffler.analysis.scanner_types import FileCheckResult, FileCheckStatus
 from snaffler.classifiers.evaluator import RuleEvaluator
-from snaffler.classifiers.rules import MatchLocation, MatchAction, Triage
+from snaffler.classifiers.rules import MatchAction, Triage
 from snaffler.utils.fatal import check_fatal_os_error
 
 logger = logging.getLogger("snaffler")
 
 # Re-export for backward compatibility
-__all__ = ["FileScanner", "FileCheckResult", "FileCheckStatus"]
+__all__ = ["FileCheckResult", "FileCheckStatus", "FileScanner"]
 
 
 class FileScanner:
@@ -27,19 +27,17 @@ class FileScanner:
     _list_archive_members = staticmethod(list_archive_members)
 
     def __init__(
-            self,
-            cfg,
-            file_accessor=None,
-            rule_evaluator: RuleEvaluator = None,
+        self,
+        cfg,
+        file_accessor=None,
+        rule_evaluator: Optional[RuleEvaluator] = None,
     ):
         self.cfg = cfg
         self.file_accessor = file_accessor
         self.rule_evaluator = rule_evaluator
 
-        self.cert_checker = CertificateChecker(
-            custom_passwords=cfg.scanning.cert_passwords
-        )
-        mf = getattr(cfg.scanning, 'match_filter', None)
+        self.cert_checker = CertificateChecker(custom_passwords=cfg.scanning.cert_passwords)
+        mf = getattr(cfg.scanning, "match_filter", None)
         self._match_re = None
         if isinstance(mf, str):
             try:
@@ -49,11 +47,11 @@ class FileScanner:
                 raise SystemExit(1)
         self._max_read_bytes = cfg.scanning.max_read_bytes
         self._match_context_bytes = cfg.scanning.match_context_bytes
-        self._skip_binary = getattr(cfg.scanning, 'skip_binary', False)
+        self._skip_binary = getattr(cfg.scanning, "skip_binary", False)
 
     def _filter_result(
-            self,
-            result: FileResult,
+        self,
+        result: FileResult,
     ) -> Optional[FileResult]:
         if result.triage.below(self.cfg.scanning.min_interest):
             return None
@@ -65,14 +63,15 @@ class FileScanner:
         return result
 
     def check_file(
-            self,
-            file_path: str,
-            size: int,
-            mtime_epoch: float,
-            ctime_epoch: float = 0.0,
-            atime_epoch: float = 0.0,
+        self,
+        file_path: str,
+        size: int,
+        mtime_epoch: float,
+        ctime_epoch: float = 0.0,
+        atime_epoch: float = 0.0,
     ) -> FileCheckResult:
         """Phase 1 — evaluate file rules only (zero I/O)."""
+        assert self.rule_evaluator is not None
         ctx = FileContext.from_path(file_path, size, mtime_epoch, ctime_epoch, atime_epoch)
 
         content_rule_names: set = set()
@@ -111,10 +110,7 @@ class FileScanner:
                     if not self.rule_evaluator.should_discard_postmatch(ctx):
                         needs_archive_peek = True
                 else:
-                    logger.debug(
-                        f"Skipping archive peek for {file_path}: "
-                        f"size {size} > max {self._max_read_bytes}"
-                    )
+                    logger.debug(f"Skipping archive peek for {file_path}: size {size} > max {self._max_read_bytes}")
                 continue
 
             if action != MatchAction.SNAFFLE:
@@ -145,8 +141,7 @@ class FileScanner:
 
         if needs_cert_check or needs_archive_peek:
             can_content = (relay_fired or bool(content_rule_names)) and size <= self._max_read_bytes
-            status = (FileCheckStatus.CHECK_KEYS if needs_cert_check
-                      else FileCheckStatus.PEEK_ARCHIVE)
+            status = FileCheckStatus.CHECK_KEYS if needs_cert_check else FileCheckStatus.PEEK_ARCHIVE
             return FileCheckResult(
                 status=status,
                 content_rule_names=sorted(content_rule_names) if can_content else [],
@@ -179,7 +174,9 @@ class FileScanner:
 
     def scan_with_data(self, data: bytes, prior: FileCheckResult) -> Optional[FileResult]:
         """Phase 2 — run cert/archive/content checks using raw data."""
+        assert self.rule_evaluator is not None
         ctx = prior._ctx
+        assert ctx is not None
         best_result = prior._best_result
 
         if prior._needs_cert_check:
@@ -209,20 +206,23 @@ class FileScanner:
                     content_rules = self.rule_evaluator.content_rules
 
                 content = evaluate_content(
-                    ctx, data, content_rules,
-                    self.rule_evaluator, self._match_context_bytes,
+                    ctx,
+                    data,
+                    content_rules,
+                    self.rule_evaluator,
+                    self._match_context_bytes,
                 )
                 best_result = FileResult.pick_best(best_result, content)
 
         return best_result
 
     def scan_file(
-            self,
-            file_path: str,
-            size: int,
-            mtime_epoch: float,
-            ctime_epoch: float = 0.0,
-            atime_epoch: float = 0.0,
+        self,
+        file_path: str,
+        size: int,
+        mtime_epoch: float,
+        ctime_epoch: float = 0.0,
+        atime_epoch: float = 0.0,
     ) -> Optional[FileResult]:
         """Full scan: check_file, optional I/O, scan_with_data, filter."""
         check = self.check_file(file_path, size, mtime_epoch, ctime_epoch, atime_epoch)
@@ -231,6 +231,7 @@ class FileScanner:
             return None
 
         if check.status == FileCheckStatus.SNAFFLE:
+            assert check.result is not None
             return self._filter_result(check.result)
 
         if self.file_accessor is None:
@@ -262,21 +263,22 @@ class FileScanner:
 
     def _evaluate_content(self, ctx, data, content_rules):
         return evaluate_content(
-            ctx, data, content_rules,
-            self.rule_evaluator, self._match_context_bytes,
+            ctx,
+            data,
+            content_rules,
+            self.rule_evaluator,
+            self._match_context_bytes,
         )
 
     def _evaluate_certificate(
-            self,
-            ctx: FileContext,
-            data: bytes,
+        self,
+        ctx: FileContext,
+        data: bytes,
     ) -> Optional[FileResult]:
         if not data:
             return None
 
-        reasons = self.cert_checker.check_certificate(
-            data, ctx.name
-        )
+        reasons = self.cert_checker.check_certificate(data, ctx.name)
         if not reasons or "HasPrivateKey" not in reasons:
             return None
 

@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple
 
 from snaffler.config.configuration import SnafflerConfiguration
-from snaffler.discovery.shares import ShareFinder
+from snaffler.discovery.shares import ShareFinder, ShareInfo
 from snaffler.resume.scan_state import ScanState
 from snaffler.utils.fatal import check_fatal_os_error
 from snaffler.utils.progress import ProgressState
@@ -18,7 +18,6 @@ logger = logging.getLogger("snaffler")
 
 
 class SharePipeline:
-
     def __init__(
         self,
         cfg: SnafflerConfiguration,
@@ -60,12 +59,11 @@ class SharePipeline:
         if self.progress:
             self.progress.shares_start = time.monotonic()
 
-        all_shares: List[Tuple[str, object]] = []
+        all_shares: List[Tuple[str, ShareInfo]] = []
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_computer = {
-                executor.submit(self.share_finder.get_computer_shares, computer): computer
-                for computer in computers
+                executor.submit(self.share_finder.get_computer_shares, computer): computer for computer in computers
             }
 
             try:
@@ -83,9 +81,7 @@ class SharePipeline:
                                     self.progress.shares_found += readable_count
                             # Store all shares (readable + unreadable) for resume / rescan
                             if self.state:
-                                self.state.store_shares(
-                                    [(unc, s.readable) for unc, s in shares]
-                                )
+                                self.state.store_shares([(unc, s.readable) for unc, s in shares])
                     except Exception as e:
                         check_fatal_os_error(e)
                         # Transport error — don't mark host done so it's retried on resume

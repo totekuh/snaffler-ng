@@ -17,7 +17,7 @@ class BloomFilter:
     def add(self, item: str):
         for i in range(self._hash_count):
             idx = self._hash(item, i) % self._size
-            self._bits[idx // 8] |= (1 << (idx % 8))
+            self._bits[idx // 8] |= 1 << (idx % 8)
         self._count += 1
 
     def __contains__(self, item: str) -> bool:
@@ -33,4 +33,4 @@ class BloomFilter:
     @staticmethod
     def _hash(item: str, seed: int) -> int:
         h = hashlib.md5(f"{seed}:{item}".encode(), usedforsecurity=False)
-        return int.from_bytes(h.digest()[:8], 'little')
+        return int.from_bytes(h.digest()[:8], "little")

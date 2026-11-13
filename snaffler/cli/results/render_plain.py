@@ -4,8 +4,8 @@ import json
 
 import typer
 
-from snaffler.utils.logger import Colors, format_size
 from snaffler.cli.results.queries import TRIAGE_COLORS
+from snaffler.utils.logger import Colors, format_size
 
 
 def _render_plain(stats: dict, findings: list, unreadable_shares: list, use_color: bool):
@@ -13,9 +13,7 @@ def _render_plain(stats: dict, findings: list, unreadable_shares: list, use_colo
 
     lines.append(f"{'── Stats ':─<50}")
     c = stats["computers"]
-    lines.append(
-        f"Computers:   {c['total']:,} discovered, {c['resolved']:,} resolved, {c['done']:,} done"
-    )
+    lines.append(f"Computers:   {c['total']:,} discovered, {c['resolved']:,} resolved, {c['done']:,} done")
     s = stats["shares"]
     share_line = f"Shares:      {s['total']:,} discovered, {s['done']:,} done"
     if s.get("unreadable"):

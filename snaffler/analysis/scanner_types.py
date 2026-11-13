@@ -10,6 +10,7 @@ from snaffler.analysis.model.file_result import FileResult
 
 class FileCheckStatus(Enum):
     """Outcome of a metadata-only file check."""
+
     DISCARD = "discard"
     SNAFFLE = "snaffle"
     NEEDS_CONTENT = "needs_content"
@@ -26,6 +27,7 @@ class FileCheckResult:
     should fetch bytes and call :meth:`FileScanner.scan_with_data`, passing
     this object as *prior* to avoid re-evaluating file rules.
     """
+
     status: FileCheckStatus
     result: Optional[FileResult] = None
     content_rule_names: list = field(default_factory=list)

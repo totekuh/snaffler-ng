@@ -90,12 +90,12 @@ def _expand_full_range(left: str, right: str, original: str) -> List[str]:
         logger.error("Invalid IP range '%s': %s", original, exc)
         raise ValueError(f"Invalid IP range '{original}': {exc}") from exc
 
-    if end < start:
+    if end < start:  # type: ignore[operator]
         raise ValueError(f"Invalid IP range '{original}': end address is before start")
 
     hosts = []
     current = start
-    while current <= end:
+    while current <= end:  # type: ignore[operator]
         hosts.append(str(current))
         current += 1
 
@@ -114,9 +114,7 @@ def _expand_octet_range(left: str, right: str, original: str) -> List[str]:
         end_octet = int(right)
     except ValueError as exc:
         logger.error("Invalid IP range '%s': end octet is not a number", original)
-        raise ValueError(
-            f"Invalid IP range '{original}': end octet '{right}' is not a number"
-        ) from exc
+        raise ValueError(f"Invalid IP range '{original}': end octet '{right}' is not a number") from exc
 
     # Extract base octets and start octet
     octets = str(base_ip).split(".")

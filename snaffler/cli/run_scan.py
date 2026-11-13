@@ -17,6 +17,7 @@ def run_scan(
     nameserver: Optional[str] = None,
 ):
     import snaffler.cli.main as _cli
+
     setup_logging = _cli.setup_logging
     RuleLoader = _cli.RuleLoader
     SnafflerRunner = _cli.SnafflerRunner
@@ -40,6 +41,7 @@ def run_scan(
         cfg.auth.socks_proxy = socks_proxy
         try:
             from snaffler.transport.socks import setup_socks_proxy
+
             setup_socks_proxy(socks_proxy)
         except (ImportError, ValueError) as exc:
             raise typer.BadParameter(str(exc))
@@ -47,6 +49,7 @@ def run_scan(
     if nameserver:
         try:
             from snaffler.transport.dns import setup_custom_dns
+
             setup_custom_dns(nameserver)
         except (ImportError, ValueError) as exc:
             raise typer.BadParameter(str(exc))
@@ -60,8 +63,8 @@ def run_scan(
             cfg.targets.domain_users = False
         else:
             try:
-                from snaffler.discovery.ad import ADDiscovery
                 from snaffler.classifiers.loader import build_domain_user_rule
+                from snaffler.discovery.ad import ADDiscovery
 
                 logger.info("Discovering interesting domain users for content rules...")
                 ad = ADDiscovery(cfg)
@@ -72,13 +75,9 @@ def run_scan(
                 if users:
                     rule = build_domain_user_rule(users, domain=cfg.auth.domain)
                     cfg.rules.content.append(rule)
-                    logger.info(
-                        f"Added DynamicDomainUsers rule matching {len(users)} users"
-                    )
+                    logger.info(f"Added DynamicDomainUsers rule matching {len(users)} users")
                 else:
-                    logger.warning(
-                        "No interesting domain users found, skipping dynamic rule"
-                    )
+                    logger.warning("No interesting domain users found, skipping dynamic rule")
             except Exception as e:
                 logger.warning(f"Domain user discovery failed, continuing without: {e}")
 

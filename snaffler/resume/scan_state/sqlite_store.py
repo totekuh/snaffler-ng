@@ -4,9 +4,9 @@ import sqlite3
 import threading
 
 from snaffler.resume.scan_state.sqlite_computers import ComputersMixin
-from snaffler.resume.scan_state.sqlite_shares import SharesMixin
-from snaffler.resume.scan_state.sqlite_files import FilesMixin
 from snaffler.resume.scan_state.sqlite_dirs_findings import DirsFindingsMixin
+from snaffler.resume.scan_state.sqlite_files import FilesMixin
+from snaffler.resume.scan_state.sqlite_shares import SharesMixin
 
 
 class StoreBase:
@@ -36,10 +36,7 @@ class StoreBase:
             self.conn.execute("DROP TABLE IF EXISTS checked_share")
             self.conn.execute("DROP TABLE IF EXISTS checked_file")
 
-            self.conn.execute(
-                "CREATE TABLE IF NOT EXISTS sync "
-                "(key TEXT PRIMARY KEY, value TEXT NOT NULL)"
-            )
+            self.conn.execute("CREATE TABLE IF NOT EXISTS sync (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             self.conn.execute(
                 "CREATE TABLE IF NOT EXISTS target_computer "
                 "(name TEXT PRIMARY KEY COLLATE NOCASE, ip TEXT, "
@@ -78,30 +75,16 @@ class StoreBase:
                 ")"
             )
 
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_finding_triage ON finding(triage)")
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_target_dir_share ON target_dir(share)")
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_target_file_share ON target_file(share)")
             self.conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_finding_triage "
-                "ON finding(triage)"
+                "CREATE INDEX IF NOT EXISTS idx_target_file_checked ON target_file(checked) WHERE checked = 0"
             )
-            self.conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_target_dir_share "
-                "ON target_dir(share)"
-            )
-            self.conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_target_file_share "
-                "ON target_file(share)"
-            )
-            self.conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_target_file_checked "
-                "ON target_file(checked) WHERE checked = 0"
-            )
-            self.conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_target_dir_walked "
-                "ON target_dir(walked) WHERE walked = 0"
-            )
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_target_dir_walked ON target_dir(walked) WHERE walked = 0")
             try:
                 self.conn.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_target_computer_done "
-                    "ON target_computer(done) WHERE done = 0"
+                    "CREATE INDEX IF NOT EXISTS idx_target_computer_done ON target_computer(done) WHERE done = 0"
                 )
             except Exception:
                 pass
@@ -110,31 +93,23 @@ class StoreBase:
 
     def get_sync_flag(self, key: str) -> bool:
         with self.lock:
-            cur = self.conn.execute(
-                "SELECT 1 FROM sync WHERE key = ?", (key,)
-            )
+            cur = self.conn.execute("SELECT 1 FROM sync WHERE key = ?", (key,))
             return cur.fetchone() is not None
 
     def set_sync_flag(self, key: str):
         with self.lock:
-            self.conn.execute(
-                "INSERT OR IGNORE INTO sync VALUES (?, '1')", (key,)
-            )
+            self.conn.execute("INSERT OR IGNORE INTO sync VALUES (?, '1')", (key,))
             self.conn.commit()
 
     def get_sync_value(self, key: str) -> str | None:
         with self.lock:
-            cur = self.conn.execute(
-                "SELECT value FROM sync WHERE key = ?", (key,)
-            )
+            cur = self.conn.execute("SELECT value FROM sync WHERE key = ?", (key,))
             row = cur.fetchone()
             return row[0] if row else None
 
     def set_sync_value(self, key: str, value: str):
         with self.lock:
-            self.conn.execute(
-                "INSERT OR REPLACE INTO sync VALUES (?, ?)", (key, value)
-            )
+            self.conn.execute("INSERT OR REPLACE INTO sync VALUES (?, ?)", (key, value))
             self.conn.commit()
 
     def clear_phase_flags(self):

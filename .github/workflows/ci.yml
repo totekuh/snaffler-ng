@@ -7,7 +7,32 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Install lint tools
+        run: pip install ruff>=0.8.0 mypy>=1.11.0
+
+      - name: Ruff lint
+        run: ruff check snaffler/
+
+      - name: Ruff format check
+        run: ruff format --check snaffler/
+
+      - name: Mypy type check
+        run: mypy snaffler/
+
   test-build:
+    needs: lint
     runs-on: ubuntu-latest
 
     steps:

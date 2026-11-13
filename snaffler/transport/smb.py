@@ -1,3 +1,5 @@
+from typing import Optional
+
 from impacket.smbconnection import SMBConnection
 
 from snaffler.config.configuration import SnafflerConfiguration
@@ -10,7 +12,7 @@ class SMBTransport:
         self.cfg = cfg
         self.auth = cfg.auth
 
-    def connect(self, target: str, timeout: int = None) -> SMBConnection:
+    def connect(self, target: str, timeout: Optional[int] = None) -> SMBConnection:
         if timeout is None:
             timeout = self.auth.smb_timeout
 

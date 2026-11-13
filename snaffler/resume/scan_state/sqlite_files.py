@@ -4,20 +4,15 @@ from snaffler.utils.path_utils import extract_share_root as _extract_share
 
 
 class FilesMixin:
-
     def load_checked_files(self) -> set:
         with self.lock:
-            rows = self.conn.execute(
-                "SELECT unc_path FROM target_file WHERE checked = 1"
-            ).fetchall()
+            rows = self.conn.execute("SELECT unc_path FROM target_file WHERE checked = 1").fetchall()
             return {r[0].lower() for r in rows}
 
     def iter_checked_file_keys(self):
         """Yield lowercased paths of checked files for bloom filter seeding."""
         with self.lock:
-            cursor = self.conn.execute(
-                "SELECT unc_path FROM target_file WHERE checked = 1"
-            )
+            cursor = self.conn.execute("SELECT unc_path FROM target_file WHERE checked = 1")
             while True:
                 batch = cursor.fetchmany(10000)
                 if not batch:
@@ -67,8 +62,7 @@ class FilesMixin:
     def store_file(self, unc_path: str, share: str, size: int = 0, mtime: float = 0.0):
         with self.lock:
             self.conn.execute(
-                "INSERT OR IGNORE INTO target_file "
-                "(unc_path, share, size, mtime) VALUES (?, ?, ?, ?)",
+                "INSERT OR IGNORE INTO target_file (unc_path, share, size, mtime) VALUES (?, ?, ?, ?)",
                 (unc_path, share, size, mtime),
             )
             self.conn.commit()
@@ -76,8 +70,7 @@ class FilesMixin:
     def store_files(self, files: list):
         with self.lock:
             self.conn.executemany(
-                "INSERT OR IGNORE INTO target_file "
-                "(unc_path, share, size, mtime) VALUES (?, ?, ?, ?)",
+                "INSERT OR IGNORE INTO target_file (unc_path, share, size, mtime) VALUES (?, ?, ?, ?)",
                 files,
             )
             self.conn.commit()
@@ -85,9 +78,7 @@ class FilesMixin:
     def load_unchecked_files(self) -> list:
         with self.lock:
             result = []
-            cursor = self.conn.execute(
-                "SELECT unc_path, size, mtime FROM target_file WHERE checked = 0"
-            )
+            cursor = self.conn.execute("SELECT unc_path, size, mtime FROM target_file WHERE checked = 0")
             while True:
                 batch = cursor.fetchmany(5000)
                 if not batch:
@@ -106,8 +97,7 @@ class FilesMixin:
         while True:
             with self.lock:
                 rows = self.conn.execute(
-                    "SELECT unc_path, size, mtime FROM target_file "
-                    "WHERE checked = 0 LIMIT ? OFFSET ?",
+                    "SELECT unc_path, size, mtime FROM target_file WHERE checked = 0 LIMIT ? OFFSET ?",
                     (batch_size, offset),
                 ).fetchall()
             if not rows:
@@ -118,12 +108,8 @@ class FilesMixin:
 
     def count_target_files(self) -> int:
         with self.lock:
-            return self.conn.execute(
-                "SELECT COUNT(*) FROM target_file"
-            ).fetchone()[0]
+            return self.conn.execute("SELECT COUNT(*) FROM target_file").fetchone()[0]
 
     def count_checked_files(self) -> int:
         with self.lock:
-            return self.conn.execute(
-                "SELECT COUNT(*) FROM target_file WHERE checked = 1"
-            ).fetchone()[0]
+            return self.conn.execute("SELECT COUNT(*) FROM target_file WHERE checked = 1").fetchone()[0]

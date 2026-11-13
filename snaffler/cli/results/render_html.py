@@ -4,10 +4,9 @@ import html
 import json
 from datetime import datetime, timezone
 
+from snaffler.cli.results.render_html_assets import CSS_STYLES, JS_SCRIPT
 from snaffler.utils.logger import format_size
 from snaffler.utils.path_utils import extract_unc_host
-from snaffler.cli.results.render_html_assets import CSS_STYLES, JS_SCRIPT
-
 
 TRIAGE_HTML_COLORS = {
     "Black": "#888",
@@ -23,7 +22,7 @@ def _render_unreadable_html(shares: list) -> str:
     esc = html.escape
     items = "\n".join(f"<li>{esc(s)}</li>" for s in shares)
     return (
-        f'<h2>Unreadable Shares ({len(shares):,})</h2>'
+        f"<h2>Unreadable Shares ({len(shares):,})</h2>"
         f'<p style="color:#888;font-size:0.85em;">Use <code>--rescan-unreadable</code> with new creds to retry these.</p>'
         f'<ul style="color:#e74c3c;font-size:0.9em;">{items}</ul>'
     )
@@ -44,12 +43,12 @@ def _render_html(stats: dict, findings: list, unreadable_shares: list | None = N
             f'<div class="card">'
             f'<div class="card-value">{done:,} / {total:,}</div>'
             f'<div class="card-label">{esc(label)}</div>'
-            f'</div>'
+            f"</div>"
         )
 
     def _badge(triage, clickable=False):
         color = TRIAGE_HTML_COLORS.get(triage, "#888")
-        data = f' data-triage="{esc(triage)}"' if clickable else ''
+        data = f' data-triage="{esc(triage)}"' if clickable else ""
         return f'<span class="badge"{data} style="background:{color}">{esc(triage)}</span>'
 
     def _stat_card_sub(label, done, total, sub_label=None, sub_value=None):
@@ -60,8 +59,8 @@ def _render_html(stats: dict, findings: list, unreadable_shares: list | None = N
             f'<div class="card">'
             f'<div class="card-value">{done:,} / {total:,}</div>'
             f'<div class="card-label">{esc(label)}</div>'
-            f'{sub}'
-            f'</div>'
+            f"{sub}"
+            f"</div>"
         )
 
     cards = (
@@ -74,20 +73,20 @@ def _render_html(stats: dict, findings: list, unreadable_shares: list | None = N
     severity_badges = ""
     for name in ("Black", "Red", "Yellow", "Green"):
         count = fc.get(name.lower(), 0)
-        severity_badges += (
-            f'<div class="severity">{_badge(name, clickable=True)} <span>{count:,}</span></div>\n'
-        )
+        severity_badges += f'<div class="severity">{_badge(name, clickable=True)} <span>{count:,}</span></div>\n'
 
     # Full match/context stored in a JS array for the modal (keyed by row index).
     # Prevents large text from bloating data-* attributes and keeps them out of
     # the visible DOM where truncation tests can check them independently.
-    modal_data_json = json.dumps([
-        {
-            "match": finding.get("match_text") or "",
-            "context": finding.get("context") or "",
-        }
-        for finding in findings
-    ]).replace("</", "<\\/")  # prevent </script> injection
+    modal_data_json = json.dumps(
+        [
+            {
+                "match": finding.get("match_text") or "",
+                "context": finding.get("context") or "",
+            }
+            for finding in findings
+        ]
+    ).replace("</", "<\\/")  # prevent </script> injection
 
     rows = ""
     for idx, finding in enumerate(findings):
@@ -96,7 +95,7 @@ def _render_html(stats: dict, findings: list, unreadable_shares: list | None = N
         match_text = finding.get("match_text") or ""
         size = finding["size"]
         size_str = format_size(size) if size is not None else ""
-        mtime_str = str(finding.get('mtime') or '')
+        mtime_str = str(finding.get("mtime") or "")
 
         ctx_display = ctx[:200] + ("…" if len(ctx) > 200 else "")
         match_display = match_text[:120] + ("…" if len(match_text) > 120 else "")
@@ -161,7 +160,7 @@ def _render_html(stats: dict, findings: list, unreadable_shares: list | None = N
   <input id="search" type="text" placeholder="Filter findings (searches match &amp; context)..." />
 </div>
 
-<h2>Findings (<span id="findings-visible">{fc['total']:,}</span> / {fc['total']:,})</h2>
+<h2>Findings (<span id="findings-visible">{fc["total"]:,}</span> / {fc["total"]:,})</h2>
 <table id="tbl">
 <colgroup>
   <col class="col-status">
@@ -249,4 +248,3 @@ var MODAL_DATA = {modal_data_json};
 {js_script}</script>
 </body>
 </html>"""
-

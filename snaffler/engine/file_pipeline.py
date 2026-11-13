@@ -2,9 +2,8 @@ import fnmatch
 import logging
 import queue
 import threading
-import time
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from typing import List
 
 from snaffler.accessors.file_accessor import FileAccessor
@@ -16,15 +15,17 @@ from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.discovery.shares import share_matches_filter
 from snaffler.discovery.smb_tree_walker import SMBTreeWalker
 from snaffler.discovery.tree import TreeWalker
+from snaffler.engine.batch_writer import (
+    _BATCH_INTERVAL,  # noqa: F401 — patched by tests
+    _BATCH_SIZE,  # noqa: F401 — patched by tests
+    _MAX_ENQUEUED,
+    _BatchWriter,
+    _extract_share_unc,
+)
 from snaffler.resume.scan_state import ScanState
 from snaffler.utils.fatal import check_fatal_os_error
 from snaffler.utils.logger import log_file_result
 from snaffler.utils.progress import ProgressState
-
-from snaffler.engine.batch_writer import (
-    _BatchWriter, _extract_share_unc,
-    _BATCH_SIZE, _BATCH_INTERVAL, _MAX_ENQUEUED,
-)
 
 logger = logging.getLogger("snaffler")
 
@@ -33,12 +34,12 @@ _SENTINEL = None
 
 class FilePipeline:
     def __init__(
-            self,
-            cfg: SnafflerConfiguration,
-            state: ScanState | None = None,
-            progress: ProgressState | None = None,
-            tree_walker: TreeWalker | None = None,
-            file_accessor: FileAccessor | None = None,
+        self,
+        cfg: SnafflerConfiguration,
+        state: ScanState | None = None,
+        progress: ProgressState | None = None,
+        tree_walker: TreeWalker | None = None,
+        file_accessor: FileAccessor | None = None,
     ):
         self.cfg = cfg
         self.state = state
@@ -83,7 +84,7 @@ class FilePipeline:
             return 0
 
         # Bounded queue: lightweight (path, size, mtime, ctime, atime) tuples, ~240 bytes each
-        file_queue = queue.Queue(maxsize=100_000)
+        file_queue: queue.Queue = queue.Queue(maxsize=100_000)
 
         walked_shares: list = []
         results_count = 0
@@ -153,8 +154,8 @@ class FilePipeline:
 
                     # --- Fair-share scheduling ---
                     max_per_share = self.max_per_share  # 0 = unlimited
-                    share_buffer = {}   # share_key -> deque of subdir paths
-                    share_root_map = {} # share_key -> original share_root string
+                    share_buffer = {}  # share_key -> deque of subdir paths
+                    share_root_map = {}  # share_key -> original share_root string
 
                     def _submit_dir(subdir, share_root, cancel_ev):
                         """Submit a directory walk, or buffer if share is at its thread limit."""
@@ -166,7 +167,10 @@ class FilePipeline:
                             return
                         fut = executor.submit(
                             self.tree_walker.walk_directory,
-                            subdir, on_file, on_dir, cancel_ev,
+                            subdir,
+                            on_file,
+                            on_dir,
+                            cancel_ev,
                         )
                         dir_for_future[fut] = subdir
                         share_for_future[fut] = share_root
@@ -186,7 +190,10 @@ class FilePipeline:
                             # before entering the buffer.
                             fut = executor.submit(
                                 self.tree_walker.walk_directory,
-                                subdir, on_file, on_dir, cancel_ev,
+                                subdir,
+                                on_file,
+                                on_dir,
+                                cancel_ev,
                             )
                             dir_for_future[fut] = subdir
                             share_for_future[fut] = root
@@ -203,7 +210,9 @@ class FilePipeline:
                     # --- Seed initial share roots ---
                     for path in paths:
                         # Check seed paths against --exclude-unc patterns
-                        exclude_patterns = getattr(self.tree_walker, '_exclude_unc', None) or self.cfg.targets.exclude_unc
+                        exclude_patterns = (
+                            getattr(self.tree_walker, "_exclude_unc", None) or self.cfg.targets.exclude_unc
+                        )
                         if exclude_patterns:
                             path_lower = path.lower()
                             if any(fnmatch.fnmatch(path_lower, p.lower()) for p in exclude_patterns):
@@ -231,7 +240,10 @@ class FilePipeline:
                         submitted_dirs.add(key)
                         future = executor.submit(
                             self.tree_walker.walk_directory,
-                            path, on_file, on_dir, cancel,
+                            path,
+                            on_file,
+                            on_dir,
+                            cancel,
                         )
                         dir_for_future[future] = path
                         share_for_future[future] = path
@@ -265,7 +277,7 @@ class FilePipeline:
                                 continue
                             # Respect --max-depth on resume
                             if max_depth is not None and share_root:
-                                rel = dir_lower[len(key):].strip("/")
+                                rel = dir_lower[len(key) :].strip("/")
                                 depth = len(rel.split("/")) if rel else 0
                                 if depth > max_depth:
                                     continue
@@ -325,7 +337,8 @@ class FilePipeline:
                     try:
                         while pending:
                             done, pending = wait(
-                                pending, return_when=FIRST_COMPLETED,
+                                pending,
+                                return_when=FIRST_COMPLETED,
                             )
                             for future in done:
                                 dir_unc = dir_for_future.pop(future, None)
@@ -354,7 +367,7 @@ class FilePipeline:
                                     if subdir.lower() in submitted_dirs:
                                         continue
                                     if max_depth is not None and share_root:
-                                        rel = subdir.lower()[len(share_root.lower()):].strip("/")
+                                        rel = subdir.lower()[len(share_root.lower()) :].strip("/")
                                         depth = len(rel.split("/")) if rel else 0
                                         if depth > max_depth:
                                             # Store in DB so a future resume with
@@ -450,21 +463,15 @@ class FilePipeline:
                             result.match,
                             result.context,
                             result.size,
-                            result.modified.strftime("%Y-%m-%d %H:%M:%S")
-                            if result.modified
-                            else None,
-                            created=result.created.strftime("%Y-%m-%d %H:%M:%S")
-                            if result.created
-                            else None,
-                            accessed=result.accessed.strftime("%Y-%m-%d %H:%M:%S")
-                            if result.accessed
-                            else None,
+                            result.modified.strftime("%Y-%m-%d %H:%M:%S") if result.modified else None,
+                            created=result.created.strftime("%Y-%m-%d %H:%M:%S") if result.created else None,
+                            accessed=result.accessed.strftime("%Y-%m-%d %H:%M:%S") if result.accessed else None,
                         )
                         # Download if configured
                         if (
-                                self.cfg.scanning.snaffle
-                                and result.size <= self.cfg.scanning.max_file_bytes
-                                and self.file_scanner.file_accessor is not None
+                            self.cfg.scanning.snaffle
+                            and result.size <= self.cfg.scanning.max_file_bytes
+                            and self.file_scanner.file_accessor is not None
                         ):
                             self.file_scanner.file_accessor.copy_to_local(
                                 unc_path,
@@ -489,8 +496,7 @@ class FilePipeline:
         # ---------- Launch producer + consumers ----------
         producer_thread = threading.Thread(target=_producer, name="walk-producer", daemon=True)
         consumer_threads = [
-            threading.Thread(target=_consumer, name=f"scan-consumer-{i}", daemon=True)
-            for i in range(self.file_threads)
+            threading.Thread(target=_consumer, name=f"scan-consumer-{i}", daemon=True) for i in range(self.file_threads)
         ]
 
         producer_thread.start()

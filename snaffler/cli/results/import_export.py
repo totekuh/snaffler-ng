@@ -78,9 +78,7 @@ def _export_json(state_file: str, output: str) -> int:
         stats = {
             "computers": conn.execute("SELECT COUNT(*) FROM target_computer").fetchone()[0],
             "shares": conn.execute("SELECT COUNT(*) FROM target_share").fetchone()[0],
-            "files_scanned": conn.execute(
-                "SELECT COUNT(*) FROM target_file WHERE checked = 1"
-            ).fetchone()[0],
+            "files_scanned": conn.execute("SELECT COUNT(*) FROM target_file WHERE checked = 1").fetchone()[0],
             "findings": conn.execute("SELECT COUNT(*) FROM finding").fetchone()[0],
         }
 
@@ -162,10 +160,7 @@ def _import_db(input_path: str, state_file: str) -> int:
         try:
             conn.execute("ATTACH DATABASE ? AS import_db", (actual_path,))
 
-            imported = conn.execute(
-                "INSERT OR IGNORE INTO finding "
-                "SELECT * FROM import_db.finding"
-            ).rowcount
+            imported = conn.execute("INSERT OR IGNORE INTO finding SELECT * FROM import_db.finding").rowcount
 
             conn.execute(
                 "INSERT OR IGNORE INTO target_computer (name, ip, done) "

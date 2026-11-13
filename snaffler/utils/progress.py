@@ -1,6 +1,7 @@
 """
 Thread-safe progress counters for periodic status reporting.
 """
+
 import ctypes
 import os
 import threading
@@ -28,12 +29,13 @@ def _get_rss_mb() -> int:
 
         pmc = PROCESS_MEMORY_COUNTERS()
         pmc.cb = ctypes.sizeof(pmc)
-        handle = ctypes.windll.kernel32.GetCurrentProcess()
-        if ctypes.windll.psapi.GetProcessMemoryInfo(handle, ctypes.byref(pmc), pmc.cb):
+        handle = ctypes.windll.kernel32.GetCurrentProcess()  # type: ignore[attr-defined]
+        if ctypes.windll.psapi.GetProcessMemoryInfo(handle, ctypes.byref(pmc), pmc.cb):  # type: ignore[attr-defined]
             return pmc.WorkingSetSize // (1024 * 1024)
         return 0
     else:
         import resource
+
         return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss // 1024
 
 
@@ -127,11 +129,7 @@ class ProgressState:
             # --- DNS ---
             if dns_phase:
                 remaining = self.dns_total - self.dns_resolved - self.dns_filtered
-                dns_str = (
-                    f"DNS: {self.dns_resolved} up, "
-                    f"{self.dns_filtered} filtered, "
-                    f"{remaining} to go"
-                )
+                dns_str = f"DNS: {self.dns_resolved} up, {self.dns_filtered} filtered, {remaining} to go"
                 eta = self._dns_eta(remaining)
                 if eta:
                     dns_str += f" (~{eta})"
@@ -142,10 +140,7 @@ class ProgressState:
             # --- Shares ---
             if share_phase:
                 remaining = self.computers_total - self.computers_done
-                shares_str = (
-                    f"Shares: {self.shares_found} found on "
-                    f"{self.computers_done}/{self.computers_total} hosts"
-                )
+                shares_str = f"Shares: {self.shares_found} found on {self.computers_done}/{self.computers_total} hosts"
                 if remaining > 0:
                     shares_str += f", {remaining} to go"
                     eta = self._shares_eta(remaining)

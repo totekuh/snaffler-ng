@@ -4,11 +4,10 @@ import logging
 
 from snaffler.utils.path_utils import extract_unc_host
 
-logger = logging.getLogger('snaffler')
+logger = logging.getLogger("snaffler")
 
 
 class AuthMixin:
-
     def _validate_credentials(self):
         """Preflight auth check — try a single login before starting the scan.
 
@@ -26,11 +25,13 @@ class AuthMixin:
 
         # Domain mode — LDAP connect is the first thing that happens,
         # it already raises on bad creds with a clear error.
-        if (not cfg.targets.unc_targets
-                and not cfg.targets.computer_targets
-                and not cfg.targets.rescan_unreadable
-                and not cfg.targets.ftp_targets
-                and cfg.auth.domain):
+        if (
+            not cfg.targets.unc_targets
+            and not cfg.targets.computer_targets
+            and not cfg.targets.rescan_unreadable
+            and not cfg.targets.ftp_targets
+            and cfg.auth.domain
+        ):
             return
 
         # FTP mode — test FTP login
@@ -53,13 +54,11 @@ class AuthMixin:
                 logger.info(f"Auth OK: FTP login to {host}:{port} succeeded")
             except OSError as e:
                 raise SystemExit(
-                    f"FATAL: cannot reach FTP server {host}:{port} — {e}\n"
-                    f"Check network connectivity and retry."
+                    f"FATAL: cannot reach FTP server {host}:{port} — {e}\nCheck network connectivity and retry."
                 ) from e
             except Exception as e:
                 raise SystemExit(
-                    f"FATAL: FTP authentication failed against {host}:{port} — {e}\n"
-                    f"Fix credentials and retry."
+                    f"FATAL: FTP authentication failed against {host}:{port} — {e}\nFix credentials and retry."
                 ) from e
             return
 
@@ -98,6 +97,5 @@ class AuthMixin:
             ) from e
         except Exception as e:
             raise SystemExit(
-                f"FATAL: SMB authentication failed against {target} — {e}\n"
-                f"Fix credentials and retry."
+                f"FATAL: SMB authentication failed against {target} — {e}\nFix credentials and retry."
             ) from e

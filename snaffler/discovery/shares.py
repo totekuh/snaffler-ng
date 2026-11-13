@@ -6,20 +6,20 @@ Uses listShares() (SRVSVC NetShareEnum) — same method as NetExec/CrackMapExec.
 import fnmatch
 import logging
 import threading
-from typing import List, Tuple
+from typing import ClassVar, List, Tuple
 
 from impacket.smb import FILE_READ_ATTRIBUTES, FILE_SHARE_READ, FILE_WRITE_DATA
 from impacket.smb3structs import FILE_DIRECTORY_FILE
 from impacket.smbconnection import SessionError
 
-from snaffler.classifiers.rules import MatchLocation, MatchAction
+from snaffler.classifiers.rules import MatchAction, MatchLocation
 from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.transport.smb import SMBTransport
 from snaffler.utils.connection_cache import ThreadLocalConnectionCache
 from snaffler.utils.fatal import check_fatal_os_error
 from snaffler.utils.path_utils import extract_unc_share_name
 
-logger = logging.getLogger('snaffler')
+logger = logging.getLogger("snaffler")
 
 
 def share_matches_filter(
@@ -71,7 +71,7 @@ class ShareFinder:
     STYPE_IPC = 3
     STYPE_SPECIAL = 0x80000000
 
-    NEVER_SCAN = ['IPC$', 'PRINT$']
+    NEVER_SCAN: ClassVar[List[str]] = ["IPC$", "PRINT$"]
 
     def __init__(self, cfg: SnafflerConfiguration):
         self.cfg = cfg
@@ -79,16 +79,17 @@ class ShareFinder:
         self.share_classifiers = cfg.rules.share
 
         if (
-                not self.cfg.auth.username
-                and not self.cfg.auth.password
-                and not self.cfg.auth.nthash
-                and not self.cfg.auth.kerberos
+            not self.cfg.auth.username
+            and not self.cfg.auth.password
+            and not self.cfg.auth.nthash
+            and not self.cfg.auth.kerberos
         ):
-            logger.warning("No credentials provided (NTLM or Kerberos) – continuing with NULL session")
+            logger.warning("No credentials provided (NTLM or Kerberos) - continuing with NULL session")
 
         self._cache = ThreadLocalConnectionCache(
             connect_fn=lambda computer: self.smb_transport.connect(
-                computer, timeout=self.cfg.auth.smb_timeout,
+                computer,
+                timeout=self.cfg.auth.smb_timeout,
             ),
             health_check_fn=lambda smb: smb.getServerName(),
             disconnect_fn=lambda smb: smb.logoff(),
@@ -111,15 +112,11 @@ class ShareFinder:
         try:
             smb = self._cache.get(target)
             for share in smb.listShares():
-                share_name = share['shi1_netname'][:-1]
-                share_type = share['shi1_type']
-                share_remark = share['shi1_remark'][:-1] if share['shi1_remark'] else ""
+                share_name = share["shi1_netname"][:-1]
+                share_type = share["shi1_type"]
+                share_remark = share["shi1_remark"][:-1] if share["shi1_remark"] else ""
 
-                shares.append(ShareInfo(
-                    name=share_name,
-                    share_type=share_type,
-                    remark=share_remark
-                ))
+                shares.append(ShareInfo(name=share_name, share_type=share_type, remark=share_remark))
         except SessionError as e:
             # SMB-level error (access denied at RPC level) — permanent,
             # no point retrying.  Return whatever we have (usually empty).
@@ -250,8 +247,7 @@ class ShareFinder:
                 logger.info(f"Readable share ({access}): {unc_path}")
                 if snaffle_rule:
                     logger.info(
-                        f"[{snaffle_rule.triage.label}] [{snaffle_rule.rule_name}] "
-                        f"Share ({access}): {unc_path}"
+                        f"[{snaffle_rule.triage.label}] [{snaffle_rule.rule_name}] Share ({access}): {unc_path}"
                     )
             else:
                 logger.debug(f"Unreadable share (access denied): {unc_path}")

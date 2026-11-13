@@ -9,7 +9,7 @@ from typing import List
 from snaffler.utils.fatal import check_fatal_os_error
 from snaffler.utils.path_utils import extract_unc_host, extract_unc_share_name
 
-logger = logging.getLogger('snaffler')
+logger = logging.getLogger("snaffler")
 
 _PHASE_COMPUTERS = "computer_discovery_done"
 _PHASE_DNS = "dns_resolution_done"
@@ -18,7 +18,6 @@ _PORT_CHECK_TIMEOUT = 3
 
 
 class DiscoveryMixin:
-
     def _resume_computer_discovery(self, domain_pipeline) -> List[str]:
         """Discover or load computers, persisting to state on first run."""
         if self.state and self.state.is_phase_done(_PHASE_COMPUTERS):
@@ -50,9 +49,7 @@ class DiscoveryMixin:
             self.progress.dns_total = len(computers)
             self.progress.dns_resolved = len(resolved)
             self.progress.dns_filtered = len(computers) - len(resolved)
-            logger.info(
-                f"Resume: loaded {len(resolved)} DNS-resolved computers from state"
-            )
+            logger.info(f"Resume: loaded {len(resolved)} DNS-resolved computers from state")
             return resolved
 
         # Ensure computers are in state DB (needed for --computer mode
@@ -69,13 +66,15 @@ class DiscoveryMixin:
         self.progress.dns_resolved = len(already_resolved)
         self.progress.dns_start = time.monotonic()
 
-        dns_timeout = self.cfg.auth.smb_timeout
         smb_port = self.cfg.auth.smb_port
 
         def resolve_one(hostname: str):
             try:
                 result = socket.getaddrinfo(
-                    hostname, smb_port, socket.AF_INET, socket.SOCK_STREAM,
+                    hostname,
+                    smb_port,
+                    socket.AF_INET,
+                    socket.SOCK_STREAM,
                 )
                 ip = result[0][4][0]
             except (socket.gaierror, socket.herror, socket.timeout, OSError):
@@ -85,13 +84,12 @@ class DiscoveryMixin:
             # Quick TCP probe — verify port is actually reachable
             try:
                 with socket.create_connection(
-                    (ip, smb_port), timeout=_PORT_CHECK_TIMEOUT,
+                    (ip, smb_port),
+                    timeout=_PORT_CHECK_TIMEOUT,
                 ):
                     pass
             except (OSError, socket.timeout):
-                logger.debug(
-                    f"DNS: {hostname} ({ip}) port {smb_port} unreachable, skipping"
-                )
+                logger.debug(f"DNS: {hostname} ({ip}) port {smb_port} unreachable, skipping")
                 return None
 
             return ip
@@ -103,9 +101,7 @@ class DiscoveryMixin:
         with ThreadPoolExecutor(
             max_workers=self.cfg.advanced.dns_threads,
         ) as pool:
-            futures = {
-                pool.submit(resolve_one, h): h for h in to_resolve
-            }
+            futures = {pool.submit(resolve_one, h): h for h in to_resolve}
             try:
                 for future in as_completed(futures):
                     hostname = futures[future]
@@ -129,8 +125,7 @@ class DiscoveryMixin:
         elapsed = time.monotonic() - t0
         filtered = len(computers) - len(resolved)
         logger.info(
-            f"DNS pre-resolution: {len(resolved)}/{len(computers)} hosts resolved, "
-            f"{filtered} filtered ({elapsed:.1f}s)"
+            f"DNS pre-resolution: {len(resolved)}/{len(computers)} hosts resolved, {filtered} filtered ({elapsed:.1f}s)"
         )
 
         # Only mark phase complete if all hosts were processed.
@@ -164,15 +159,10 @@ class DiscoveryMixin:
 
         # Filter out computers already enumerated in a previous run
         if self.state:
-            remaining = [
-                c for c in computers
-                if not self.state.should_skip_computer(c)
-            ]
+            remaining = [c for c in computers if not self.state.should_skip_computer(c)]
             skipped = len(computers) - len(remaining)
             if skipped:
-                logger.info(
-                    f"Resume: skipped {skipped} already-enumerated computers"
-                )
+                logger.info(f"Resume: skipped {skipped} already-enumerated computers")
                 if self.progress:
                     self.progress.computers_done = skipped
         else:
@@ -202,9 +192,7 @@ class DiscoveryMixin:
             shares = self._filter_paths_by_share(shares)
             if self.progress:
                 self.progress.shares_found = len(shares)
-            logger.info(
-                f"Share discovery complete: {len(shares)} total shares in state"
-            )
+            logger.info(f"Share discovery complete: {len(shares)} total shares in state")
             if self.cfg.targets.shares_only:
                 return []
             return shares
@@ -228,6 +216,7 @@ class DiscoveryMixin:
         logger.info(f"Rescan: testing {len(unreadable)} previously unreadable shares")
 
         from snaffler.discovery.shares import ShareFinder
+
         finder = ShareFinder(self.cfg)
 
         newly_readable = []

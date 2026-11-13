@@ -11,11 +11,11 @@ logger = logging.getLogger("snaffler")
 
 
 def evaluate_content(
-        ctx: FileContext,
-        data: bytes,
-        content_rules,
-        rule_evaluator,
-        match_context_bytes: int,
+    ctx: FileContext,
+    data: bytes,
+    content_rules,
+    rule_evaluator,
+    match_context_bytes: int,
 ) -> Optional[FileResult]:
     if not data:
         return None

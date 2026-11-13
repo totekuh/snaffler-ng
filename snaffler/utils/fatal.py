@@ -21,6 +21,5 @@ def check_fatal_os_error(exc=None):
         exc = sys.exc_info()[1]
     if isinstance(exc, OSError) and exc.errno in _FATAL_ERRNOS:
         raise SystemExit(
-            f"FATAL: {exc.strerror} (errno {exc.errno}) — "
-            f"file descriptor leak detected, aborting scan"
+            f"FATAL: {exc.strerror} (errno {exc.errno}) — file descriptor leak detected, aborting scan"
         ) from exc

@@ -8,8 +8,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
-
+from typing import ClassVar, Dict, Optional
 
 NO_COLOR = False
 
@@ -28,13 +27,13 @@ class FindingsOnlyFilter(logging.Filter):
 
 
 class Colors:
-    BLACK = '\033[90m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    GREEN = '\033[92m'
-    GRAY = '\033[37m'
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
+    BLACK = "\033[90m"
+    RED = "\033[91m"
+    YELLOW = "\033[93m"
+    GREEN = "\033[92m"
+    GRAY = "\033[37m"
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
 
 
 def _logger_has_file_handler(logger: logging.Logger) -> bool:
@@ -42,12 +41,12 @@ def _logger_has_file_handler(logger: logging.Logger) -> bool:
 
 
 class SnafflerFormatter(logging.Formatter):
-    LEVEL_COLORS = {
-        'DEBUG': Colors.GRAY,
-        'INFO': Colors.GREEN,
-        'WARNING': Colors.YELLOW,
-        'ERROR': Colors.RED,
-        'CRITICAL': Colors.RED + Colors.BOLD,
+    LEVEL_COLORS: ClassVar[Dict[str, str]] = {
+        "DEBUG": Colors.GRAY,
+        "INFO": Colors.GREEN,
+        "WARNING": Colors.YELLOW,
+        "ERROR": Colors.RED,
+        "CRITICAL": Colors.RED + Colors.BOLD,
     }
 
     def __init__(self, logger: logging.Logger):
@@ -55,24 +54,15 @@ class SnafflerFormatter(logging.Formatter):
         self.logger = logger
 
     def format(self, record: logging.LogRecord) -> str:
-        timestamp = datetime.fromtimestamp(record.created).strftime(
-            '%Y-%m-%d %H:%M:%S'
-        )
+        timestamp = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
         level = record.levelname
         message = record.getMessage()
 
-        use_colors = (
-                not NO_COLOR
-                and sys.stdout.isatty()
-                and not _logger_has_file_handler(self.logger)
-        )
+        use_colors = not NO_COLOR and sys.stdout.isatty() and not _logger_has_file_handler(self.logger)
 
         if use_colors:
-            color = self.LEVEL_COLORS.get(level, '')
-            return (
-                f"{Colors.GRAY}[{timestamp}]{Colors.RESET} "
-                f"{color}[{level}]{Colors.RESET} {message}"
-            )
+            color = self.LEVEL_COLORS.get(level, "")
+            return f"{Colors.GRAY}[{timestamp}]{Colors.RESET} {color}[{level}]{Colors.RESET} {message}"
         return f"[{timestamp}] [{level}] {message}"
 
 
@@ -85,20 +75,21 @@ class SnafflerJSONFormatter(logging.Formatter):
         }
 
         for field in (
-                "file_path",
-                "triage",
-                "rule_name",
-                "match_context",
-                "size",
-                "mtime",
-                "ctime",
-                "atime",
-                "finding_id",
+            "file_path",
+            "triage",
+            "rule_name",
+            "match_context",
+            "size",
+            "mtime",
+            "ctime",
+            "atime",
+            "finding_id",
         ):
             if hasattr(record, field):
                 data[field] = getattr(record, field)
 
         return json.dumps(data)
+
 
 class SnafflerTSVFormatter(logging.Formatter):
     FIELDS = (
@@ -136,13 +127,12 @@ class SnafflerTSVFormatter(logging.Formatter):
         return "\t".join(row)
 
 
-
 def setup_logging(
-        log_level: str = "info",
-        log_to_file: bool = False,
-        log_file_path: Optional[str] = None,
-        log_to_console: bool = True,
-        log_type: str = "plain",
+    log_level: str = "info",
+    log_to_file: bool = False,
+    log_file_path: Optional[str] = None,
+    log_to_console: bool = True,
+    log_type: str = "plain",
 ) -> logging.Logger:
 
     level_map = {
@@ -211,24 +201,20 @@ def _make_finding_id(file_path: str, rule_name: str) -> str:
 
 
 def log_file_result(
-        logger: logging.Logger,
-        file_path: str,
-        triage: str,
-        rule_name: str,
-        match: Optional[str] = None,
-        context: Optional[str] = None,
-        size: Optional[int] = None,
-        modified: Optional[str] = None,
-        suppress_log: bool = False,
-        created: Optional[str] = None,
-        accessed: Optional[str] = None,
+    logger: logging.Logger,
+    file_path: str,
+    triage: str,
+    rule_name: str,
+    match: Optional[str] = None,
+    context: Optional[str] = None,
+    size: Optional[int] = None,
+    modified: Optional[str] = None,
+    suppress_log: bool = False,
+    created: Optional[str] = None,
+    accessed: Optional[str] = None,
 ):
 
-    use_colors = (
-            not NO_COLOR
-            and sys.stdout.isatty()
-            and not _logger_has_file_handler(logger)
-    )
+    use_colors = not NO_COLOR and sys.stdout.isatty() and not _logger_has_file_handler(logger)
 
     triage_colors = {
         "Black": Colors.BLACK + Colors.BOLD,
@@ -261,10 +247,7 @@ def log_file_result(
         ctx_display = context[:200] + ("..." if len(context) > 200 else "")
         parts.append(f"Context: {ctx_display}")
 
-    is_json = any(
-        isinstance(h.formatter, SnafflerJSONFormatter)
-        for h in logger.handlers
-    )
+    is_json = any(isinstance(h.formatter, SnafflerJSONFormatter) for h in logger.handlers)
 
     message = "file_match" if is_json else " ".join(parts)
 
@@ -324,11 +307,7 @@ def print_completion_stats(start_time, progress=None):
     logger.info("-" * 60)
     logger.info(f"Started:  {start_time:%Y-%m-%d %H:%M:%S}")
     logger.info(f"Finished: {end_time:%Y-%m-%d %H:%M:%S}")
-    logger.info(
-        f"Duration: {h}h {m}m {s}s" if h else
-        f"Duration: {m}m {s}s" if m else
-        f"Duration: {s}s"
-    )
+    logger.info(f"Duration: {h}h {m}m {s}s" if h else f"Duration: {m}m {s}s" if m else f"Duration: {s}s")
     if progress:
         parts = []
         if progress.computers_total:
@@ -347,7 +326,7 @@ def print_completion_stats(start_time, progress=None):
     logger.info("-" * 60)
 
 
-def format_size(size_bytes: int) -> str:
+def format_size(size_bytes: float) -> str:
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if size_bytes < 1024:
             return f"{size_bytes:.1f}{unit}"

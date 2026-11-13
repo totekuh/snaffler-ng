@@ -49,8 +49,7 @@ class SMBTreeWalker(TreeWalker):
         path = "/" + "/".join(parts[2:]) if len(parts) > 2 else "/"
         return server, share, path
 
-    def walk_directory(self, unc_path: str, on_file=None, on_dir=None,
-                       cancel: threading.Event | None = None) -> list:
+    def walk_directory(self, unc_path: str, on_file=None, on_dir=None, cancel: threading.Event | None = None) -> list:
         """Walk a single directory (non-recursive) and return subdirectory UNC paths.
 
         Args:
@@ -64,16 +63,20 @@ class SMBTreeWalker(TreeWalker):
         """
         parsed = self._parse_unc(unc_path)
         if parsed is None:
-            logger.error(
-                f"Invalid UNC path: {unc_path}; example: //10.10.10.10/SHARE$"
-            )
+            logger.error(f"Invalid UNC path: {unc_path}; example: //10.10.10.10/SHARE$")
             return []
 
         server, share, path = parsed
         try:
             smb = self._cache.get(server)
             subdir_paths = self._list_directory(
-                smb, server, share, path, on_file, on_dir, cancel,
+                smb,
+                server,
+                share,
+                path,
+                on_file,
+                on_dir,
+                cancel,
             )
             # Convert relative paths to full UNC paths
             return [f"//{server}/{share}{p}" for p in subdir_paths]
@@ -89,14 +92,14 @@ class SMBTreeWalker(TreeWalker):
             raise
 
     def _list_directory(
-            self,
-            smb,
-            server: str,
-            share: str,
-            path: str,
-            on_file,
-            on_dir,
-            cancel: threading.Event | None = None,
+        self,
+        smb,
+        server: str,
+        share: str,
+        path: str,
+        on_file,
+        on_dir,
+        cancel: threading.Event | None = None,
     ) -> list:
         """List one directory: call on_file for files, on_dir for subdirs.
 

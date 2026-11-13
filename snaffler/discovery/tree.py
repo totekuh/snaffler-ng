@@ -16,7 +16,6 @@ from typing import List, Optional
 from snaffler.classifiers.rules import (
     ClassifierRule,
     MatchAction,
-    EnumerationScope,
     MatchLocation,
 )
 
@@ -58,16 +57,11 @@ def should_scan_directory(
             continue
 
         if rule.match_action == MatchAction.DISCARD:
-            logger.debug(
-                f"Skipped scanning on {dir_path} due to Discard rule match: "
-                f"{rule.rule_name}"
-            )
+            logger.debug(f"Skipped scanning on {dir_path} due to Discard rule match: {rule.rule_name}")
             return False
 
         if rule.match_action == MatchAction.SNAFFLE:
-            logger.warning(
-                f"[{rule.triage.label}] [{rule.rule_name}] Directory: {dir_path}"
-            )
+            logger.warning(f"[{rule.triage.label}] [{rule.rule_name}] Directory: {dir_path}")
 
     return True
 
@@ -82,8 +76,7 @@ class TreeWalker(ABC):
         self._exclude_unc = exclude_unc or []
 
     @abstractmethod
-    def walk_directory(self, unc_path: str, on_file=None, on_dir=None,
-                       cancel: threading.Event | None = None) -> list:
+    def walk_directory(self, unc_path: str, on_file=None, on_dir=None, cancel: threading.Event | None = None) -> list:
         """Walk a single directory (non-recursive) and return subdirectory paths.
 
         Args:

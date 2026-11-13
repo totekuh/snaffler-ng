@@ -8,17 +8,6 @@ from typing import Optional
 import click
 import typer
 
-from snaffler.utils.logger import Colors
-from snaffler.cli.results.queries import (
-    TRIAGE_COLORS,
-    _open_db,
-    _query_findings,
-    _query_rule_counts,
-    _query_stats,
-    _query_unreadable_shares,
-)
-from snaffler.cli.results.render_plain import _render_plain, _render_json
-from snaffler.cli.results.render_html import _render_html
 from snaffler.cli.results.import_export import (
     _detect_format,
     _ensure_state_db,
@@ -27,6 +16,17 @@ from snaffler.cli.results.import_export import (
     _import_db,
     _import_json,
 )
+from snaffler.cli.results.queries import (
+    TRIAGE_COLORS,
+    _open_db,
+    _query_findings,
+    _query_rule_counts,
+    _query_stats,
+    _query_unreadable_shares,
+)
+from snaffler.cli.results.render_html import _render_html
+from snaffler.cli.results.render_plain import _render_json, _render_plain
+from snaffler.utils.logger import Colors
 
 results_app = typer.Typer(
     help="Display stats and findings from a scan database",
@@ -39,12 +39,14 @@ def results(
     ctx: typer.Context,
     state: Path = typer.Option(
         Path("snaffler.db"),
-        "-s", "--state",
+        "-s",
+        "--state",
         help="Path to the scan state database",
     ),
     fmt: Optional[str] = typer.Option(
         "plain",
-        "-f", "--format",
+        "-f",
+        "--format",
         help="Output format",
         click_type=click.Choice(["plain", "json", "html"], case_sensitive=False),
     ),
@@ -55,19 +57,22 @@ def results(
     ),
     min_interest: int = typer.Option(
         0,
-        "-b", "--min-interest",
+        "-b",
+        "--min-interest",
         help="Minimum severity to show (0=all, 1=Yellow+, 2=Red+, 3=Black only)",
         min=0,
         max=3,
     ),
     rule: Optional[list[str]] = typer.Option(
         None,
-        "--rule", "-r",
+        "--rule",
+        "-r",
         help="Filter findings by rule name (repeatable)",
     ),
     hide_unreadable: bool = typer.Option(
         False,
-        "--hide-unreadable", "-hu",
+        "--hide-unreadable",
+        "-hu",
         help="Hide unreadable shares section",
     ),
     files: bool = typer.Option(
@@ -101,11 +106,11 @@ def results(
     if web:
         try:
             from snaffler.web.server import serve_results
+
             serve_results(str(state), port=web_port)
         except ImportError as exc:
             typer.echo(
-                f"Error: --web requires Flask: {exc}\n"
-                f"Install with: pip install snaffler-ng[web]",
+                f"Error: --web requires Flask: {exc}\nInstall with: pip install snaffler-ng[web]",
                 err=True,
             )
             raise typer.Exit(code=1)
@@ -149,7 +154,8 @@ def rules(
     ctx: typer.Context,
     fmt: Optional[str] = typer.Option(
         "plain",
-        "-f", "--format",
+        "-f",
+        "--format",
         help="Output format",
         click_type=click.Choice(["plain", "json"], case_sensitive=False),
     ),
@@ -167,10 +173,7 @@ def rules(
         conn.close()
 
     if fmt == "json":
-        output = [
-            {"rule_name": name, "triage": triage, "count": cnt}
-            for name, triage, cnt in rule_counts
-        ]
+        output = [{"rule_name": name, "triage": triage, "count": cnt} for name, triage, cnt in rule_counts]
         typer.echo(json.dumps(output, indent=2))
         return
 
@@ -195,12 +198,8 @@ def rules(
 @results_app.command("export")
 def export_results(
     output: str = typer.Argument(..., help="Output file path (.db or .json)"),
-    state_file: str = typer.Option(
-        "snaffler.db", "--state-file", "-s", help="State DB to export from"
-    ),
-    format: str = typer.Option(
-        None, "--format", "-f", help="Output format (db/json). Auto-detected from extension."
-    ),
+    state_file: str = typer.Option("snaffler.db", "--state-file", "-s", help="State DB to export from"),
+    format: str = typer.Option(None, "--format", "-f", help="Output format (db/json). Auto-detected from extension."),
 ):
     """Export scan results as a gzip-compressed DB or JSON file."""
     if not Path(state_file).exists():
@@ -220,9 +219,7 @@ def export_results(
 @results_app.command("import")
 def import_results(
     input_path: str = typer.Argument(..., help="State DB or JSON file to import from"),
-    state_file: str = typer.Option(
-        "snaffler.db", "--state-file", "-s", help="Target state DB to merge into"
-    ),
+    state_file: str = typer.Option("snaffler.db", "--state-file", "-s", help="Target state DB to merge into"),
 ):
     """Import and merge findings from another scan DB or JSON export."""
     if not Path(input_path).exists():

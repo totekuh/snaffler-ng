@@ -15,6 +15,7 @@ _MAX_ENQUEUED = 500_000
 def _extract_share_unc(unc_path: str) -> str:
     """Extract //server/share from a full UNC path."""
     from snaffler.utils.path_utils import extract_share_root
+
     return extract_share_root(unc_path)
 
 
@@ -28,7 +29,9 @@ class _BatchWriter:
 
     def start(self):
         self._thread = threading.Thread(
-            target=self._run, name="batch-writer", daemon=True,
+            target=self._run,
+            name="batch-writer",
+            daemon=True,
         )
         self._thread.start()
 
@@ -42,8 +45,7 @@ class _BatchWriter:
     def put_dir(self, unc_path: str, share: str):
         self._queue.put(("dir", unc_path, share))
 
-    def put_file(self, unc_path: str, share: str, size: int, mtime: float,
-                 ctime: float = 0.0, atime: float = 0.0):
+    def put_file(self, unc_path: str, share: str, size: int, mtime: float, ctime: float = 0.0, atime: float = 0.0):
         self._queue.put(("file", unc_path, share, size, mtime, ctime, atime))
 
     def enqueue_checked(self, unc_path: str):

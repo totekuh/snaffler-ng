@@ -10,12 +10,11 @@ from datetime import datetime, timedelta
 from typing import List
 
 from impacket.ldap import ldapasn1
-from impacket.ldap.ldap import SimplePagedResultsControl, LDAPSessionError
-
-from snaffler.utils.fatal import check_fatal_os_error
+from impacket.ldap.ldap import LDAPSessionError, SimplePagedResultsControl
 
 from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.transport.ldap import LDAPTransport
+from snaffler.utils.fatal import check_fatal_os_error
 
 logger = logging.getLogger("snaffler")
 
@@ -123,8 +122,7 @@ class ADDiscovery:
                     if last_logon < self._staleness_cutoff:
                         self._skipped_stale += 1
                         logger.debug(
-                            f"Skipping stale computer: {hostname} "
-                            f"(last logon: {last_logon.strftime('%Y-%m-%d')})"
+                            f"Skipping stale computer: {hostname} (last logon: {last_logon.strftime('%Y-%m-%d')})"
                         )
                         return
                 except (ValueError, TypeError, OverflowError):
@@ -133,17 +131,15 @@ class ADDiscovery:
         self._computers.append(hostname.upper())
 
     def get_domain_computers(
-            self,
-            ldap_filter: str = "(&(objectCategory=computer)(objectClass=computer))",
+        self,
+        ldap_filter: str = "(&(objectCategory=computer)(objectClass=computer))",
     ) -> List[str]:
         logger.info(f"Querying LDAP for computers: {ldap_filter}")
         self._computers = []
         self._skipped_disabled = 0
         self._skipped_stale = 0
 
-        attrs = self._pad_attrs(
-            ["dNSHostName", "name", "userAccountControl", "lastLogonTimeStamp"]
-        )
+        attrs = self._pad_attrs(["dNSHostName", "name", "userAccountControl", "lastLogonTimeStamp"])
 
         try:
             ldap = self.ldap_transport.connect()
@@ -213,16 +209,27 @@ class ADDiscovery:
                     return
 
     def get_domain_users(
-            self,
-            match_strings: List[str] | None = None,
-            min_len: int = 6,
+        self,
+        match_strings: List[str] | None = None,
+        min_len: int = 6,
     ) -> List[str]:
         if not match_strings:
             match_strings = [
-                "sql", "svc", "service", "backup", "admin",
-                "ccm", "scom", "opsmgr", "adcs", "msol",
-                "adsync", "thycotic", "secretserver",
-                "cyberark", "configmgr",
+                "sql",
+                "svc",
+                "service",
+                "backup",
+                "admin",
+                "ccm",
+                "scom",
+                "opsmgr",
+                "adcs",
+                "msol",
+                "adsync",
+                "thycotic",
+                "secretserver",
+                "cyberark",
+                "configmgr",
             ]
 
         # Normalize match strings to lowercase for case-insensitive substring matching
@@ -242,9 +249,7 @@ class ADDiscovery:
                     attributes=self._pad_attrs(["sAMAccountName"]),
                     sizeLimit=0,
                     searchControls=[paged],
-                    perRecordCallback=lambda item: self._user_callback(
-                        item, match_strings, min_len
-                    ),
+                    perRecordCallback=lambda item: self._user_callback(item, match_strings, min_len),
                 )
             finally:
                 try:
@@ -342,7 +347,10 @@ class ADDiscovery:
             logger.error(f"LDAP error during DFS v1 discovery: {type(e).__name__}: {str(e).strip() or 'no details'}")
         except Exception as e:
             check_fatal_os_error(e)
-            logger.error(f"Unexpected error during DFS v1 discovery: {type(e).__name__}: {str(e).strip() or 'no details'}", exc_info=True)
+            logger.error(
+                f"Unexpected error during DFS v1 discovery: {type(e).__name__}: {str(e).strip() or 'no details'}",
+                exc_info=True,
+            )
 
         # --- DFS v2: msDFS-Namespacev2 / msDFS-Linkv2 ---
         try:
@@ -366,7 +374,10 @@ class ADDiscovery:
             logger.error(f"LDAP error during DFS v2 discovery: {type(e).__name__}: {str(e).strip() or 'no details'}")
         except Exception as e:
             check_fatal_os_error(e)
-            logger.error(f"Unexpected error during DFS v2 discovery: {type(e).__name__}: {str(e).strip() or 'no details'}", exc_info=True)
+            logger.error(
+                f"Unexpected error during DFS v2 discovery: {type(e).__name__}: {str(e).strip() or 'no details'}",
+                exc_info=True,
+            )
 
         targets = sorted(self._dfs_targets)
         logger.info(f"Found {len(targets)} DFS target paths in AD")

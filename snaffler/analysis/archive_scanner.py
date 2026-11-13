@@ -4,7 +4,7 @@ import io
 import logging
 import os
 import zipfile
-from typing import Optional, List
+from typing import List, Optional
 
 from snaffler.analysis.model.file_context import FileContext
 from snaffler.analysis.model.file_result import FileResult
@@ -17,9 +17,9 @@ MAX_ARCHIVE_MEMBERS = 10_000
 
 
 def evaluate_archive(
-        ctx: FileContext,
-        data: bytes,
-        rule_evaluator,
+    ctx: FileContext,
+    data: bytes,
+    rule_evaluator,
 ) -> Optional[FileResult]:
     try:
         with io.BytesIO(data) as bio:
@@ -45,9 +45,7 @@ def evaluate_archive(
             )
 
             for rule in rule_evaluator.file_rules:
-                decision = rule_evaluator.evaluate_file_rule(
-                    rule, member_ctx
-                )
+                decision = rule_evaluator.evaluate_file_rule(rule, member_ctx)
                 if not decision:
                     continue
 
@@ -78,15 +76,11 @@ def evaluate_archive(
         return best_result
     except Exception as e:
         check_fatal_os_error(e)
-        logger.warning(
-            f"Archive peek failed for {ctx.unc_path}: {e}"
-        )
+        logger.warning(f"Archive peek failed for {ctx.unc_path}: {e}")
         return None
 
 
-def list_archive_members(
-        ext: str, bio: io.BytesIO
-) -> Optional[List[tuple]]:
+def list_archive_members(ext: str, bio: io.BytesIO) -> Optional[List[tuple]]:
     ext_lower = ext.lower()
     cap = MAX_ARCHIVE_MEMBERS
 
@@ -109,10 +103,7 @@ def list_archive_members(
         try:
             import py7zr
         except ImportError:
-            logger.warning(
-                "py7zr not installed — skipping 7z archive peek. "
-                "Install with: pip install snaffler-ng[7z]"
-            )
+            logger.warning("py7zr not installed — skipping 7z archive peek. Install with: pip install snaffler-ng[7z]")
             return None
         try:
             with py7zr.SevenZipFile(bio, mode="r") as sz:
@@ -133,8 +124,7 @@ def list_archive_members(
             import rarfile as _rarfile
         except ImportError:
             logger.warning(
-                "rarfile not installed — skipping RAR archive peek. "
-                "Install with: pip install snaffler-ng[rar]"
+                "rarfile not installed — skipping RAR archive peek. Install with: pip install snaffler-ng[rar]"
             )
             return None
         try:
