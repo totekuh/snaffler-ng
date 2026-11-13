@@ -61,7 +61,7 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          pytest tests/unit/ -v --tb=short
+          pytest tests/unit/ -v --tb=short --cov=snaffler --cov-fail-under=85
 
       - name: Build package
         run: |
