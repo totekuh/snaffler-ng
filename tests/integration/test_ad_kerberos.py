@@ -263,6 +263,30 @@ class TestKerberosDiscovery:
             assert "." in c, f"Computer {c} is not FQDN"
         ad.close()
 
+    def test_discover_wrong_password_fails(self, ad_dc):
+        cfg = _make_cfg(
+            **{
+                "auth.kerberos": True,
+                "auth.dc_host": DC_HOSTNAME,
+                "auth.password": "WrongPassword!",
+            }
+        )
+        ad = ADDiscovery(cfg)
+        with pytest.raises((KerberosError, OSError)):
+            ad.get_domain_computers()
+
+    def test_discover_wrong_domain_fails(self, ad_dc):
+        cfg = _make_cfg(
+            **{
+                "auth.kerberos": True,
+                "auth.dc_host": DC_HOSTNAME,
+                "auth.domain": "fake.domain",
+            }
+        )
+        ad = ADDiscovery(cfg)
+        with pytest.raises((KerberosError, OSError)):
+            ad.get_domain_computers()
+
 
 # ------------------------------------------------------------------
 # PTH + Kerberos (RC4 etype)
@@ -388,6 +412,24 @@ class TestKerberosMultiShare:
         assert "data" in shares
         smb2.close()
 
+    def test_nonexistent_share_fails(self, ad_dc):
+        from impacket.smbconnection import SessionError
+
+        cfg = _make_cfg(**{"auth.kerberos": True})
+        smb = _smb_kerberos(cfg)
+        with pytest.raises(SessionError):
+            smb.listPath("nonexistent_share_xyz", "*")
+        smb.close()
+
+    def test_file_read_wrong_path_fails(self, ad_dc):
+        from impacket.smbconnection import SessionError
+
+        cfg = _make_cfg(**{"auth.kerberos": True})
+        smb = _smb_kerberos(cfg)
+        with pytest.raises(SessionError):
+            smb.getFile("data", "nonexistent_file.txt", lambda x: None)
+        smb.close()
+
 
 # ------------------------------------------------------------------
 # Resume with Kerberos auth
@@ -451,6 +493,33 @@ class TestKerberosResume:
         finally:
             os.unlink(db_path)
 
+    def test_resume_wrong_password_second_run(self, ad_dc):
+        from snaffler.engine.file_pipeline import FilePipeline
+        from snaffler.resume.scan_state import ScanState, SQLiteStateStore
+
+        cfg_good = _make_cfg(**{"auth.kerberos": True})
+        target = f"//{DC_HOSTNAME}/data"
+
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        try:
+            state1 = ScanState(SQLiteStateStore(db_path))
+            pipeline1 = FilePipeline(cfg_good, state=state1)
+            pipeline1.run([target])
+            pipeline1.close()
+            state1.store.close()
+
+            cfg_bad = _make_cfg(**{"auth.kerberos": True, "auth.password": "WrongPassword!"})
+            state2 = ScanState(SQLiteStateStore(db_path))
+            pipeline2 = FilePipeline(cfg_bad, state=state2)
+            with pytest.raises((KerberosError, OSError)):
+                pipeline2.run([target])
+            pipeline2.close()
+            state2.store.close()
+        finally:
+            os.unlink(db_path)
+
 
 # ------------------------------------------------------------------
 # NTLM/PTH regression
@@ -484,3 +553,25 @@ class TestNTLMRegression:
         ldap = transport.connect()
         assert ldap is not None
         ldap.close()
+
+    def test_ntlm_wrong_password_fails(self, ad_dc):
+        from impacket.smbconnection import SessionError
+
+        cfg = _make_cfg(**{"auth.password": "WrongPassword!"})
+        smb = SMBConnection(DC_IP, DC_IP, timeout=10)
+        with pytest.raises(SessionError):
+            authenticate_smb(smb, cfg.auth)
+
+    def test_ntlm_wrong_nthash_fails(self, ad_dc):
+        from impacket.smbconnection import SessionError
+
+        cfg = _make_cfg(
+            **{
+                "auth.username": AD_CONFIG["test_user"],
+                "auth.password": "",
+                "auth.nthash": "deadbeefdeadbeefdeadbeefdeadbeef",
+            }
+        )
+        smb = SMBConnection(DC_IP, DC_IP, timeout=10)
+        with pytest.raises(SessionError):
+            authenticate_smb(smb, cfg.auth)
