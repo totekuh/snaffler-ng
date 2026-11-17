@@ -1,5 +1,21 @@
 """Shared authentication helpers for SMB and LDAP transports."""
 
+import ipaddress
+import logging
+
+from snaffler.transport.kerberos import get_tgt_and_tgs
+
+
+def _is_ip(host):
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return False
+
+
+logger = logging.getLogger("snaffler")
+
 
 def authenticate_smb(smb, auth):
     """Authenticate an SMBConnection using Kerberos or NTLM.
@@ -10,15 +26,23 @@ def authenticate_smb(smb, auth):
               kerberos, dc_host, and use_kcache attributes.
     """
     if auth.kerberos:
+        tgt = None
+        tgs = None
+        if not auth.use_kcache:
+            remote_host = smb.getRemoteHost()
+            spn = f"cifs/{smb.getRemoteName()}"
+            tgt, tgs = get_tgt_and_tgs(auth, spn, remote_host)
         smb.kerberosLogin(
             user=auth.username or "",
             password=auth.password or "",
-            domain=auth.domain or "",
+            domain=(auth.domain or "").upper(),
             lmhash="",
             nthash=auth.nthash or "",
-            aesKey=None,
+            aesKey="",
             kdcHost=auth.dc_host,
             useCache=auth.use_kcache,
+            TGT=tgt,
+            TGS=tgs,
         )
     elif auth.nthash:
         smb.login(
@@ -45,14 +69,24 @@ def authenticate_ldap(ldap_conn, auth):
               kerberos, dc_host, and use_kcache attributes.
     """
     if auth.kerberos:
+        tgt = None
+        tgs = None
+        if not auth.use_kcache:
+            dc_host = auth.dc_host or auth.domain
+            spn_host = auth.domain if _is_ip(dc_host) else dc_host
+            spn = f"ldap/{spn_host}"
+            tgt, tgs = get_tgt_and_tgs(auth, spn, dc_host)
         ldap_conn.kerberosLogin(
             user=auth.username or "",
             password=auth.password or "",
-            domain=auth.domain,
+            domain=(auth.domain or "").upper(),
             lmhash="",
             nthash=auth.nthash or "",
+            aesKey="",
             kdcHost=auth.dc_host,
             useCache=auth.use_kcache,
+            TGT=tgt,
+            TGS=tgs,
         )
     elif auth.nthash:
         ldap_conn.login(
