@@ -247,8 +247,47 @@ class TestSocks4:
             smb.listPath("nonexistent_share_xyz", "*")
         smb.close()
 
-    def test_socks4_connection_refused_fails(self):
+    def test_socks4_multiple_shares(self):
+        smb = _connect_smb_socks4(f"socks4://{PROXY4_HOST}:{PROXY_PORT}")
+        shares = [s["shi1_netname"][:-1].lower() for s in smb.listShares()]
+        assert "testdata" in shares
+        assert "ipc$" in shares
+        smb.close()
+
+    def test_socks4_reconnect(self):
+        smb1 = _connect_smb_socks4(f"socks4://{PROXY4_HOST}:{PROXY_PORT}")
+        smb1.listShares()
+        smb1.close()
+        smb2 = _connect_smb_socks4(f"socks4://{PROXY4_HOST}:{PROXY_PORT}")
+        shares = [s["shi1_netname"][:-1].lower() for s in smb2.listShares()]
+        assert "testdata" in shares
+        smb2.close()
+
+    def test_socks4_unreachable_proxy_fails(self):
+        setup_socks_proxy("socks4://192.0.2.1:1080")
+        socket.getaddrinfo = _socks_getaddrinfo
+        with pytest.raises(OSError):
+            SMBConnection(TARGET_IP, TARGET_IP, sess_port=445, timeout=3)
+
+    def test_socks4_wrong_proxy_port_fails(self):
         setup_socks_proxy(f"socks4://{PROXY4_HOST}:9999")
         socket.getaddrinfo = _socks_getaddrinfo
         with pytest.raises(OSError):
             SMBConnection(TARGET_IP, TARGET_IP, sess_port=445, timeout=3)
+
+    def test_socks4_target_wrong_port_fails(self):
+        setup_socks_proxy(f"socks4://{PROXY4_HOST}:{PROXY_PORT}")
+        socket.getaddrinfo = _socks_getaddrinfo
+        try:
+            SMBConnection(TARGET_IP, TARGET_IP, sess_port=12345, timeout=3)
+            pytest.fail("Expected connection to wrong port to raise")
+        except OSError:
+            pass
+        except Exception as e:
+            assert "answer" in str(e).lower() or "refused" in str(e).lower()
+
+    def test_socks4_nonexistent_host_fails(self):
+        setup_socks_proxy(f"socks4://{PROXY4_HOST}:{PROXY_PORT}")
+        socket.getaddrinfo = _socks_getaddrinfo
+        with pytest.raises(OSError):
+            SMBConnection("192.0.2.99", "192.0.2.99", sess_port=445, timeout=5)
