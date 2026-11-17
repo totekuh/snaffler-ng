@@ -87,13 +87,13 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5.3.0
         with:
-          python-version: "3.11"
+          python-version: "3.14"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          pip install pyinstaller==6.13.0 backports.tarfile
+          pip install pyinstaller==6.22.3
 
       - name: Build binary
         run: |
@@ -140,13 +140,13 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5.3.0
         with:
-          python-version: "3.11"
+          python-version: "3.14"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          pip install pyinstaller==6.13.0 backports.tarfile
+          pip install pyinstaller==6.22.3
 
       - name: Build binary
         run: |
@@ -193,13 +193,13 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5.3.0
         with:
-          python-version: "3.11"
+          python-version: "3.14"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          pip install pyinstaller==6.13.0 backports.tarfile
+          pip install pyinstaller==6.22.3
 
       - name: Build binary
         run: |
