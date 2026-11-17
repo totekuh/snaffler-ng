@@ -460,3 +460,97 @@ class TestSMBErrors:
         smb.login("", "", "")
         with pytest.raises(SessionError):
             smb.getFile("NONEXISTENT", "file.txt", lambda x: None)
+
+    def test_server_crash_mid_file_read(self, tmp_path):
+        large_file = tmp_path / "big.bin"
+        large_file.write_bytes(b"\x00" * 5_000_000)
+        port = _free_port()
+        server, thread = _start_smb_server(tmp_path, port)
+        smb = SMBConnection("127.0.0.1", "127.0.0.1", sess_port=port, timeout=5)
+        smb.login("", "", "")
+
+        def kill_server():
+            time.sleep(0.1)
+            _stop_smb_server(server, thread)
+
+        killer = threading.Thread(target=kill_server, daemon=True)
+        killer.start()
+        try:
+            smb.getFile("TESTDATA", "big.bin", lambda x: None)
+        except (SessionError, OSError):
+            pass
+        killer.join(timeout=5)
+
+    def test_closed_connection_reuse_raises(self, smb_server):
+        smb = SMBConnection("127.0.0.1", "127.0.0.1", sess_port=smb_server)
+        smb.login("", "", "")
+        smb.listShares()
+        smb.close()
+        with pytest.raises((SessionError, OSError, AttributeError)):
+            smb.listShares()
+
+    def test_empty_password_on_auth_server_raises(self, auth_smb_server):
+        smb = SMBConnection("127.0.0.1", "127.0.0.1", sess_port=auth_smb_server)
+        with pytest.raises(SessionError):
+            smb.login("smbuser", "", "")
+
+    def test_connect_to_non_smb_port(self):
+        port = _free_port()
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind(("127.0.0.1", port))
+        srv.listen(1)
+
+        def accept_and_close():
+            conn, _ = srv.accept()
+            conn.close()
+            srv.close()
+
+        t = threading.Thread(target=accept_and_close, daemon=True)
+        t.start()
+        with pytest.raises((OSError, SessionError)):
+            SMBConnection("127.0.0.1", "127.0.0.1", sess_port=port, timeout=3)
+        t.join(timeout=5)
+
+    def test_server_crash_snaffler_completes(self, tmp_path):
+        for i in range(20):
+            d = tmp_path / f"dir_{i}"
+            d.mkdir()
+            for j in range(5):
+                (d / f"secret_{j}.key").write_text(f"password={i}_{j}")
+
+        port = _free_port()
+        server, thread = _start_smb_server(tmp_path, port)
+
+        def kill_server():
+            time.sleep(1.5)
+            _stop_smb_server(server, thread)
+
+        killer = threading.Thread(target=kill_server, daemon=True)
+        killer.start()
+
+        cfg = _make_cfg(port)
+        with _no_auth_check:
+            _, p = _run(cfg)
+        assert p.scan_complete
+        killer.join(timeout=5)
+
+    def test_very_deep_path_scan(self, tmp_path):
+        current = tmp_path
+        for i in range(60):
+            current = current / f"level_{i}"
+            current.mkdir()
+            (current / "secret.key").write_text(f"key_{i}")
+
+        port = _free_port()
+        server, thread = _start_smb_server(tmp_path, port)
+        try:
+            cfg = _make_cfg(port)
+            cfg.scanning.max_depth = 5
+            with _no_auth_check:
+                _, p = _run(cfg)
+            assert p.scan_complete
+            assert p.files_scanned > 0
+            assert p.files_scanned < 60
+        finally:
+            _stop_smb_server(server, thread)
