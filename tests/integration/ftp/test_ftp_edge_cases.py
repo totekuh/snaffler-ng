@@ -12,14 +12,10 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.filterwarnings(
-    "ignore::pytest.PytestUnhandledThreadExceptionWarning"
-)
+pytestmark = pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
 
 pyftpdlib = pytest.importorskip("pyftpdlib")
 
-from snaffler.classifiers.loader import RuleLoader
-from snaffler.config.configuration import SnafflerConfiguration
 
 from tests.integration.ftp.conftest import (
     free_port,
@@ -68,7 +64,6 @@ def ftp_server():
 
 
 class TestSubpaths:
-
     def test_sub_a_finds_key(self, ftp_server):
         port, _root = ftp_server
         cfg = make_cfg(port, subpath="/sub_a")
@@ -106,7 +101,6 @@ class TestSubpaths:
 
 
 class TestSymlinkLoop:
-
     def test_symlink_does_not_hang(self, ftp_server):
         """Symlink to parent in dir_000 doesn't cause infinite recursion."""
         port, root = ftp_server
@@ -120,7 +114,6 @@ class TestSymlinkLoop:
 
 
 class TestConcurrentThreads:
-
     def test_high_thread_count_stress(self, ftp_server):
         """250 files with tree_threads=8, file_threads=8 — no deadlock."""
         port, _root = ftp_server
@@ -133,7 +126,6 @@ class TestConcurrentThreads:
 
 
 class TestUnicodeFilenames:
-
     def test_multilingual_rules_fire(self, ftp_server):
         """Multilingual filename rules trigger over FTP."""
         port, _root = ftp_server

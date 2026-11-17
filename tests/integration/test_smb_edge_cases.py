@@ -8,12 +8,10 @@ Uses impacket's SimpleSMBServer with custom file trees (tmp_path).
 """
 
 import hashlib
-import logging
 import os
 import socket
 import threading
 import time
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -107,7 +105,6 @@ def _reset_finding_store():
 
 
 class TestUnicodeFilenames:
-
     def test_unicode_files_discovered(self, tmp_path):
         """German umlauts, Spanish tildes, CJK — all survive SMB round-trip."""
         unicode_files = [
@@ -141,9 +138,7 @@ class TestUnicodeFilenames:
         try:
             cfg = _make_cfg(port)
             _, p = _run(cfg)
-            assert p.files_matched >= 3, (
-                f"Expected at least 3 multilingual matches, got {p.files_matched}"
-            )
+            assert p.files_matched >= 3, f"Expected at least 3 multilingual matches, got {p.files_matched}"
         finally:
             _stop_smb_server(server, thread)
 
@@ -154,7 +149,6 @@ class TestUnicodeFilenames:
 
 
 class TestSymlinkLoop:
-
     @pytest.mark.timeout(30)
     def test_symlink_to_parent_does_not_hang(self, tmp_path):
         """A symlink pointing to parent dir should not cause infinite recursion."""
@@ -208,7 +202,6 @@ class TestSymlinkLoop:
 
 
 class TestConnectionDrop:
-
     @pytest.mark.timeout(60)
     def test_server_killed_mid_scan(self, tmp_path):
         """Scan completes gracefully when server dies mid-walk."""
@@ -243,7 +236,6 @@ class TestConnectionDrop:
 
 
 class TestLongPaths:
-
     def test_deeply_nested_directory(self, tmp_path):
         """50+ nested directories with total path > 300 chars — scan completes."""
         current = tmp_path
@@ -272,7 +264,6 @@ class TestLongPaths:
 
 
 class TestEmptyDirs:
-
     def test_completely_empty_share(self, tmp_path):
         """Empty share root — scan completes, zero files."""
         port = _free_port()
@@ -341,7 +332,6 @@ def _start_multi_share_server(shares, port):
 
 
 class TestConcurrentShares:
-
     def test_two_shares_both_scanned(self, tmp_path):
         """Two shares on one server — findings from both appear."""
         share_a = tmp_path / "share_a"
@@ -355,9 +345,7 @@ class TestConcurrentShares:
         (share_b / ".env").write_text("DB_PASSWORD=secret")
 
         port = _free_port()
-        server, thread = _start_multi_share_server(
-            [("SHAREA", share_a), ("SHAREB", share_b)], port
-        )
+        server, thread = _start_multi_share_server([("SHAREA", share_a), ("SHAREB", share_b)], port)
 
         try:
             cfg = _make_cfg(
@@ -385,9 +373,7 @@ class TestConcurrentShares:
         (share_b / "id_dsa").write_text("KEY B")
 
         port = _free_port()
-        server, thread = _start_multi_share_server(
-            [("ALPHA", share_a), ("BETA", share_b)], port
-        )
+        server, thread = _start_multi_share_server([("ALPHA", share_a), ("BETA", share_b)], port)
 
         try:
             cfg = _make_cfg(
@@ -402,3 +388,75 @@ class TestConcurrentShares:
             assert p.files_matched >= 2
         finally:
             _stop_smb_server(server, thread)
+
+
+# ---------------------------------------------------------------------------
+# Protocol-level error tests (raw impacket, no snaffler runner)
+# ---------------------------------------------------------------------------
+
+from impacket.smbconnection import SessionError, SMBConnection
+
+
+class TestSMBErrors:
+    """Verify SMB protocol errors raise proper exceptions."""
+
+    @pytest.fixture()
+    def smb_server(self, tmp_path):
+        (tmp_path / "secret.txt").write_text("password=hunter2")
+        port = _free_port()
+        server, thread = _start_smb_server(tmp_path, port)
+        yield port
+        _stop_smb_server(server, thread)
+
+    @pytest.fixture()
+    def auth_smb_server(self, tmp_path):
+        (tmp_path / "data.txt").write_text("content")
+        port = _free_port()
+        server = SimpleSMBServer(listenAddress="127.0.0.1", listenPort=port)
+        server.setSMB2Support(True)
+        server.getServer().daemon_threads = True
+        server.addShare("TESTDATA", str(tmp_path), "Test share")
+        nt_hash = hashlib.new("md4", "smbpass".encode("utf-16le")).hexdigest()
+        server.addCredential("smbuser", 0, "", nt_hash)
+        thread = threading.Thread(target=server.start, daemon=True)
+        thread.start()
+        time.sleep(0.5)
+        yield port
+        _stop_smb_server(server, thread)
+
+    def test_nonexistent_share_raises(self, smb_server):
+        smb = SMBConnection("127.0.0.1", "127.0.0.1", sess_port=smb_server)
+        smb.login("", "", "")
+        with pytest.raises(SessionError):
+            smb.listPath("BOGUS_SHARE", "*")
+        smb.close()
+
+    def test_file_not_found_raises(self, smb_server):
+        smb = SMBConnection("127.0.0.1", "127.0.0.1", sess_port=smb_server)
+        smb.login("", "", "")
+        with pytest.raises(SessionError):
+            smb.getFile("TESTDATA", "no_such_file.txt", lambda x: None)
+        smb.close()
+
+    def test_list_nonexistent_dir_raises(self, smb_server):
+        smb = SMBConnection("127.0.0.1", "127.0.0.1", sess_port=smb_server)
+        smb.login("", "", "")
+        with pytest.raises(SessionError):
+            smb.listPath("TESTDATA", "no_such_dir/*")
+        smb.close()
+
+    def test_connection_refused_raises(self):
+        port = _free_port()
+        with pytest.raises(OSError):
+            SMBConnection("127.0.0.1", "127.0.0.1", sess_port=port, timeout=3)
+
+    def test_wrong_creds_raises(self, auth_smb_server):
+        smb = SMBConnection("127.0.0.1", "127.0.0.1", sess_port=auth_smb_server)
+        with pytest.raises(SessionError):
+            smb.login("smbuser", "wrongpassword", "")
+
+    def test_get_file_wrong_share_raises(self, smb_server):
+        smb = SMBConnection("127.0.0.1", "127.0.0.1", sess_port=smb_server)
+        smb.login("", "", "")
+        with pytest.raises(SessionError):
+            smb.getFile("NONEXISTENT", "file.txt", lambda x: None)
