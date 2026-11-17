@@ -1,8 +1,18 @@
 """Shared authentication helpers for SMB and LDAP transports."""
 
+import ipaddress
 import logging
 
 from snaffler.transport.kerberos import get_tgt_and_tgs
+
+
+def _is_ip(host):
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return False
+
 
 logger = logging.getLogger("snaffler")
 
@@ -63,7 +73,8 @@ def authenticate_ldap(ldap_conn, auth):
         tgs = None
         if not auth.use_kcache:
             dc_host = auth.dc_host or auth.domain
-            spn = f"ldap/{dc_host}"
+            spn_host = auth.domain if _is_ip(dc_host) else dc_host
+            spn = f"ldap/{spn_host}"
             tgt, tgs = get_tgt_and_tgs(auth, spn, dc_host)
         ldap_conn.kerberosLogin(
             user=auth.username or "",
