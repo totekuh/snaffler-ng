@@ -90,6 +90,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "snaffler/cli/*.py" = ["B008"]  # typer.Option() in defaults is standard pattern
+"tests/**/*.py" = ["E402"]  # imports after pytest.importorskip is standard pattern
 
 [tool.ruff.format]
 quote-style = "double"
