@@ -394,6 +394,7 @@ class TestConcurrentShares:
 # Protocol-level error tests (raw impacket, no snaffler runner)
 # ---------------------------------------------------------------------------
 
+from impacket.nmb import NetBIOSTimeout
 from impacket.smbconnection import SessionError, SMBConnection
 
 
@@ -552,5 +553,152 @@ class TestSMBErrors:
             assert p.scan_complete
             assert p.files_scanned > 0
             assert p.files_scanned < 60
+        finally:
+            _stop_smb_server(server, thread)
+
+    def test_target_disappears_after_share_enum(self, tmp_path):
+        (tmp_path / "secret.key").write_text("key data")
+        port = _free_port()
+        server, thread = _start_smb_server(tmp_path, port)
+        smb = SMBConnection("127.0.0.1", "127.0.0.1", sess_port=port, timeout=3)
+        smb.login("", "", "")
+        shares = smb.listShares()
+        assert len(shares) > 0
+        _stop_smb_server(server, thread)
+        time.sleep(0.5)
+        try:
+            smb.listPath("TESTDATA", "*")
+            smb.getFile("TESTDATA", "secret.key", lambda x: None)
+            smb.listPath("TESTDATA", "*")
+        except (SessionError, OSError, NetBIOSTimeout):
+            pass
+
+    def test_multiple_shares_partial_access_scan_completes(self, tmp_path):
+        share_open = tmp_path / "open"
+        share_open.mkdir()
+        (share_open / "id_rsa").write_text("SSH KEY")
+        share_locked = tmp_path / "locked"
+        share_locked.mkdir()
+        (share_locked / "secret.txt").write_text("hidden")
+
+        port = _free_port()
+        server = SimpleSMBServer(listenAddress="127.0.0.1", listenPort=port)
+        server.setSMB2Support(True)
+        server.getServer().daemon_threads = True
+        server.addShare("OPEN", str(share_open), "Open share")
+        server.addShare("LOCKED", str(share_locked), "Locked share")
+        nt_hash = hashlib.new("md4", "lockpass".encode("utf-16le")).hexdigest()
+        server.addCredential("lockuser", 0, "", nt_hash)
+        thread = threading.Thread(target=server.start, daemon=True)
+        thread.start()
+        time.sleep(0.5)
+
+        try:
+            cfg = _make_cfg(
+                port,
+                unc_targets=["//127.0.0.1/OPEN", "//127.0.0.1/LOCKED"],
+            )
+            with _no_auth_check:
+                _, p = _run(cfg)
+            assert p.scan_complete
+            assert p.files_scanned >= 1
+        finally:
+            _stop_smb_server(server, thread)
+
+    def test_smb_timeout_slow_server(self):
+        port = _free_port()
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind(("127.0.0.1", port))
+        srv.listen(1)
+
+        accepted = []
+
+        def accept_and_hold():
+            conn, _ = srv.accept()
+            accepted.append(conn)
+            time.sleep(10)
+            conn.close()
+            srv.close()
+
+        t = threading.Thread(target=accept_and_hold, daemon=True)
+        t.start()
+        try:
+            with pytest.raises((OSError, NetBIOSTimeout)):
+                SMBConnection("127.0.0.1", "127.0.0.1", sess_port=port, timeout=2)
+        finally:
+            for c in accepted:
+                try:
+                    c.close()
+                except Exception:
+                    pass
+            try:
+                srv.close()
+            except Exception:
+                pass
+
+    def test_reconnect_after_timeout(self, tmp_path):
+        (tmp_path / "secret.key").write_text("key")
+        port = _free_port()
+        with pytest.raises(OSError):
+            SMBConnection("127.0.0.1", "127.0.0.1", sess_port=port, timeout=1)
+        server, thread = _start_smb_server(tmp_path, port)
+        try:
+            smb = SMBConnection("127.0.0.1", "127.0.0.1", sess_port=port, timeout=5)
+            smb.login("", "", "")
+            shares = [s["shi1_netname"][:-1] for s in smb.listShares()]
+            assert "TESTDATA" in shares
+            smb.close()
+        finally:
+            _stop_smb_server(server, thread)
+
+    def test_zero_byte_file_getfile(self, tmp_path):
+        (tmp_path / "empty.txt").write_bytes(b"")
+        port = _free_port()
+        server, thread = _start_smb_server(tmp_path, port)
+        try:
+            from io import BytesIO
+
+            smb = SMBConnection("127.0.0.1", "127.0.0.1", sess_port=port, timeout=5)
+            smb.login("", "", "")
+            buf = BytesIO()
+            smb.getFile("TESTDATA", "empty.txt", buf.write)
+            assert buf.tell() == 0
+            smb.close()
+        finally:
+            _stop_smb_server(server, thread)
+
+    def test_binary_file_no_extension_scanned(self, tmp_path):
+        elf_header = b"\x7fELF" + b"\x00" * 100
+        (tmp_path / "data_blob").write_bytes(elf_header)
+        (tmp_path / "id_rsa").write_text("SSH KEY")
+        port = _free_port()
+        server, thread = _start_smb_server(tmp_path, port)
+        try:
+            cfg = _make_cfg(port)
+            cfg.scanning.skip_binary = False
+            with _no_auth_check:
+                _, p = _run(cfg)
+            assert p.scan_complete
+            assert p.files_scanned >= 2
+        finally:
+            _stop_smb_server(server, thread)
+
+    def test_binary_file_no_extension_skipped(self, tmp_path):
+        elf_header = b"\x7fELF" + b"\x00" * 100
+        (tmp_path / "data_blob").write_bytes(elf_header)
+        (tmp_path / "id_rsa").write_text("SSH KEY")
+        port = _free_port()
+        server, thread = _start_smb_server(tmp_path, port)
+        try:
+            cfg_skip = _make_cfg(port)
+            cfg_skip.scanning.skip_binary = True
+            with _no_auth_check:
+                _, p_skip = _run(cfg_skip)
+            cfg_no_skip = _make_cfg(port)
+            cfg_no_skip.scanning.skip_binary = False
+            with _no_auth_check:
+                _, p_no_skip = _run(cfg_no_skip)
+            assert p_skip.files_scanned <= p_no_skip.files_scanned
         finally:
             _stop_smb_server(server, thread)
