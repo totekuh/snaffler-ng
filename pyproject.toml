@@ -30,7 +30,7 @@ classifiers = [
 
 dependencies = [
     "impacket>=0.11.0",
-    "typer>=0.15.0",
+    "typer>=0.15.0,<0.29",
     "rich>=13.0.0",
     "tomlkit>=0.12.0",
     "rarfile>=4.0",
