@@ -51,7 +51,9 @@ services:
       context: ../../
       dockerfile: tests/docker/testrunner/Dockerfile
     depends_on:
-      socks-proxy:
+      socks5-proxy:
+        condition: service_healthy
+      socks4-proxy:
         condition: service_healthy
       socks-target:
         condition: service_healthy
@@ -60,20 +62,38 @@ services:
         ipv4_address: 10.55.0.10
     environment:
       - SOCKS_PROXY_HOST=10.55.0.2
+      - SOCKS4_PROXY_HOST=10.55.0.3
       - SOCKS_TARGET_HOST=socks-target
       - SOCKS_TARGET_IP=10.56.0.2
       - SNAFFLER_TEST_DOCKER=1
     command: python3 -m pytest tests/integration/test_socks_proxy.py -v --tb=short
     profiles: ["socks"]
 
-  socks-proxy:
+  socks5-proxy:
     build:
       context: socks
+    command: ["socks5"]
     networks:
       external_net:
         ipv4_address: 10.55.0.2
       internal_net:
         ipv4_address: 10.56.0.3
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "1080"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+    profiles: ["socks"]
+
+  socks4-proxy:
+    build:
+      context: socks
+    command: ["socks4"]
+    networks:
+      external_net:
+        ipv4_address: 10.55.0.3
+      internal_net:
+        ipv4_address: 10.56.0.4
     healthcheck:
       test: ["CMD", "nc", "-z", "127.0.0.1", "1080"]
       interval: 2s

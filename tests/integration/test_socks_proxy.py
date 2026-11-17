@@ -20,6 +20,7 @@ from impacket.smbconnection import SessionError, SMBConnection
 from snaffler.transport.socks import setup_socks_proxy
 
 PROXY_HOST = os.environ.get("SOCKS_PROXY_HOST")
+PROXY4_HOST = os.environ.get("SOCKS4_PROXY_HOST")
 PROXY_PORT = int(os.environ.get("SOCKS_PROXY_PORT", "1080"))
 TARGET_HOST = os.environ.get("SOCKS_TARGET_HOST")
 TARGET_IP = os.environ.get("SOCKS_TARGET_IP", "10.56.0.2")
@@ -185,3 +186,69 @@ class TestSocksErrors:
         original = socket.socket
         setup_socks_proxy(f"socks5://{PROXY_HOST}:{PROXY_PORT}")
         assert socket.socket is not original
+
+
+# ------------------------------------------------------------------
+# SOCKS4 tests (Dante proxy)
+# ------------------------------------------------------------------
+
+
+def _socks4_available():
+    if not PROXY4_HOST:
+        return False
+    try:
+        with socket.create_connection((PROXY4_HOST, PROXY_PORT), timeout=2):
+            return True
+    except (OSError, socket.timeout):
+        return False
+
+
+def _connect_smb_socks4(proxy_url):
+    setup_socks_proxy(proxy_url)
+    socket.getaddrinfo = _socks_getaddrinfo
+    smb = SMBConnection(TARGET_IP, TARGET_IP, sess_port=445, timeout=10)
+    smb.login("", "", "")
+    return smb
+
+
+@pytest.mark.skipif(
+    not _socks4_available(),
+    reason="SOCKS4 proxy not available (set SOCKS4_PROXY_HOST)",
+)
+class TestSocks4:
+    def test_socks4_share_enumeration(self):
+        smb = _connect_smb_socks4(f"socks4://{PROXY4_HOST}:{PROXY_PORT}")
+        shares = [s["shi1_netname"][:-1].lower() for s in smb.listShares()]
+        assert "testdata" in shares
+        smb.close()
+
+    def test_socks4_directory_listing(self):
+        smb = _connect_smb_socks4(f"socks4://{PROXY4_HOST}:{PROXY_PORT}")
+        files = smb.listPath("testdata", "*")
+        filenames = [f.get_longname() for f in files]
+        assert len(filenames) > 0
+        smb.close()
+
+    def test_socks4_file_read(self):
+        smb = _connect_smb_socks4(f"socks4://{PROXY4_HOST}:{PROXY_PORT}")
+        buf = BytesIO()
+        files = smb.listPath("testdata", "*")
+        regular_files = [
+            f.get_longname() for f in files if not f.is_directory() and f.get_longname() not in (".", "..")
+        ]
+        assert len(regular_files) > 0
+        smb.getFile("testdata", regular_files[0], buf.write)
+        assert buf.tell() > 0
+        smb.close()
+
+    def test_socks4_nonexistent_share_fails(self):
+        smb = _connect_smb_socks4(f"socks4://{PROXY4_HOST}:{PROXY_PORT}")
+        with pytest.raises(SessionError):
+            smb.listPath("nonexistent_share_xyz", "*")
+        smb.close()
+
+    def test_socks4_connection_refused_fails(self):
+        setup_socks_proxy(f"socks4://{PROXY4_HOST}:9999")
+        socket.getaddrinfo = _socks_getaddrinfo
+        with pytest.raises(OSError):
+            SMBConnection(TARGET_IP, TARGET_IP, sess_port=445, timeout=3)
