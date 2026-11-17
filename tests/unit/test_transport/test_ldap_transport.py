@@ -32,7 +32,10 @@ def test_ldap_kerberos_login():
     cfg.auth.kerberos = True
     cfg.auth.nthash = "NTHASH"
 
-    with patch("snaffler.transport.ldap.LDAPConnection") as ldap_cls:
+    with (
+        patch("snaffler.transport.ldap.LDAPConnection") as ldap_cls,
+        patch("snaffler.transport.auth.get_tgt_and_tgs", return_value=({"KDC_REP": b"TGT"}, {"KDC_REP": b"TGS"})),
+    ):
         ldap = ldap_cls.return_value
 
         transport = LDAPTransport(cfg)
@@ -44,6 +47,9 @@ def test_ldap_kerberos_login():
     )
 
     ldap.kerberosLogin.assert_called_once()
+    call_kwargs = ldap.kerberosLogin.call_args
+    assert call_kwargs.kwargs.get("TGT") == {"KDC_REP": b"TGT"}
+    assert call_kwargs.kwargs.get("TGS") == {"KDC_REP": b"TGS"}
     assert result is ldap
 
 

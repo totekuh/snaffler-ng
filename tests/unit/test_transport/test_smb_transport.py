@@ -61,7 +61,10 @@ def test_smb_kerberos_login():
     cfg.auth.kerberos = True
     cfg.auth.nthash = "NTHASH"
 
-    with patch("snaffler.transport.smb.SMBConnection") as smb_cls:
+    with (
+        patch("snaffler.transport.smb.SMBConnection") as smb_cls,
+        patch("snaffler.transport.auth.get_tgt_and_tgs", return_value=({"KDC_REP": b"TGT"}, {"KDC_REP": b"TGS"})),
+    ):
         smb = smb_cls.return_value
 
         transport = SMBTransport(cfg)
@@ -70,12 +73,14 @@ def test_smb_kerberos_login():
     smb.kerberosLogin.assert_called_once_with(
         user="user",
         password="pass",
-        domain="example.com",
+        domain="EXAMPLE.COM",
         lmhash="",
         nthash="NTHASH",
-        aesKey=None,
+        aesKey="",
         kdcHost=None,
         useCache=False,
+        TGT={"KDC_REP": b"TGT"},
+        TGS={"KDC_REP": b"TGS"},
     )
     assert result is smb
 

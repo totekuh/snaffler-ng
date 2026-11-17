@@ -11,7 +11,7 @@ def _ad_available():
     if os.environ.get("SNAFFLER_AD_TESTS", "").lower() in ("0", "false", "no", "off"):
         return False
     host = os.environ.get("AD_DC_HOST", "127.0.0.1")
-    for port in (389, 445):
+    for port in (88, 389, 445):
         try:
             with socket.create_connection((host, port), timeout=2):
                 pass
