@@ -2,6 +2,7 @@
 
 import logging
 import threading
+from datetime import UTC
 from urllib.parse import urlparse
 
 from snaffler.config.configuration import SnafflerConfiguration
@@ -184,7 +185,7 @@ class FTPTreeWalker(TreeWalker):
         if not modify_str or len(modify_str) < 14:
             return 0.0
         try:
-            from datetime import datetime, timezone
+            from datetime import datetime
 
             dt = datetime(
                 int(modify_str[0:4]),
@@ -193,7 +194,7 @@ class FTPTreeWalker(TreeWalker):
                 int(modify_str[8:10]),
                 int(modify_str[10:12]),
                 int(modify_str[12:14]),
-                tzinfo=timezone.utc,
+                tzinfo=UTC,
             )
             return dt.timestamp()
         except (ValueError, OverflowError):

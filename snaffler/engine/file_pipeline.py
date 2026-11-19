@@ -5,7 +5,7 @@ import threading
 from collections import deque
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
-from typing import List
+from typing import Dict, List, Set
 
 from snaffler.accessors.file_accessor import FileAccessor
 from snaffler.accessors.smb_file_accessor import SMBFileAccessor
@@ -205,15 +205,15 @@ class FilePipeline:
             with ThreadPoolExecutor(max_workers=self.tree_threads) as executor:
                 dir_for_future = {}
                 share_for_future = {}
-                share_pending = {}
-                shares_with_errors = set()
-                cancel_events = {}
+                share_pending: Dict[str, int] = {}
+                shares_with_errors: Set[str] = set()
+                cancel_events: Dict[str, threading.Event] = {}
                 pending = set()
                 submitted_dirs = set()
 
                 max_per_share = self.max_per_share
                 share_buffer = {}
-                share_root_map = {}
+                share_root_map: Dict[str, str] = {}
 
                 def _submit_dir(subdir, share_root, cancel_ev):
                     key = share_root.lower()

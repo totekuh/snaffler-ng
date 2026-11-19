@@ -94,7 +94,7 @@ class DirsFindingsMixin:
                 "FROM finding ORDER BY found_at"
             )
             cols = [d[0] for d in cur.description]
-            return [dict(zip(cols, row)) for row in cur.fetchall()]
+            return [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
 
     def count_findings(self) -> int:
         with self.lock:
