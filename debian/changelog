@@ -1,3 +1,14 @@
+snaffler-ng (1.6.1-0kali1) kali-dev; urgency=medium
+
+  * Fix Kerberos TGS-REQ against Samba AD DCs
+  * Fix LDAPTransport destination IP handling
+  * Pin typer below 0.29 (removed click_type kwarg)
+  * Require Python >= 3.11
+  * Refactor file pipeline into PipelineContext
+  * Expand integration tests: SMB, FTP/FTPS, SOCKS4/5, Kerberos negative paths
+
+ -- totekuh <totekuh@protonmail.com>  Thu, 19 Nov 2026 13:14:55 +0000
+
 snaffler-ng (1.6.0-0kali1) kali-dev; urgency=medium
 
   * Add --skip-binary / -I flag to skip content scanning on native binaries
