@@ -275,7 +275,7 @@ def main(
     socks_proxy: Optional[str] = typer.Option(
         None,
         "--socks",
-        help="SOCKS proxy for pivoting (e.g. socks5://127.0.0.1:1080)",
+        help="SOCKS4/SOCKS5 proxy for pivoting (e.g. socks5://127.0.0.1:1080, socks4://host:port)",
         rich_help_panel="Network",
     ),
     nameserver: Optional[str] = typer.Option(

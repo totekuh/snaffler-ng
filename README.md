@@ -16,7 +16,7 @@ Unlike the original C# Snaffler which is limited to Windows SMB with NTLM, snaff
 # Kali Linux
 sudo apt install snaffler-ng
 
-# pip / pipx
+# pip / pipx (Python 3.11+)
 pip install snaffler-ng
 pipx install snaffler-ng
 ```
