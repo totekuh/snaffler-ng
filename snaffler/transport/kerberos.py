@@ -86,7 +86,7 @@ def get_kerberos_tgs(server_name, domain, kdc_host, tgt, cipher, session_key):
     seq_set(req_body, "sname", server_name.components_to_asn1)
     req_body["realm"] = domain
 
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     req_body["till"] = KerberosTime.to_asn1(now + datetime.timedelta(days=1))
     req_body["nonce"] = random.getrandbits(31)
     seq_set_iter(req_body, "etype", (18, 17, 23))

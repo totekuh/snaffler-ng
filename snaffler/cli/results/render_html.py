@@ -2,7 +2,7 @@
 
 import html
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from snaffler.cli.results.render_html_assets import CSS_STYLES, JS_SCRIPT
 from snaffler.utils.logger import format_size
@@ -30,7 +30,7 @@ def _render_unreadable_html(shares: list) -> str:
 
 def _render_html(stats: dict, findings: list, unreadable_shares: list | None = None) -> str:
     esc = html.escape
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     c = stats["computers"]
     s = stats["shares"]

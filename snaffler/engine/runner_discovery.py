@@ -77,7 +77,7 @@ class DiscoveryMixin:
                     socket.SOCK_STREAM,
                 )
                 ip = result[0][4][0]
-            except (socket.gaierror, socket.herror, socket.timeout, OSError):
+            except (TimeoutError, socket.gaierror, socket.herror, OSError):
                 logger.debug(f"DNS: no record for {hostname}, skipping")
                 return None
 
@@ -88,7 +88,7 @@ class DiscoveryMixin:
                     timeout=_PORT_CHECK_TIMEOUT,
                 ):
                     pass
-            except (OSError, socket.timeout):
+            except (TimeoutError, OSError):
                 logger.debug(f"DNS: {hostname} ({ip}) port {smb_port} unreachable, skipping")
                 return None
 
