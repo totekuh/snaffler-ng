@@ -67,6 +67,13 @@ test = [
     "ruff>=0.8.0",
     "mypy>=1.11.0",
 ]
+test-windows = [
+    "snaffler-ng[all]",
+    "pytest>=8.0",
+    "pytest-cov",
+    # winbox>=2.0.0 required but installed manually from local source:
+    # uv pip install -e /path/to/winbox
+]
 
 [tool.ruff]
 target-version = "py311"
@@ -100,6 +107,12 @@ ignore_missing_imports = true
 check_untyped_defs = false
 warn_return_any = false
 warn_unused_configs = true
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
+markers = [
+    "windows: tests requiring a winbox Windows VM (skipped when VM unavailable)",
+]
 
 [[tool.mypy.overrides]]
 module = [

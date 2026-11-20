@@ -1,4 +1,4 @@
-.PHONY: test-all test-unit test-integration test-integration-ad build-deb clean
+.PHONY: test-all test-unit test-integration test-integration-ad test-windows setup-windows build-deb clean
 
 test-all: test-unit test-integration
 
@@ -10,6 +10,14 @@ test-integration:
 
 test-integration-ad:
 	./tests/docker/run.sh --profile ad
+
+setup-windows:
+	uv pip install -e /home/witchtape/tools/winbox
+	uv pip install "mcp>=1.29.1,<2"
+	winbox up
+
+test-windows:
+	python -m pytest tests/windows/ -v --tb=short
 
 build-deb:
 	docker compose -f tests/docker-compose.yml build testrunner
