@@ -43,7 +43,7 @@ def results(
         "--state",
         help="Path to the scan state database",
     ),
-    fmt: Optional[str] = typer.Option(
+    fmt: Optional[str] = typer.Option(  # type: ignore[call-overload]
         "plain",
         "-f",
         "--format",
@@ -152,7 +152,7 @@ def results(
 @results_app.command()
 def rules(
     ctx: typer.Context,
-    fmt: Optional[str] = typer.Option(
+    fmt: Optional[str] = typer.Option(  # type: ignore[call-overload]
         "plain",
         "-f",
         "--format",

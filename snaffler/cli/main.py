@@ -293,7 +293,7 @@ def main(
         help="Write results to file",
         rich_help_panel="Output",
     ),
-    log_level: str = typer.Option(
+    log_level: str = typer.Option(  # type: ignore[call-overload]
         DEFAULT_LOG_LEVEL,
         "--log-level",
         help="Log verbosity: debug | info | data (data = findings only)",
@@ -303,7 +303,7 @@ def main(
             case_sensitive=False,
         ),
     ),
-    log_type: Optional[str] = typer.Option(
+    log_type: Optional[str] = typer.Option(  # type: ignore[call-overload]
         None,
         "-t",
         "--log-type",
