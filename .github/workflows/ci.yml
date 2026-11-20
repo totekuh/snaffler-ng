@@ -247,9 +247,9 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends \
             build-essential \
-            debhelper=14.5 \
-            dh-python=7.20261019 \
-            pybuild-plugin-pyproject=7.20261019 \
+            debhelper \
+            dh-python \
+            pybuild-plugin-pyproject \
             python3-all \
             python3-setuptools \
             python3-impacket=0.13.1-1 \
