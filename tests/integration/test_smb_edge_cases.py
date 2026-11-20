@@ -7,12 +7,10 @@ very long paths, empty shares/dirs, concurrent multi-share scanning.
 Uses impacket's SimpleSMBServer with custom file trees (tmp_path).
 """
 
-import hashlib
 import os
 import socket
 import threading
 import time
-from unittest.mock import patch
 
 import pytest
 
@@ -28,44 +26,8 @@ from snaffler.classifiers.loader import RuleLoader
 from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.engine.runner import SnafflerRunner
 from snaffler.utils.logger import set_finding_store
-
-_no_auth_check = patch.object(SnafflerRunner, "_validate_credentials")
-
-
-# ---------------------------------------------------------------------------
-# SMB server helpers (same pattern as test_smb.py)
-# ---------------------------------------------------------------------------
-
-
-def _free_port():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
-
-
-def _start_smb_server(root, port, share_name="TESTDATA"):
-    server = SimpleSMBServer(listenAddress="127.0.0.1", listenPort=port)
-    server.setSMB2Support(True)
-    server.getServer().daemon_threads = True
-    server.addShare(share_name, str(root), "Test share")
-    thread = threading.Thread(target=server.start, daemon=True)
-    thread.start()
-    time.sleep(0.5)
-    return server, thread
-
-
-def _stop_smb_server(server, thread):
-    try:
-        server.getServer().shutdown()
-    except Exception:
-        pass
-    try:
-        server.stop()
-    except Exception:
-        pass
-    thread.join(timeout=5)
+from tests.smb_shared._backend_impacket import _free_port, _nt_hash, _start_smb_server, _stop_smb_server
+from tests.smb_shared.target import no_auth_check as _no_auth_check
 
 
 def _make_cfg(port, unc_targets=None, share="TESTDATA", subpath=""):
@@ -417,7 +379,7 @@ class TestSMBErrors:
         server.setSMB2Support(True)
         server.getServer().daemon_threads = True
         server.addShare("TESTDATA", str(tmp_path), "Test share")
-        nt_hash = hashlib.new("md4", "smbpass".encode("utf-16le")).hexdigest()
+        nt_hash = _nt_hash("smbpass")
         server.addCredential("smbuser", 0, "", nt_hash)
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
@@ -587,7 +549,7 @@ class TestSMBErrors:
         server.getServer().daemon_threads = True
         server.addShare("OPEN", str(share_open), "Open share")
         server.addShare("LOCKED", str(share_locked), "Locked share")
-        nt_hash = hashlib.new("md4", "lockpass".encode("utf-16le")).hexdigest()
+        nt_hash = _nt_hash("lockpass")
         server.addCredential("lockuser", 0, "", nt_hash)
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
