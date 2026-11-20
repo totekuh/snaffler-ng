@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import logging
+from enum import StrEnum
 from importlib.metadata import version as pkg_version
 from pathlib import Path
 from typing import List, Optional
 
-import click
 import typer
 
 from snaffler.classifiers.loader import RuleLoader  # noqa: F401 — used by run_scan via module
@@ -54,9 +54,17 @@ DEFAULT_TIMEOUT_SECONDS = 5
 # Threads
 DEFAULT_MAX_THREADS = 60
 
-# Output
-DEFAULT_LOG_LEVEL = "info"
-DEFAULT_LOG_TYPE = "plain"
+
+class LogLevel(StrEnum):
+    debug = "debug"
+    info = "info"
+    data = "data"
+
+
+class LogType(StrEnum):
+    plain = "plain"
+    json = "json"
+    tsv = "tsv"
 
 
 def banner():
@@ -293,26 +301,20 @@ def main(
         help="Write results to file",
         rich_help_panel="Output",
     ),
-    log_level: str = typer.Option(  # type: ignore[call-overload]
-        DEFAULT_LOG_LEVEL,
+    log_level: LogLevel = typer.Option(
+        LogLevel.info,
         "--log-level",
         help="Log verbosity: debug | info | data (data = findings only)",
         rich_help_panel="Output",
-        click_type=click.Choice(
-            ["debug", "info", "data"],
-            case_sensitive=False,
-        ),
+        case_sensitive=False,
     ),
-    log_type: Optional[str] = typer.Option(  # type: ignore[call-overload]
+    log_type: Optional[LogType] = typer.Option(
         None,
         "-t",
         "--log-type",
         help="Output format (auto-detected from -o extension if omitted)",
         rich_help_panel="Output",
-        click_type=click.Choice(
-            ["plain", "json", "tsv"],
-            case_sensitive=False,
-        ),
+        case_sensitive=False,
     ),
     no_banner: bool = typer.Option(
         False,
@@ -517,7 +519,7 @@ def main(
         fresh=fresh,
         web=web,
         web_port=web_port,
-        default_log_type=DEFAULT_LOG_TYPE,
+        default_log_type=LogType.plain,
     )
 
     if grab:

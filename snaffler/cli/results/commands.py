@@ -2,10 +2,10 @@
 
 import json
 import sys
+from enum import StrEnum
 from pathlib import Path
 from typing import Optional
 
-import click
 import typer
 
 from snaffler.cli.results.import_export import (
@@ -28,6 +28,18 @@ from snaffler.cli.results.render_html import _render_html
 from snaffler.cli.results.render_plain import _render_json, _render_plain
 from snaffler.utils.logger import Colors
 
+
+class ResultsFormat(StrEnum):
+    plain = "plain"
+    json = "json"
+    html = "html"
+
+
+class RulesFormat(StrEnum):
+    plain = "plain"
+    json = "json"
+
+
 results_app = typer.Typer(
     help="Display stats and findings from a scan database",
     add_completion=False,
@@ -43,12 +55,12 @@ def results(
         "--state",
         help="Path to the scan state database",
     ),
-    fmt: Optional[str] = typer.Option(  # type: ignore[call-overload]
-        "plain",
+    fmt: ResultsFormat = typer.Option(
+        ResultsFormat.plain,
         "-f",
         "--format",
         help="Output format",
-        click_type=click.Choice(["plain", "json", "html"], case_sensitive=False),
+        case_sensitive=False,
     ),
     no_color: bool = typer.Option(
         False,
@@ -152,12 +164,12 @@ def results(
 @results_app.command()
 def rules(
     ctx: typer.Context,
-    fmt: Optional[str] = typer.Option(  # type: ignore[call-overload]
-        "plain",
+    fmt: RulesFormat = typer.Option(
+        RulesFormat.plain,
         "-f",
         "--format",
         help="Output format",
-        click_type=click.Choice(["plain", "json"], case_sensitive=False),
+        case_sensitive=False,
     ),
 ):
     """List all matching rules and their finding counts."""
