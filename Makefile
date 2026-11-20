@@ -1,4 +1,4 @@
-.PHONY: install uninstall test-all test-unit test-e2e test-e2e-ad test-e2e-socks test-e2e-full test-ad-scan test-windows setup-windows clean
+.PHONY: install uninstall lint test-all test-unit test-e2e test-e2e-ad test-e2e-socks test-e2e-full test-ad-scan test-windows setup-windows clean
 
 install:
 	pipx uninstall snaffler-ng || echo "Not installed, skipping uninstall"
@@ -7,10 +7,15 @@ install:
 uninstall:
 	pipx uninstall snaffler-ng
 
-test-all: test-unit test-e2e-ad
+lint:
+	uv run ruff check snaffler/
+	uv run ruff format --check snaffler/
+	uv run mypy snaffler/
+
+test-all: test-unit test-e2e-full
 
 test-unit:
-	python -m pytest tests/unit/ -v --tb=short
+	python -m pytest tests/unit/ -v --tb=short --cov=snaffler --cov-fail-under=85
 
 # Build .deb, install in clean container, run e2e tests against installed package
 test-e2e:
@@ -38,5 +43,5 @@ test-windows:
 	python -m pytest tests/windows/ -v --tb=short
 
 clean:
-	rm -rf build/ dist/ *.egg-info .pytest_cache
+	rm -rf build/ dist/ *.egg-info .pytest_cache .ruff_cache .mypy_cache .coverage
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
