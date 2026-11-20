@@ -1,4 +1,11 @@
-.PHONY: test-all test-unit test-e2e test-e2e-ad test-e2e-socks test-e2e-full test-ad-scan test-windows setup-windows clean
+.PHONY: install uninstall test-all test-unit test-e2e test-e2e-ad test-e2e-socks test-e2e-full test-ad-scan test-windows setup-windows clean
+
+install:
+	pipx uninstall snaffler-ng || echo "Not installed, skipping uninstall"
+	pipx install --force .[all]
+
+uninstall:
+	pipx uninstall snaffler-ng
 
 test-all: test-unit test-e2e-ad
 
