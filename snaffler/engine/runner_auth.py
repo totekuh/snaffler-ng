@@ -43,13 +43,11 @@ class AuthMixin:
                 logger.info(f"Auth OK: LDAP bind to {dc} succeeded")
             except OSError as exc:
                 raise SystemExit(
-                    f"FATAL: cannot reach LDAP on {dc} — {exc}\n"
-                    "Fix network connectivity and retry."
+                    f"FATAL: cannot reach LDAP on {dc} — {exc}\nFix network connectivity and retry."
                 ) from exc
             except Exception as exc:
                 raise SystemExit(
-                    f"FATAL: LDAP authentication failed against {dc} — {exc}\n"
-                    "Fix credentials and retry."
+                    f"FATAL: LDAP authentication failed against {dc} — {exc}\nFix credentials and retry."
                 ) from exc
             return
 
