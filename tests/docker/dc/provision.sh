@@ -85,6 +85,7 @@ cat >> /etc/samba/smb.conf <<'SHARES'
     path = /srv/shares/finance
     read only = yes
     guest ok = no
+    valid users = Administrator, testrunner
 
 [it]
     path = /srv/shares/it

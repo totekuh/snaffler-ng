@@ -1,4 +1,4 @@
-.PHONY: test-all test-unit test-integration test-integration-ad test-windows setup-windows build-deb clean
+.PHONY: test-all test-unit test-integration test-integration-ad test-ad-scan test-windows setup-windows build-deb clean
 
 test-all: test-unit test-integration
 
@@ -10,6 +10,9 @@ test-integration:
 
 test-integration-ad:
 	./tests/docker/run.sh --profile ad
+
+test-ad-scan:
+	python -m pytest tests/integration/test_ad_scan.py -v --tb=short
 
 setup-windows:
 	uv pip install -e /home/witchtape/tools/winbox

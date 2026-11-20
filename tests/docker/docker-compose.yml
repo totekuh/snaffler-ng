@@ -26,6 +26,10 @@ services:
       - samba-shares:/srv/shares
     tmpfs:
       - /run
+    networks:
+      default:
+        aliases:
+          - dc01.testlab.local
     healthcheck:
       test: ["CMD", "samba-tool", "domain", "info", "127.0.0.1"]
       interval: 5s
