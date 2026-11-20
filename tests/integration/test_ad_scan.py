@@ -6,7 +6,9 @@ the TESTLAB.LOCAL Samba DC Docker container.
 """
 
 import socket
+import subprocess
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -207,13 +209,91 @@ class TestNTLMScan:
         with pytest.raises(SystemExit, match="authentication failed"):
             _run_scan(cfg)
 
+    def test_disabled_account_rejected(self, ad_dc):
+        cfg = _make_scan_cfg(
+            unc_targets=[f"//{DC_HOST}/data"],
+            **{"auth.username": "disabled_user", "auth.password": "DisabledPass1!"},
+        )
+        with pytest.raises(SystemExit, match="authentication failed"):
+            _run_scan(cfg)
+
+    def test_locked_account_rejected(self, ad_dc):
+        from impacket.smbconnection import SMBConnection
+
+        for _ in range(4):
+            try:
+                smb = SMBConnection(DC_HOST, DC_HOST)
+                smb.login("lockable_user", "WRONG", AD_CONFIG["realm"])
+            except Exception:
+                pass
+
+        cfg = _make_scan_cfg(
+            unc_targets=[f"//{DC_HOST}/data"],
+            **{"auth.username": "lockable_user", "auth.password": "LockablePass1!"},
+        )
+        with pytest.raises(SystemExit, match="authentication failed"):
+            _run_scan(cfg)
+
+    def test_unreachable_host_times_out(self, ad_dc):
+        cfg = _make_scan_cfg(
+            unc_targets=["//10.255.255.1/SHARE"],
+            **{"auth.smb_timeout": 2},
+        )
+        start = time.monotonic()
+        with pytest.raises(SystemExit, match="cannot reach"):
+            _run_scan(cfg)
+        elapsed = time.monotonic() - start
+        assert elapsed < 15, f"timeout took {elapsed:.1f}s, expected <15s"
+
+
+def _docker_exec_available():
+    try:
+        r = subprocess.run(
+            ["docker", "exec", "docker-dc-1", "true"],
+            capture_output=True, timeout=5,
+        )
+        return r.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+class TestNTLMDisabled:
+
+    @pytest.fixture()
+    def ntlm_disabled(self):
+        dc = "docker-dc-1"
+        subprocess.run(
+            ["docker", "exec", dc, "sed", "-i",
+             "/^\\[global]/a\\\n\tntlm auth = disabled",
+             "/etc/samba/smb.conf"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["docker", "exec", dc, "smbcontrol", "all", "reload-config"],
+            check=True, capture_output=True,
+        )
+        time.sleep(2)
+        yield
+        subprocess.run(
+            ["docker", "exec", dc, "sed", "-i",
+             "/ntlm auth = disabled/d",
+             "/etc/samba/smb.conf"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["docker", "exec", dc, "smbcontrol", "all", "reload-config"],
+            check=True, capture_output=True,
+        )
+
+    @pytest.mark.skipif(not _docker_exec_available(), reason="needs docker exec on DC")
+    def test_ntlm_blocked_when_disabled(self, ad_dc, ntlm_disabled):
+        cfg = _make_scan_cfg(unc_targets=[f"//{DC_HOST}/data"])
+        with pytest.raises(SystemExit, match="authentication failed"):
+            _run_scan(cfg)
+
 
 class TestKerberosScan:
 
-    @pytest.mark.skipif(
-        not _dc_hostname_resolves(),
-        reason="DC hostname does not resolve",
-    )
     @pytest.mark.skipif(
         not _dc_hostname_resolves(),
         reason="DC hostname does not resolve",

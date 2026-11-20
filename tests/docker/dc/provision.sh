@@ -66,6 +66,14 @@ samba-tool user create short "Short1!" --description="Short username" 2>/dev/nul
 # Auth test user with known password
 samba-tool user create testrunner "TestRunner1!" 2>/dev/null || true
 
+# Disabled account for auth rejection tests
+samba-tool user create disabled_user "DisabledPass1!" --description="Disabled test account" 2>/dev/null || true
+samba-tool user disable disabled_user 2>/dev/null || true
+
+# Lockable account for lockout tests
+samba-tool user create lockable_user "LockablePass1!" --description="Lockout test account" 2>/dev/null || true
+samba-tool domain passwordsettings set --account-lockout-threshold=3 2>/dev/null || true
+
 echo "[*] Creating test SMB shares"
 mkdir -p /srv/shares/data /srv/shares/finance /srv/shares/it
 echo "DB_HOST=prod-db.corp.local" > /srv/shares/data/config.ini
