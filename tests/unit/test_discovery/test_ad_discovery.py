@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch, PropertyMock
 
+import errno
+import socket
+
 from snaffler.discovery.ad import ADDiscovery, _FILETIME_EPOCH
 from impacket.ldap.ldap import LDAPSessionError
 
@@ -531,3 +534,149 @@ def test_stealth_pads_computer_query_attrs():
     assert len(captured_attrs) <= 8
     assert "dNSHostName" in captured_attrs
     assert "name" in captured_attrs
+
+
+# ------------------------------------------------------------------
+# Auth error propagation (connect-time errors must NOT be swallowed)
+# ------------------------------------------------------------------
+
+
+class _FakeKerberosError(Exception):
+    """Stand-in for impacket KerberosError without importing the full module."""
+
+
+def test_computers_connect_kerberos_error_raises():
+    cfg = _make_cfg()
+    discovery = ADDiscovery(cfg)
+
+    with patch.object(
+        discovery.ldap_transport, "connect", side_effect=_FakeKerberosError("KDC_ERR_PREAUTH_FAILED")
+    ):
+        try:
+            discovery.get_domain_computers()
+            assert False, "should have raised"
+        except _FakeKerberosError:
+            pass
+
+
+def test_computers_connect_ldap_session_error_raises():
+    cfg = _make_cfg()
+    discovery = ADDiscovery(cfg)
+
+    with patch.object(
+        discovery.ldap_transport, "connect", side_effect=LDAPSessionError(error=0xC000006D, packet=b"", errorString="bind failed")
+    ):
+        try:
+            discovery.get_domain_computers()
+            assert False, "should have raised"
+        except LDAPSessionError:
+            pass
+
+
+def test_computers_connect_socket_error_raises():
+    cfg = _make_cfg()
+    discovery = ADDiscovery(cfg)
+
+    with patch.object(
+        discovery.ldap_transport, "connect", side_effect=socket.error("connection refused")
+    ):
+        try:
+            discovery.get_domain_computers()
+            assert False, "should have raised"
+        except socket.error:
+            pass
+
+
+def test_computers_search_error_still_caught():
+    cfg = _make_cfg()
+    discovery = ADDiscovery(cfg)
+    ldap = MagicMock()
+    ldap.search.side_effect = RuntimeError("mid-page failure")
+
+    with patch.object(discovery.ldap_transport, "connect", return_value=ldap):
+        result = discovery.get_domain_computers()
+
+    assert result == []
+    assert discovery.discovery_complete is False
+
+
+def test_users_connect_error_raises():
+    cfg = _make_cfg()
+    discovery = ADDiscovery(cfg)
+
+    with patch.object(
+        discovery.ldap_transport, "connect", side_effect=_FakeKerberosError("bad creds")
+    ):
+        try:
+            discovery.get_domain_users()
+            assert False, "should have raised"
+        except _FakeKerberosError:
+            pass
+
+
+def test_users_search_error_still_caught():
+    cfg = _make_cfg()
+    discovery = ADDiscovery(cfg)
+    ldap = MagicMock()
+    ldap.search.side_effect = RuntimeError("boom")
+
+    with patch.object(discovery.ldap_transport, "connect", return_value=ldap):
+        result = discovery.get_domain_users()
+
+    assert result == []
+
+
+def test_dfs_connect_error_raises():
+    cfg = _make_cfg()
+    discovery = ADDiscovery(cfg)
+
+    with patch.object(
+        discovery.ldap_transport, "connect", side_effect=_FakeKerberosError("bad creds")
+    ):
+        try:
+            discovery.get_dfs_targets()
+            assert False, "should have raised"
+        except _FakeKerberosError:
+            pass
+
+
+def test_emfile_still_exits_on_search_error():
+    cfg = _make_cfg()
+    discovery = ADDiscovery(cfg)
+    ldap = MagicMock()
+    ldap.search.side_effect = OSError(errno.EMFILE, "Too many open files")
+
+    with patch.object(discovery.ldap_transport, "connect", return_value=ldap):
+        try:
+            discovery.get_domain_computers()
+            assert False, "should have raised SystemExit"
+        except SystemExit:
+            pass
+
+
+def test_no_close_attempt_on_connect_error():
+    cfg = _make_cfg()
+    discovery = ADDiscovery(cfg)
+    ldap = MagicMock()
+
+    with patch.object(
+        discovery.ldap_transport, "connect", side_effect=_FakeKerberosError("fail")
+    ):
+        try:
+            discovery.get_domain_computers()
+        except _FakeKerberosError:
+            pass
+
+    ldap.close.assert_not_called()
+
+
+def test_close_called_on_search_error():
+    cfg = _make_cfg()
+    discovery = ADDiscovery(cfg)
+    ldap = MagicMock()
+    ldap.search.side_effect = RuntimeError("boom")
+
+    with patch.object(discovery.ldap_transport, "connect", return_value=ldap):
+        discovery.get_domain_computers()
+
+    ldap.close.assert_called_once()

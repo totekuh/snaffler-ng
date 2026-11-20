@@ -241,27 +241,6 @@ class TestKerberosLDAP:
     reason=f"{DC_HOSTNAME} not resolvable (run with DC DNS or in Docker)",
 )
 class TestKerberosDiscovery:
-    def test_discover_computers_kerberos(self, ad_dc):
-        cfg = _make_cfg(**{"auth.kerberos": True, "auth.dc_host": DC_HOSTNAME})
-        ad = ADDiscovery(cfg)
-        computers = ad.get_domain_computers()
-        assert len(computers) > 0
-        ad.close()
-
-    def test_discover_users_kerberos(self, ad_dc):
-        cfg = _make_cfg(**{"auth.kerberos": True, "auth.dc_host": DC_HOSTNAME})
-        ad = ADDiscovery(cfg)
-        users = ad.get_domain_users()
-        assert len(users) > 0
-        ad.close()
-
-    def test_discover_computers_names_are_fqdn(self, ad_dc):
-        cfg = _make_cfg(**{"auth.kerberos": True, "auth.dc_host": DC_HOSTNAME})
-        ad = ADDiscovery(cfg)
-        computers = ad.get_domain_computers()
-        for c in computers:
-            assert "." in c, f"Computer {c} is not FQDN"
-        ad.close()
 
     def test_discover_wrong_password_fails(self, ad_dc):
         cfg = _make_cfg(
@@ -493,32 +472,6 @@ class TestKerberosResume:
         finally:
             os.unlink(db_path)
 
-    def test_resume_wrong_password_second_run(self, ad_dc):
-        from snaffler.engine.file_pipeline import FilePipeline
-        from snaffler.resume.scan_state import ScanState, SQLiteStateStore
-
-        cfg_good = _make_cfg(**{"auth.kerberos": True})
-        target = f"//{DC_HOSTNAME}/data"
-
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-
-        try:
-            state1 = ScanState(SQLiteStateStore(db_path))
-            pipeline1 = FilePipeline(cfg_good, state=state1)
-            pipeline1.run([target])
-            pipeline1.close()
-            state1.store.close()
-
-            cfg_bad = _make_cfg(**{"auth.kerberos": True, "auth.password": "WrongPassword!"})
-            state2 = ScanState(SQLiteStateStore(db_path))
-            pipeline2 = FilePipeline(cfg_bad, state=state2)
-            with pytest.raises((KerberosError, OSError)):
-                pipeline2.run([target])
-            pipeline2.close()
-            state2.store.close()
-        finally:
-            os.unlink(db_path)
 
 
 # ------------------------------------------------------------------

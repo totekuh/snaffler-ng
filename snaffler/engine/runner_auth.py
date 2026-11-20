@@ -14,8 +14,7 @@ class AuthMixin:
         Hard-fails with a clear error if credentials are invalid so we don't
         silently scan thousands of hosts with bad creds and come back empty.
 
-        Skipped for --local-fs (no auth) and domain mode (LDAP connect
-        validates creds as its first operation).
+        Skipped for --local-fs (no auth).
         """
         cfg = self.cfg
 
@@ -23,8 +22,7 @@ class AuthMixin:
         if cfg.targets.local_targets:
             return
 
-        # Domain mode — LDAP connect is the first thing that happens,
-        # it already raises on bad creds with a clear error.
+        # Domain mode — verify LDAP auth before discovery
         if (
             not cfg.targets.unc_targets
             and not cfg.targets.computer_targets
@@ -32,6 +30,27 @@ class AuthMixin:
             and not cfg.targets.ftp_targets
             and cfg.auth.domain
         ):
+            from snaffler.transport.ldap import LDAPTransport
+
+            transport = LDAPTransport(cfg)
+            dc = cfg.auth.dc_host or cfg.auth.domain
+            try:
+                ldap = transport.connect()
+                try:
+                    ldap.close()
+                except Exception:
+                    pass
+                logger.info(f"Auth OK: LDAP bind to {dc} succeeded")
+            except OSError as exc:
+                raise SystemExit(
+                    f"FATAL: cannot reach LDAP on {dc} — {exc}\n"
+                    "Fix network connectivity and retry."
+                ) from exc
+            except Exception as exc:
+                raise SystemExit(
+                    f"FATAL: LDAP authentication failed against {dc} — {exc}\n"
+                    "Fix credentials and retry."
+                ) from exc
             return
 
         # FTP mode — test FTP login

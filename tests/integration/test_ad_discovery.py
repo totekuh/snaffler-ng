@@ -126,9 +126,9 @@ class TestDFSDiscovery:
 
 class TestErrorHandling:
 
-    def test_bad_credentials_handled(self):
+    def test_bad_credentials_raises(self):
         cfg = _make_cfg()
         cfg.auth.password = "wrong_password"
         ad = ADDiscovery(cfg)
-        result = ad.get_domain_computers()
-        assert result == []
+        with pytest.raises(Exception):
+            ad.get_domain_computers()

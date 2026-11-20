@@ -199,7 +199,36 @@ class TestNTLMScan:
         assert results["it"][1].files_scanned > 0
 
 
+    def test_domain_mode_wrong_password_rejected(self, ad_dc):
+        cfg = _make_scan_cfg(
+            unc_targets=[],
+            **{"auth.password": "WrongPassword123!"},
+        )
+        with pytest.raises(SystemExit, match="authentication failed"):
+            _run_scan(cfg)
+
+
 class TestKerberosScan:
+
+    @pytest.mark.skipif(
+        not _dc_hostname_resolves(),
+        reason="DC hostname does not resolve",
+    )
+    @pytest.mark.skipif(
+        not _dc_hostname_resolves(),
+        reason="DC hostname does not resolve",
+    )
+    def test_kerberos_domain_mode_wrong_password_rejected(self, ad_dc):
+        cfg = _make_scan_cfg(
+            unc_targets=[],
+            **{
+                "auth.kerberos": True,
+                "auth.dc_host": DC_HOSTNAME,
+                "auth.password": "WrongPassword123!",
+            },
+        )
+        with pytest.raises(SystemExit, match="authentication failed"):
+            _run_scan(cfg)
 
     @pytest.mark.skipif(
         not _dc_hostname_resolves(),

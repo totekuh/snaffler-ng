@@ -2166,20 +2166,25 @@ class TestValidateCredentials:
         ):
             runner._validate_credentials()  # should not raise
 
-    def test_domain_mode_skips_validation(self):
-        """Domain mode skips preflight — LDAP validates creds on its own."""
+    def test_domain_mode_validates_ldap(self):
+        """Domain mode does LDAP preflight, not SMB."""
         cfg = make_cfg()
         cfg.auth.domain = "example.com"
-        # No UNC, no computer, no rescan, no FTP → domain mode
 
         with _patch_finding_store():
             runner = SnafflerRunner(cfg)
 
+        mock_ldap = MagicMock()
         with patch(
             "snaffler.transport.smb.SMBTransport.connect",
-            side_effect=AssertionError("should not be called"),
+            side_effect=AssertionError("SMB should not be called"),
+        ), patch(
+            "snaffler.transport.ldap.LDAPTransport.connect",
+            return_value=mock_ldap,
         ):
-            runner._validate_credentials()  # should not raise
+            runner._validate_credentials()
+
+        mock_ldap.close.assert_called_once()
 
     def test_smb_network_error_reports_connectivity(self):
         """OSError (network) → SystemExit mentioning connectivity, not creds."""
