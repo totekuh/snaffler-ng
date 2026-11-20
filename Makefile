@@ -1,16 +1,24 @@
-.PHONY: test-all test-unit test-integration test-integration-ad test-ad-scan test-windows setup-windows build-deb clean
+.PHONY: test-all test-unit test-e2e test-e2e-ad test-e2e-socks test-e2e-full test-ad-scan test-windows setup-windows clean
 
-test-all: test-unit test-integration
+test-all: test-unit test-e2e-ad
 
 test-unit:
 	python -m pytest tests/unit/ -v --tb=short
 
-test-integration:
-	./tests/docker/run.sh
+# Build .deb, install in clean container, run e2e tests against installed package
+test-e2e:
+	python tests/docker/run.py
 
-test-integration-ad:
-	./tests/docker/run.sh --profile ad
+test-e2e-ad:
+	python tests/docker/run.py --ad
 
+test-e2e-socks:
+	python tests/docker/run.py --socks
+
+test-e2e-full:
+	python tests/docker/run.py --all
+
+# Host-side AD scan tests (requires running DC container + AD_DC_HOST env)
 test-ad-scan:
 	python -m pytest tests/integration/test_ad_scan.py -v --tb=short
 
@@ -21,9 +29,6 @@ setup-windows:
 
 test-windows:
 	python -m pytest tests/windows/ -v --tb=short
-
-build-deb:
-	docker compose -f tests/docker-compose.yml build testrunner
 
 clean:
 	rm -rf build/ dist/ *.egg-info .pytest_cache

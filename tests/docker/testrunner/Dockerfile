@@ -45,14 +45,11 @@ RUN dpkg-buildpackage -us -uc -b 2>&1 | tail -5
 RUN dpkg -i --force-overwrite /snaffler-ng_*.deb
 RUN snaffler --help > /dev/null
 
-# Reproduce source tree layout so `from tests.*` imports work
-RUN mkdir -p /work/tests/integration && \
-    cp -r /build/tests/__init__.py /work/tests/ 2>/dev/null; true && \
-    touch /work/tests/__init__.py && \
-    cp /build/tests/conftest.py /work/tests/conftest.py && \
-    cp -r /build/tests/ad_env /work/tests/ad_env && \
-    cp -r /build/tests/data /work/tests/data && \
-    cp -r /build/tests/integration/*.py /work/tests/integration/
+# Copy test tree (minus unit/ and windows/ which don't run in Docker)
+# Tests import snaffler from the installed .deb, not source
+RUN mkdir -p /work && \
+    cp -r /build/tests /work/tests && \
+    rm -rf /work/tests/unit /work/tests/windows
 
 # Non-root test user
 RUN useradd -m -s /bin/bash testrunner && chown -R testrunner:testrunner /work
@@ -62,4 +59,4 @@ RUN chmod +x /entrypoint.sh
 
 WORKDIR /work
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["python3", "-m", "pytest", "tests/integration/", "-v", "--tb=short"]
+CMD ["python3", "-m", "pytest", "tests/", "-v", "--tb=short"]

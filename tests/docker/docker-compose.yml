@@ -48,7 +48,7 @@ services:
       - SMB_HOST=samba
       - AD_DC_HOST=dc
       - SNAFFLER_TEST_DOCKER=1
-    command: python3 -m pytest tests/integration/ -v --tb=short
+    command: python3 -m pytest tests/ -v --tb=short
 
   socks-runner:
     build:
