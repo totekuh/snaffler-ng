@@ -23,6 +23,7 @@ def build_config(
     password,
     nthash,
     domain,
+    netbios,
     dc_host,
     smb_timeout,
     kerberos,
@@ -91,6 +92,8 @@ def build_config(
         cfg.auth.nthash = nthash
     if _explicit("domain"):
         cfg.auth.domain = domain
+    if _explicit("netbios"):
+        cfg.auth.netbios = netbios
     if _explicit("dc_host"):
         cfg.auth.dc_host = dc_host
     if _explicit("smb_timeout"):
