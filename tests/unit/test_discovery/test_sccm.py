@@ -1,7 +1,11 @@
 """Tests for SCCM ContentLib deep scan module."""
 
+import fnmatch
+from unittest.mock import MagicMock, patch
+
 import pytest
 
+from snaffler.config.configuration import FAST_MODE_EXCLUSIONS
 from snaffler.discovery.sccm import is_contentlib_dir, parse_ini_hash, resolve_filelib_path
 
 
@@ -69,3 +73,122 @@ class TestResolveFileLibPath:
     def test_prefix_extraction(self):
         result = resolve_filelib_path("", "deadbeef1234")
         assert "/FileLib/dead/" in result
+
+
+class TestShareLevelDetection:
+    """Tests for ContentLib detection at share root (case 1: share IS ContentLib)."""
+
+    def test_walk_directory_share_root_contentlib(self):
+        from snaffler.discovery.smb_tree_walker import SMBTreeWalker
+
+        cfg = MagicMock()
+        cfg.rules.directory = []
+        cfg.targets.exclude_unc = []
+
+        walker = SMBTreeWalker(cfg)
+        walker._cache = MagicMock()
+        mock_smb = MagicMock()
+        walker._cache.get.return_value = mock_smb
+
+        with patch("snaffler.discovery.smb_tree_walker.walk_contentlib") as mock_walk:
+            result = walker.walk_directory("//10.0.0.1/SCCMContentLib$", on_file=MagicMock())
+            mock_walk.assert_called_once()
+            assert result == []
+
+    def test_walk_directory_share_root_contentlib_no_dollar(self):
+        from snaffler.discovery.smb_tree_walker import SMBTreeWalker
+
+        cfg = MagicMock()
+        cfg.rules.directory = []
+        cfg.targets.exclude_unc = []
+
+        walker = SMBTreeWalker(cfg)
+        walker._cache = MagicMock()
+        walker._cache.get.return_value = MagicMock()
+
+        with patch("snaffler.discovery.smb_tree_walker.walk_contentlib") as mock_walk:
+            walker.walk_directory("//10.0.0.1/SCCMContentLib", on_file=MagicMock())
+            mock_walk.assert_called_once()
+
+    def test_walk_directory_share_root_normal_no_contentlib(self):
+        from snaffler.discovery.smb_tree_walker import SMBTreeWalker
+
+        cfg = MagicMock()
+        cfg.rules.directory = []
+        cfg.targets.exclude_unc = []
+
+        walker = SMBTreeWalker(cfg)
+        walker._cache = MagicMock()
+        mock_smb = MagicMock()
+        mock_smb.listPath.return_value = []
+        walker._cache.get.return_value = mock_smb
+
+        with patch("snaffler.discovery.smb_tree_walker.walk_contentlib") as mock_walk:
+            walker.walk_directory("//10.0.0.1/data", on_file=MagicMock())
+            mock_walk.assert_not_called()
+            mock_smb.listPath.assert_called_once()
+
+    def test_walk_directory_subdir_contentlib_still_triggers(self):
+        """Case 2: ContentLib as subdirectory inside a normal share."""
+        from snaffler.discovery.smb_tree_walker import SMBTreeWalker
+
+        cfg = MagicMock()
+        cfg.rules.directory = []
+        cfg.targets.exclude_unc = []
+
+        walker = SMBTreeWalker(cfg)
+        walker._cache = MagicMock()
+        mock_smb = MagicMock()
+        walker._cache.get.return_value = mock_smb
+
+        mock_entry = MagicMock()
+        mock_entry.get_longname.return_value = "SCCMContentLib"
+        mock_entry.is_directory.return_value = True
+        mock_smb.listPath.return_value = [mock_entry]
+
+        with patch("snaffler.discovery.smb_tree_walker.walk_contentlib") as mock_walk:
+            walker.walk_directory("//10.0.0.1/data", on_file=MagicMock())
+            mock_walk.assert_called_once()
+
+
+class TestFastModeExclusions:
+    """Verify FAST_MODE_EXCLUSIONS cover both ContentLib cases."""
+
+    def test_fast_excludes_contentlib_share(self):
+        """Case 1: share named SCCMContentLib matched by exclusion glob."""
+        path = "//10.0.0.1/SCCMContentLib"
+        assert any(
+            fnmatch.fnmatch(path.lower(), p.lower()) for p in FAST_MODE_EXCLUSIONS
+        ), f"FAST_MODE_EXCLUSIONS should match {path}"
+
+    def test_fast_excludes_contentlib_dollar_share(self):
+        path = "//10.0.0.1/SCCMContentLib$"
+        assert any(
+            fnmatch.fnmatch(path.lower(), p.lower()) for p in FAST_MODE_EXCLUSIONS
+        ), f"FAST_MODE_EXCLUSIONS should match {path}"
+
+    def test_fast_excludes_contentlib_subdir(self):
+        """Case 2: ContentLib as subdirectory."""
+        path = "//10.0.0.1/data/SCCMContentLib"
+        assert any(
+            fnmatch.fnmatch(path.lower(), p.lower()) for p in FAST_MODE_EXCLUSIONS
+        ), f"FAST_MODE_EXCLUSIONS should match {path}"
+
+    def test_fast_excludes_contentlib_subdir_dollar(self):
+        path = "//10.0.0.1/data/SCCMContentLib$"
+        assert any(
+            fnmatch.fnmatch(path.lower(), p.lower()) for p in FAST_MODE_EXCLUSIONS
+        ), f"FAST_MODE_EXCLUSIONS should match {path}"
+
+    def test_fast_does_not_exclude_normal_share(self):
+        path = "//10.0.0.1/data"
+        assert not any(
+            fnmatch.fnmatch(path.lower(), p.lower()) for p in FAST_MODE_EXCLUSIONS
+        ), f"FAST_MODE_EXCLUSIONS should NOT match {path}"
+
+    def test_fast_excludes_contentlib_children(self):
+        """Files inside ContentLib dir also excluded."""
+        path = "//10.0.0.1/data/SCCMContentLib/DataLib/something.ini"
+        assert any(
+            fnmatch.fnmatch(path.lower(), p.lower()) for p in FAST_MODE_EXCLUSIONS
+        ), f"FAST_MODE_EXCLUSIONS should match {path}"

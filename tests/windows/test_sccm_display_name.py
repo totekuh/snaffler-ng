@@ -27,7 +27,7 @@ class TestSCCMDisplayName:
                 windows_env["vm_ip"],
                 username="fulluser",
                 password="SnaffFull1!",
-                share="SCCMContentLib$",
+                share="SCCMContentLib",
             )
             cfg.state.state_db = db_path
             with no_auth_check:
@@ -60,7 +60,7 @@ class TestSCCMDisplayName:
                 windows_env["vm_ip"],
                 username="fulluser",
                 password="SnaffFull1!",
-                share="SCCMContentLib$",
+                share="SCCMContentLib",
             )
             cfg.state.state_db = db_path
             with no_auth_check:
@@ -92,7 +92,7 @@ class TestSCCMDisplayName:
                 windows_env["vm_ip"],
                 username="fulluser",
                 password="SnaffFull1!",
-                share="SCCMContentLib$",
+                share="SCCMContentLib",
             )
             cfg.state.state_db = db_path
             with no_auth_check:

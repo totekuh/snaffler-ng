@@ -105,7 +105,7 @@ SHARES = {
     "SnaffTest": {"full_access": ["fulluser"], "read_access": ["readuser"]},
     "SnaffSensitive": {"full_access": ["fulluser"]},
     "SnaffEmpty": {"full_access": ["Everyone"]},
-    "SCCMContentLib$": {"full_access": ["Everyone"]},
+    "SCCMContentLib": {"full_access": ["Everyone"]},
 }
 
 # SCCM ContentLib test blobs — content and hashes computed at import time
@@ -285,13 +285,13 @@ def windows_env():
             source=str(_DATA_DIR / "test-inline-password.ps1"),
         )
 
-        # -- Seed SCCM ContentLib structure --
-        share_mkdir(name="SCCMContentLib$", path="DataLib")
-        share_mkdir(name="SCCMContentLib$", path="FileLib")
+        # -- Seed SCCM ContentLib structure (case 1: share IS ContentLib) --
+        share_mkdir(name="SCCMContentLib", path="DataLib")
+        share_mkdir(name="SCCMContentLib", path="FileLib")
         for filename, blob in SCCM_BLOBS.items():
-            share_mkdir(name="SCCMContentLib$", path=f"FileLib/{blob['prefix']}")
-            share_write(name="SCCMContentLib$", path=f"FileLib/{blob['prefix']}/{blob['hash']}", content=blob["content"])
-            share_write(name="SCCMContentLib$", path=f"DataLib/{filename}.INI", content=f"[File]\nHash={blob['hash']}\n")
+            share_mkdir(name="SCCMContentLib", path=f"FileLib/{blob['prefix']}")
+            share_write(name="SCCMContentLib", path=f"FileLib/{blob['prefix']}/{blob['hash']}", content=blob["content"])
+            share_write(name="SCCMContentLib", path=f"DataLib/{filename}.INI", content=f"[File]\nHash={blob['hash']}\n")
 
         yield {
             "vm_ip": ip,

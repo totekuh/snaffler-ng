@@ -18,7 +18,7 @@ pytestmark = pytest.mark.windows
 class TestSCCMCoexistence:
 
     def test_sccm_alongside_normal_share(self, windows_env):
-        """Scan SnaffTest + SCCMContentLib$ together, findings from both."""
+        """Scan SnaffTest + SCCMContentLib together, findings from both."""
         ip = windows_env["vm_ip"]
         db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         db_path = db.name
@@ -28,7 +28,7 @@ class TestSCCMCoexistence:
                 ip,
                 username="fulluser",
                 password="SnaffFull1!",
-                unc_targets=[f"//{ip}/SnaffTest", f"//{ip}/SCCMContentLib$"],
+                unc_targets=[f"//{ip}/SnaffTest", f"//{ip}/SCCMContentLib"],
             )
             cfg.state.state_db = db_path
             with no_auth_check:
@@ -59,7 +59,7 @@ class TestSCCMCoexistence:
             ip,
             username="fulluser",
             password="SnaffFull1!",
-            unc_targets=[f"//{ip}/SnaffTest", f"//{ip}/SCCMContentLib$"],
+            unc_targets=[f"//{ip}/SnaffTest", f"//{ip}/SCCMContentLib"],
         )
         with no_auth_check:
             _, p_both = run_scan(cfg_both)
@@ -75,7 +75,7 @@ class TestSCCMCoexistence:
             windows_env["vm_ip"],
             username="fulluser",
             password="SnaffFull1!",
-            share="SCCMContentLib$",
+            share="SCCMContentLib",
         )
         with no_auth_check:
             _, p = run_scan(cfg)

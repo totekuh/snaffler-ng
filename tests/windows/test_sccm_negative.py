@@ -27,7 +27,7 @@ class TestSCCMNegative:
                 windows_env["vm_ip"],
                 username="fulluser",
                 password="SnaffFull1!",
-                share="SCCMContentLib$",
+                share="SCCMContentLib",
             )
             cfg.state.state_db = db_path
             with no_auth_check:
@@ -54,7 +54,7 @@ class TestSCCMNegative:
                 windows_env["vm_ip"],
                 username="fulluser",
                 password="SnaffFull1!",
-                share="SCCMContentLib$",
+                share="SCCMContentLib",
             )
             cfg.state.state_db = db_path
             cfg.targets.exclude_unc = list(FAST_MODE_EXCLUSIONS) + cfg.targets.exclude_unc
@@ -86,7 +86,7 @@ class TestSCCMNegative:
                 windows_env["vm_ip"],
                 username="fulluser",
                 password="SnaffFull1!",
-                share="SCCMContentLib$",
+                share="SCCMContentLib",
             )
             cfg.state.state_db = db_path
             with no_auth_check:

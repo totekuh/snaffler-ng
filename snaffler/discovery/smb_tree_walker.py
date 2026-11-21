@@ -70,6 +70,9 @@ class SMBTreeWalker(TreeWalker):
         server, share, path = parsed
         try:
             smb = self._cache.get(server)
+            if path == "/" and is_contentlib_dir(share):
+                walk_contentlib(smb, server, share, "", on_file)
+                return []
             subdir_paths = self._list_directory(
                 smb,
                 server,

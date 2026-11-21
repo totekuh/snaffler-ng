@@ -40,7 +40,7 @@ setup-windows:
 	winbox up
 
 test-windows:
-	python -m pytest tests/windows/ -v --tb=short
+	uv run pytest tests/windows/ -v --tb=short
 
 clean:
 	rm -rf build/ dist/ *.egg-info .pytest_cache .ruff_cache .mypy_cache .coverage
