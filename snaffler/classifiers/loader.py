@@ -44,6 +44,7 @@ class RuleLoader:
 def build_domain_user_rule(
     usernames: List[str],
     domain: str | None = None,
+    netbios: str | None = None,
 ) -> ClassifierRule:
     """Build a content rule that matches any of the given usernames.
 
@@ -64,9 +65,8 @@ def build_domain_user_rule(
     for u in usernames:
         all_variants.append(u)  # bare sAMAccountName
         if domain:
-            # NetBIOS style: DOMAIN\username (use short name before first dot)
-            netbios = domain.split(".")[0].upper()
-            all_variants.append(f"{netbios}\\{u}")
+            nb = netbios or domain.split(".")[0].upper()
+            all_variants.append(f"{nb}\\{u}")
             # UPN style: username@domain.tld
             all_variants.append(f"{u}@{domain}")
 

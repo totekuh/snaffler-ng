@@ -82,6 +82,7 @@ class AuthConfig:
     password: Optional[str] = None
     nthash: Optional[str] = None
     domain: Optional[str] = None
+    netbios: Optional[str] = None
     dc_host: Optional[str] = None
     smb_timeout: int = 5
     smb_port: int = 445

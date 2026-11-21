@@ -118,6 +118,12 @@ def main(
         help="AD domain for LDAP discovery, or Kerberos realm (e.g. CORP.LOCAL)",
         rich_help_panel="Targeting",
     ),
+    netbios: Optional[str] = typer.Option(
+        None,
+        "--netbios",
+        help="NetBIOS domain name override for content rules (default: derived from --domain)",
+        rich_help_panel="Targeting",
+    ),
     kerberos: bool = typer.Option(
         False,
         "-k",
@@ -471,6 +477,7 @@ def main(
         password=password,
         nthash=nthash,
         domain=domain,
+        netbios=netbios,
         dc_host=dc_host,
         smb_timeout=smb_timeout,
         kerberos=kerberos,

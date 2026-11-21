@@ -224,3 +224,44 @@ class TestDomainUserFormats:
         rule = build_domain_user_rule(["svc_sql"], domain="CORP")
         assert rule.matches("RunAs=CORP\\svc_sql") is not None
         assert rule.matches("user=svc_sql@CORP") is not None
+
+
+class TestNetBIOSOverride:
+    """Tests for --netbios override parameter."""
+
+    def test_override_replaces_derived(self):
+        rule = build_domain_user_rule(["svc_sql"], domain="corp.acme.com", netbios="ACME")
+        assert rule.matches("RunAs=ACME\\svc_sql") is not None
+
+    def test_override_blocks_explicit_netbios_variant(self):
+        rule = build_domain_user_rule(["svc_sql"], domain="corp.acme.com", netbios="ACME")
+        # CORP\svc_sql still matches via bare username + backslash delimiter,
+        # but the explicit ACME\svc_sql variant is what we're testing exists
+        assert rule.matches("RunAs=ACME\\svc_sql") is not None
+        # Verify CORP variant was NOT generated (check the wordlist directly)
+        assert "CORP\\\\svc_sql" not in rule.wordlist[0]
+        assert "ACME\\\\svc_sql" in rule.wordlist[0]
+
+    def test_default_derives_first_label(self):
+        rule = build_domain_user_rule(["svc_sql"], domain="corp.acme.com")
+        assert rule.matches("RunAs=CORP\\svc_sql") is not None
+
+    def test_upn_unaffected_by_override(self):
+        rule = build_domain_user_rule(["svc_sql"], domain="corp.acme.com", netbios="ACME")
+        assert rule.matches("user=svc_sql@corp.acme.com") is not None
+
+    def test_no_domain_netbios_ignored(self):
+        rule = build_domain_user_rule(["svc_sql"], domain=None, netbios="ACME")
+        # No domain = no ACME\svc_sql variant generated (check wordlist)
+        assert "ACME" not in rule.wordlist[0]
+        # Still matches via bare username + backslash delimiter though
+        assert rule.matches("user=svc_sql") is not None
+
+    def test_bare_user_always_matches(self):
+        rule = build_domain_user_rule(["svc_sql"], domain="corp.acme.com", netbios="ACME")
+        assert rule.matches("user=svc_sql") is not None
+
+    def test_override_case_insensitive(self):
+        rule = build_domain_user_rule(["svc_sql"], domain="corp.local", netbios="MYDOM")
+        assert rule.matches("RunAs=mydom\\svc_sql") is not None
+        assert rule.matches("RunAs=MYDOM\\SVC_SQL") is not None

@@ -73,7 +73,7 @@ def run_scan(
                     min_len=cfg.targets.user_min_len,
                 )
                 if users:
-                    rule = build_domain_user_rule(users, domain=cfg.auth.domain)
+                    rule = build_domain_user_rule(users, domain=cfg.auth.domain, netbios=cfg.auth.netbios)
                     cfg.rules.content.append(rule)
                     logger.info(f"Added DynamicDomainUsers rule matching {len(users)} users")
                 else:
