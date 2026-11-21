@@ -4,6 +4,7 @@ Requires winbox >= 2.0.0 and a Windows VM (auto-started if off).
 Skips when winbox not installed or VM does not exist.
 """
 
+import hashlib
 import json
 import os
 import socket
@@ -104,7 +105,26 @@ SHARES = {
     "SnaffTest": {"full_access": ["fulluser"], "read_access": ["readuser"]},
     "SnaffSensitive": {"full_access": ["fulluser"]},
     "SnaffEmpty": {"full_access": ["Everyone"]},
+    "SCCMContentLib$": {"full_access": ["Everyone"]},
 }
+
+# SCCM ContentLib test blobs — content and hashes computed at import time
+SCCM_BLOBS = {}
+
+
+def _init_sccm_blobs():
+    blobs = {
+        "deploy-script.ps1": '$cred = New-Object PSCredential("svc_deploy", (ConvertTo-SecureString "P@ssw0rd!" -AsPlainText -Force))',
+        "id_rsa": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAA=\n-----END OPENSSH PRIVATE KEY-----\n",
+        "readme.txt": "Normal SCCM package readme content.",
+        "web.config": '<connectionStrings>\n  <add connectionString="Server=sqlprod;Database=app;User Id=sa;Password=DbP@ss123!" />\n</connectionStrings>',
+    }
+    for name, content in blobs.items():
+        h = hashlib.sha256(content.encode()).hexdigest()
+        SCCM_BLOBS[name] = {"content": content, "hash": h, "prefix": h[:4]}
+
+
+_init_sccm_blobs()
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -264,6 +284,14 @@ def windows_env():
             path="deploy.ps1",
             source=str(_DATA_DIR / "test-inline-password.ps1"),
         )
+
+        # -- Seed SCCM ContentLib structure --
+        share_mkdir(name="SCCMContentLib$", path="DataLib")
+        share_mkdir(name="SCCMContentLib$", path="FileLib")
+        for filename, blob in SCCM_BLOBS.items():
+            share_mkdir(name="SCCMContentLib$", path=f"FileLib/{blob['prefix']}")
+            share_write(name="SCCMContentLib$", path=f"FileLib/{blob['prefix']}/{blob['hash']}", content=blob["content"])
+            share_write(name="SCCMContentLib$", path=f"DataLib/{filename}.INI", content=f"[File]\nHash={blob['hash']}\n")
 
         yield {
             "vm_ip": ip,
