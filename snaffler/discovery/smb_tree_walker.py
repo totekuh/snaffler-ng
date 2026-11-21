@@ -128,13 +128,14 @@ class SMBTreeWalker(TreeWalker):
             unc_full = f"//{server}/{share}{entry_path}"
 
             if entry.is_directory():
+                if not self._should_scan_directory(unc_full):
+                    continue
                 if is_contentlib_dir(name):
                     walk_contentlib(smb, server, share, entry_path, on_file)
                     continue
-                if self._should_scan_directory(unc_full):
-                    subdir_paths.append(entry_path)
-                    if on_dir:
-                        on_dir(unc_full)
+                subdir_paths.append(entry_path)
+                if on_dir:
+                    on_dir(unc_full)
             else:
                 try:
                     size = entry.get_filesize()
