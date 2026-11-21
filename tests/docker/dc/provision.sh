@@ -82,6 +82,42 @@ echo "svc_sql credentials here" > /srv/shares/finance/passwords.txt
 echo "normal file content" > /srv/shares/it/readme.txt
 chmod -R 0777 /srv/shares
 
+echo "[*] Creating SCCM ContentLib test fixture"
+mkdir -p /srv/shares/sccm/SCCMContentLib/DataLib
+mkdir -p /srv/shares/sccm/SCCMContentLib/FileLib
+
+# 1. deploy-script.ps1 — contains hardcoded creds (triggers content rules)
+BLOB1_CONTENT='$cred = New-Object PSCredential("svc_deploy", (ConvertTo-SecureString "P@ssw0rd!" -AsPlainText -Force))'
+echo "$BLOB1_CONTENT" > /tmp/sccm_blob1
+HASH1=$(sha256sum /tmp/sccm_blob1 | cut -d' ' -f1)
+mkdir -p "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH1:0:4}"
+cp /tmp/sccm_blob1 "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH1:0:4}/${HASH1}"
+printf "[File]\nHash=%s\n" "$HASH1" > /srv/shares/sccm/SCCMContentLib/DataLib/deploy-script.ps1.INI
+
+# 2. db-connection.ini — contains DB password (triggers filename + content rules)
+printf '[database]\nserver=sqlprod.corp.local\nuser=sa\npassword=Str0ngDBP@ss!\n' > /tmp/sccm_blob2
+HASH2=$(sha256sum /tmp/sccm_blob2 | cut -d' ' -f1)
+mkdir -p "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH2:0:4}"
+cp /tmp/sccm_blob2 "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH2:0:4}/${HASH2}"
+printf "[File]\nHash=%s\n" "$HASH2" > /srv/shares/sccm/SCCMContentLib/DataLib/db-connection.ini.INI
+
+# 3. readme.txt — benign, should NOT produce findings
+echo "This is a normal SCCM package readme." > /tmp/sccm_blob3
+HASH3=$(sha256sum /tmp/sccm_blob3 | cut -d' ' -f1)
+mkdir -p "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH3:0:4}"
+cp /tmp/sccm_blob3 "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH3:0:4}/${HASH3}"
+printf "[File]\nHash=%s\n" "$HASH3" > /srv/shares/sccm/SCCMContentLib/DataLib/readme.txt.INI
+
+# 4. id_rsa — SSH private key (triggers KeepSSHKeyByName by filename via display_name)
+printf '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAA=\n-----END OPENSSH PRIVATE KEY-----\n' > /tmp/sccm_blob4
+HASH4=$(sha256sum /tmp/sccm_blob4 | cut -d' ' -f1)
+mkdir -p "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH4:0:4}"
+cp /tmp/sccm_blob4 "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH4:0:4}/${HASH4}"
+printf "[File]\nHash=%s\n" "$HASH4" > /srv/shares/sccm/SCCMContentLib/DataLib/id_rsa.INI
+
+rm -f /tmp/sccm_blob1 /tmp/sccm_blob2 /tmp/sccm_blob3 /tmp/sccm_blob4
+chmod -R 0777 /srv/shares/sccm
+
 cat >> /etc/samba/smb.conf <<'SHARES'
 
 [data]
@@ -98,6 +134,11 @@ cat >> /etc/samba/smb.conf <<'SHARES'
 [it]
     path = /srv/shares/it
     read only = no
+    guest ok = yes
+
+[sccm]
+    path = /srv/shares/sccm
+    read only = yes
     guest ok = yes
 SHARES
 

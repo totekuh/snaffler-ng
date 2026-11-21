@@ -326,3 +326,172 @@ class TestKerberosScan:
         assert p.scan_complete is True
         assert p.files_scanned > 0
         assert p.files_matched > 0
+
+
+class TestSCCMContentLib:
+    """SCCM ContentLib deep scan e2e tests against Samba DC.
+
+    The sccm share contains a fake SCCMContentLib directory with
+    DataLib INI pointers and FileLib hash-named blobs. Tests verify
+    the ContentLib walker resolves INIs to blobs and scans them
+    with the original filename for rule matching.
+    """
+
+    def test_sccm_scan_produces_findings(self, ad_dc):
+        cfg = _make_scan_cfg(unc_targets=[f"//{DC_HOST}/sccm"])
+        _, p = _run_scan(cfg)
+        assert p.scan_complete is True
+        assert p.files_scanned > 0
+        assert p.files_matched > 0
+
+    def test_sccm_ssh_key_matched_by_display_name(self, ad_dc):
+        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        db_path = db.name
+        db.close()
+        try:
+            cfg = _make_scan_cfg(unc_targets=[f"//{DC_HOST}/sccm"])
+            cfg.state.state_db = db_path
+            _, p = _run_scan(cfg)
+            assert p.scan_complete is True
+
+            store = SQLiteStateStore(db_path)
+            findings = store.load_findings()
+            store.close()
+
+            ssh_findings = [
+                f for f in findings
+                if "id_rsa" in (f.get("match_text") or "").lower()
+                or "ssh" in (f.get("rule_name") or "").lower()
+                or "private" in (f.get("rule_name") or "").lower()
+            ]
+            assert len(ssh_findings) > 0, (
+                f"No SSH key finding from ContentLib. All findings: "
+                f"{[(f['file_path'], f['rule_name']) for f in findings]}"
+            )
+            assert any("FileLib" in f["file_path"] for f in ssh_findings), (
+                "SSH finding should reference FileLib blob path"
+            )
+        finally:
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_sccm_config_ini_matched_by_display_name(self, ad_dc):
+        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        db_path = db.name
+        db.close()
+        try:
+            cfg = _make_scan_cfg(unc_targets=[f"//{DC_HOST}/sccm"])
+            cfg.state.state_db = db_path
+            _, p = _run_scan(cfg)
+
+            store = SQLiteStateStore(db_path)
+            findings = store.load_findings()
+            store.close()
+
+            ini_findings = [
+                f for f in findings
+                if "config" in (f.get("rule_name") or "").lower()
+                or "password" in (f.get("match_text") or "").lower()
+            ]
+            assert len(ini_findings) > 0, (
+                f"No config/password finding from db-connection.ini. "
+                f"All findings: {[(f['file_path'], f['rule_name']) for f in findings]}"
+            )
+        finally:
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_sccm_content_rule_matches_through_contentlib(self, ad_dc):
+        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        db_path = db.name
+        db.close()
+        try:
+            cfg = _make_scan_cfg(unc_targets=[f"//{DC_HOST}/sccm"])
+            cfg.state.state_db = db_path
+            _, p = _run_scan(cfg)
+
+            store = SQLiteStateStore(db_path)
+            findings = store.load_findings()
+            store.close()
+
+            content_findings = [
+                f for f in findings
+                if f.get("context") and "password" in f["context"].lower()
+            ]
+            assert len(content_findings) > 0, (
+                f"No content rule match with 'password' in context. "
+                f"All findings: {[(f['file_path'], f['rule_name'], f.get('context', '')[:50]) for f in findings]}"
+            )
+        finally:
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_sccm_benign_file_no_finding(self, ad_dc):
+        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        db_path = db.name
+        db.close()
+        try:
+            cfg = _make_scan_cfg(unc_targets=[f"//{DC_HOST}/sccm"])
+            cfg.state.state_db = db_path
+            _, p = _run_scan(cfg)
+
+            store = SQLiteStateStore(db_path)
+            findings = store.load_findings()
+            store.close()
+
+            for f in findings:
+                assert "readme" not in f["file_path"].lower(), (
+                    f"Benign readme.txt should not produce findings: {f}"
+                )
+        finally:
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_sccm_fast_mode_skips_contentlib(self, ad_dc):
+        from snaffler.config.configuration import FAST_MODE_EXCLUSIONS
+
+        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        db_path = db.name
+        db.close()
+        try:
+            cfg = _make_scan_cfg(unc_targets=[f"//{DC_HOST}/sccm"])
+            cfg.state.state_db = db_path
+            cfg.targets.exclude_unc = list(FAST_MODE_EXCLUSIONS) + cfg.targets.exclude_unc
+            _, p = _run_scan(cfg)
+            assert p.scan_complete is True
+
+            store = SQLiteStateStore(db_path)
+            findings = store.load_findings()
+            store.close()
+
+            contentlib_findings = [
+                f for f in findings if "FileLib" in f["file_path"]
+            ]
+            assert len(contentlib_findings) == 0, (
+                f"Fast mode should skip ContentLib, but found: "
+                f"{[(f['file_path'], f['rule_name']) for f in contentlib_findings]}"
+            )
+        finally:
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_sccm_alongside_normal_shares(self, ad_dc):
+        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        db_path = db.name
+        db.close()
+        try:
+            cfg = _make_scan_cfg(unc_targets=[
+                f"//{DC_HOST}/data",
+                f"//{DC_HOST}/sccm",
+            ])
+            cfg.state.state_db = db_path
+            _, p = _run_scan(cfg)
+            assert p.scan_complete is True
+            assert p.files_matched >= 2
+
+            store = SQLiteStateStore(db_path)
+            findings = store.load_findings()
+            store.close()
+            paths = [f["file_path"] for f in findings]
+
+            has_normal = any("/data/" in fp for fp in paths)
+            has_sccm = any("FileLib" in fp for fp in paths)
+            assert has_normal, f"Missing normal share findings. Paths: {paths}"
+            assert has_sccm, f"Missing SCCM ContentLib findings. Paths: {paths}"
+        finally:
+            Path(db_path).unlink(missing_ok=True)
