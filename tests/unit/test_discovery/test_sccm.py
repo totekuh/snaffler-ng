@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from snaffler.config.configuration import FAST_MODE_EXCLUSIONS
-from snaffler.discovery.sccm import is_contentlib_dir, parse_ini_hash, resolve_filelib_path
+from snaffler.discovery.sccm import is_contentlib_dir, parse_ini_hash, resolve_filelib_path, walk_contentlib
 
 
 class TestIsContentLibDir:
@@ -192,3 +192,165 @@ class TestFastModeExclusions:
         assert any(
             fnmatch.fnmatch(path.lower(), p.lower()) for p in FAST_MODE_EXCLUSIONS
         ), f"FAST_MODE_EXCLUSIONS should match {path}"
+
+
+def _make_datalib_entry(name, is_dir=False):
+    e = MagicMock()
+    e.get_longname.return_value = name
+    e.is_directory.return_value = is_dir
+    return e
+
+
+def _make_blob_entry(hash_name, size=100):
+    e = MagicMock()
+    e.get_longname.return_value = hash_name
+    e.get_filesize.return_value = size
+    e.get_mtime_epoch.return_value = 1700000000.0
+    e.get_ctime_epoch.return_value = 1700000000.0
+    e.get_atime_epoch.return_value = 1700000000.0
+    return e
+
+
+def _make_smb_with_ini(ini_name, ini_content, blob_hash, blob_size=100):
+    """Build a mock SMB with one INI in DataLib and one blob in FileLib."""
+    smb = MagicMock()
+
+    datalib_entry = _make_datalib_entry(ini_name)
+    blob_entry = _make_blob_entry(blob_hash, blob_size)
+
+    def list_path(share, pattern):
+        if "DataLib" in pattern:
+            return [_make_datalib_entry("."), _make_datalib_entry(".."), datalib_entry]
+        if "FileLib" in pattern:
+            return [blob_entry]
+        return []
+
+    smb.listPath.side_effect = list_path
+
+    def get_file(share, path, callback):
+        callback(ini_content.encode())
+
+    smb.getFile.side_effect = get_file
+    return smb
+
+
+class TestWalkContentLib:
+    """Unit tests for walk_contentlib() function body."""
+
+    def test_happy_path_calls_on_file(self):
+        blob_hash = "ab12cd34ef567890"
+        smb = _make_smb_with_ini(
+            "deploy.ps1.INI", f"[File]\nHash={blob_hash}\n", blob_hash, 200,
+        )
+        on_file = MagicMock()
+        walk_contentlib(smb, "10.0.0.1", "sccm", "", on_file)
+
+        on_file.assert_called_once()
+        args = on_file.call_args[0]
+        assert args[0] == f"//10.0.0.1/sccm/FileLib/{blob_hash[:4]}/{blob_hash}"
+        assert args[1] == 200
+        assert args[5] == "deploy.ps1"
+
+    def test_empty_datalib(self):
+        smb = MagicMock()
+        smb.listPath.return_value = [_make_datalib_entry("."), _make_datalib_entry("..")]
+        on_file = MagicMock()
+        walk_contentlib(smb, "10.0.0.1", "share", "", on_file)
+        on_file.assert_not_called()
+
+    def test_datalib_unreadable(self):
+        smb = MagicMock()
+        smb.listPath.side_effect = Exception("ACCESS_DENIED")
+        on_file = MagicMock()
+        walk_contentlib(smb, "10.0.0.1", "share", "", on_file)
+        on_file.assert_not_called()
+
+    def test_unreadable_ini_skipped(self):
+        smb = MagicMock()
+        good_hash = "deadbeef12345678"
+        bad_entry = _make_datalib_entry("bad.ps1.INI")
+        good_entry = _make_datalib_entry("good.ps1.INI")
+
+        def list_path(share, pattern):
+            if "DataLib" in pattern:
+                return [_make_datalib_entry("."), _make_datalib_entry(".."), bad_entry, good_entry]
+            if "FileLib" in pattern:
+                return [_make_blob_entry(good_hash)]
+            return []
+
+        smb.listPath.side_effect = list_path
+
+        call_count = [0]
+
+        def get_file(share, path, callback):
+            if "bad.ps1" in path:
+                raise OSError("read failed")
+            callback(f"[File]\nHash={good_hash}\n".encode())
+
+        smb.getFile.side_effect = get_file
+        on_file = MagicMock()
+        walk_contentlib(smb, "10.0.0.1", "share", "", on_file)
+        on_file.assert_called_once()
+        assert on_file.call_args[0][5] == "good.ps1"
+
+    def test_malformed_ini_no_hash(self):
+        smb = MagicMock()
+        entry = _make_datalib_entry("broken.txt.INI")
+        smb.listPath.return_value = [_make_datalib_entry("."), _make_datalib_entry(".."), entry]
+        smb.getFile.side_effect = lambda s, p, cb: cb(b"[File]\nNoHashHere=true\n")
+        on_file = MagicMock()
+        walk_contentlib(smb, "10.0.0.1", "share", "", on_file)
+        on_file.assert_not_called()
+
+    def test_non_ini_files_skipped(self):
+        smb = MagicMock()
+        entry = _make_datalib_entry("readme.txt")
+        smb.listPath.return_value = [_make_datalib_entry("."), _make_datalib_entry(".."), entry]
+        on_file = MagicMock()
+        walk_contentlib(smb, "10.0.0.1", "share", "", on_file)
+        on_file.assert_not_called()
+        smb.getFile.assert_not_called()
+
+    def test_directory_entries_skipped(self):
+        smb = MagicMock()
+        entry = _make_datalib_entry("subdir", is_dir=True)
+        smb.listPath.return_value = [_make_datalib_entry("."), _make_datalib_entry(".."), entry]
+        on_file = MagicMock()
+        walk_contentlib(smb, "10.0.0.1", "share", "", on_file)
+        on_file.assert_not_called()
+
+    def test_missing_filelib_blob(self):
+        smb = MagicMock()
+        entry = _make_datalib_entry("secret.txt.INI")
+        blob_hash = "abcdef1234567890"
+
+        def list_path(share, pattern):
+            if "DataLib" in pattern:
+                return [_make_datalib_entry("."), _make_datalib_entry(".."), entry]
+            if "FileLib" in pattern:
+                return [_make_blob_entry("wrong_hash_name")]
+            return []
+
+        smb.listPath.side_effect = list_path
+        smb.getFile.side_effect = lambda s, p, cb: cb(f"[File]\nHash={blob_hash}\n".encode())
+        on_file = MagicMock()
+        walk_contentlib(smb, "10.0.0.1", "share", "", on_file)
+        on_file.assert_not_called()
+
+    def test_filelib_stat_error(self):
+        smb = MagicMock()
+        entry = _make_datalib_entry("secret.txt.INI")
+        blob_hash = "abcdef1234567890"
+
+        def list_path(share, pattern):
+            if "DataLib" in pattern:
+                return [_make_datalib_entry("."), _make_datalib_entry(".."), entry]
+            if "FileLib" in pattern:
+                raise Exception("ACCESS_DENIED")
+            return []
+
+        smb.listPath.side_effect = list_path
+        smb.getFile.side_effect = lambda s, p, cb: cb(f"[File]\nHash={blob_hash}\n".encode())
+        on_file = MagicMock()
+        walk_contentlib(smb, "10.0.0.1", "share", "", on_file)
+        on_file.assert_not_called()

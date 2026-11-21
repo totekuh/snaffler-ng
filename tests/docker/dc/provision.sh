@@ -94,8 +94,12 @@ mkdir -p "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH1:0:4}"
 cp /tmp/sccm_blob1 "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH1:0:4}/${HASH1}"
 printf "[File]\nHash=%s\n" "$HASH1" > /srv/shares/sccm/SCCMContentLib/DataLib/deploy-script.ps1.INI
 
-# 2. db-connection.ini — contains DB password (triggers filename + content rules)
-printf '[database]\nserver=sqlprod.corp.local\nuser=sa\npassword=Str0ngDBP@ss!\n' > /tmp/sccm_blob2
+# 2. db-connection.ini — connection string triggers relay chain (filename .ini → content scan)
+cat > /tmp/sccm_blob2 <<'DBEOF'
+[database]
+server=sqlprod.corp.local
+connectionString=Server=sqlprod;Database=appdb;User Id=sa;Password=Str0ngDBP@ss!
+DBEOF
 HASH2=$(sha256sum /tmp/sccm_blob2 | cut -d' ' -f1)
 mkdir -p "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH2:0:4}"
 cp /tmp/sccm_blob2 "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH2:0:4}/${HASH2}"

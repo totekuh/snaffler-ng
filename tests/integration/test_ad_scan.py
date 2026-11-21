@@ -388,8 +388,10 @@ class TestSCCMContentLib:
             findings = store.load_findings()
             store.close()
 
+            known_names = ["deploy-script.ps1", "id_rsa", "db-connection.ini", "web.config"]
             for f in findings:
-                assert "deploy-script.ps1" in f["file_path"] or "id_rsa" in f["file_path"], (
+                has_name = any(n in f["file_path"] for n in known_names)
+                assert has_name, (
                     f"Finding should reference original filename, not hash: {f['file_path']}"
                 )
                 assert "SCCMContentLib/FileLib/" in f["file_path"], (
@@ -491,5 +493,64 @@ class TestSCCMContentLib:
             has_sccm = any("SCCMContentLib" in fp for fp in paths)
             assert has_sccm, f"Missing SCCM ContentLib findings. Paths: {paths}"
             assert p.files_matched >= 1
+        finally:
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_sccm_resume_no_duplicates(self, ad_dc):
+        """Scan twice with same state DB — ContentLib findings not duplicated."""
+        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        db_path = db.name
+        db.close()
+        try:
+            targets = [f"//{DC_HOST}/sccm"]
+
+            cfg1 = _make_scan_cfg(unc_targets=targets)
+            cfg1.state.state_db = db_path
+            _, p1 = _run_scan(cfg1)
+            assert p1.scan_complete is True
+            assert p1.files_matched > 0
+
+            store = SQLiteStateStore(db_path)
+            count1 = store.count_findings()
+            store.close()
+
+            cfg2 = _make_scan_cfg(unc_targets=targets)
+            cfg2.state.state_db = db_path
+            _, p2 = _run_scan(cfg2)
+            assert p2.scan_complete is True
+
+            store = SQLiteStateStore(db_path)
+            count2 = store.count_findings()
+            store.close()
+
+            assert count2 == count1, (
+                f"Resume should not duplicate ContentLib findings: "
+                f"first={count1} second={count2}"
+            )
+        finally:
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_sccm_relay_rule_through_display_name(self, ad_dc):
+        """Relay rule fires on .ini extension via display_name, then content scan matches."""
+        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        db_path = db.name
+        db.close()
+        try:
+            cfg = _make_scan_cfg(unc_targets=[f"//{DC_HOST}/sccm"])
+            cfg.state.state_db = db_path
+            _, p = _run_scan(cfg)
+
+            store = SQLiteStateStore(db_path)
+            findings = store.load_findings()
+            store.close()
+
+            relay_findings = [
+                f for f in findings
+                if "db-connection" in (f.get("file_path") or "").lower()
+            ]
+            assert len(relay_findings) > 0, (
+                f"No finding from db-connection.ini relay chain. "
+                f"All findings: {[(f['file_path'], f['rule_name']) for f in findings]}"
+            )
         finally:
             Path(db_path).unlink(missing_ok=True)
