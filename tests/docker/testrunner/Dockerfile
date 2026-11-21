@@ -6,9 +6,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Build tools + runtime deps matching debian/control
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    debhelper=14.5 \
-    dh-python=7.20261019 \
-    pybuild-plugin-pyproject=7.20261019 \
+    debhelper \
+    dh-python \
+    pybuild-plugin-pyproject \
     python3-all \
     python3-setuptools \
     python3-impacket=0.13.1-1 \
@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-socks=1.7.1+dfsg-2 \
     python3-pytest=9.1.1-1 \
     python3-requests=2.34.2-1 \
-    python3-pip=26.1.2+dfsg-1 \
+    python3-pip \
     python3-pyftpdlib \
     python3-dnslib \
     smbclient \

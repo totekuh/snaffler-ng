@@ -44,6 +44,9 @@ services:
     depends_on:
       samba:
         condition: service_healthy
+      dc:
+        condition: service_healthy
+        required: false
     environment:
       - SMB_HOST=samba
       - AD_DC_HOST=dc

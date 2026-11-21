@@ -51,7 +51,14 @@ def _make_cfg(**overrides):
 
 
 def _validate_ad_services():
-    """Verify AD DC services respond correctly. Called once per session."""
+    """Verify AD DC services respond correctly. Called once per session.
+
+    Retries for up to 30 seconds — after a fresh domain provision Samba's
+    RPC services (SRVSVC for listShares) take longer to initialise than
+    LDAP, so the healthcheck can pass before SMB is fully ready.
+    """
+    import time
+
     from impacket.ldap.ldap import LDAPConnection
     from impacket.smbconnection import SMBConnection
 
@@ -61,14 +68,22 @@ def _validate_ad_services():
     ldap.login(AD_CONFIG["admin_user"], AD_CONFIG["admin_pass"], AD_CONFIG["realm"])
     ldap.close()
 
-    smb = SMBConnection(host, host)
-    smb.login(AD_CONFIG["admin_user"], AD_CONFIG["admin_pass"], AD_CONFIG["realm"])
-    server = smb.getServerName()
-    shares = [s["shi1_netname"][:-1] for s in smb.listShares()]
-    smb.close()
-
-    assert server, "SMB server name empty"
-    assert "sysvol" in shares, f"SYSVOL not in shares: {shares}"
+    deadline = time.monotonic() + 30
+    last_exc = None
+    while time.monotonic() < deadline:
+        try:
+            smb = SMBConnection(host, host, timeout=5)
+            smb.login(AD_CONFIG["admin_user"], AD_CONFIG["admin_pass"], AD_CONFIG["realm"])
+            server = smb.getServerName()
+            shares = [s["shi1_netname"][:-1] for s in smb.listShares()]
+            smb.close()
+            assert server, "SMB server name empty"
+            assert "sysvol" in shares, f"SYSVOL not in shares: {shares}"
+            return
+        except Exception as exc:
+            last_exc = exc
+            time.sleep(2)
+    raise RuntimeError(f"AD DC SMB services not ready after 30s: {last_exc}") from last_exc
 
 
 @pytest.fixture(scope="session")

@@ -109,7 +109,11 @@ cp /tmp/sccm_blob3 "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH3:0:4}/${HASH3
 printf "[File]\nHash=%s\n" "$HASH3" > /srv/shares/sccm/SCCMContentLib/DataLib/readme.txt.INI
 
 # 4. id_rsa — SSH private key (triggers KeepSSHKeyByName by filename via display_name)
-printf '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAA=\n-----END OPENSSH PRIVATE KEY-----\n' > /tmp/sccm_blob4
+cat > /tmp/sccm_blob4 <<'KEYEOF'
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAA=
+-----END OPENSSH PRIVATE KEY-----
+KEYEOF
 HASH4=$(sha256sum /tmp/sccm_blob4 | cut -d' ' -f1)
 mkdir -p "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH4:0:4}"
 cp /tmp/sccm_blob4 "/srv/shares/sccm/SCCMContentLib/FileLib/${HASH4:0:4}/${HASH4}"
