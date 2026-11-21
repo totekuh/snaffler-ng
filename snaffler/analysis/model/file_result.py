@@ -12,6 +12,7 @@ class FileResult:
         "accessed",
         "context",
         "created",
+        "display_name",
         "file_path",
         "match",
         "modified",
@@ -31,6 +32,7 @@ class FileResult:
         context: Optional[str] = None,
         created: Optional[datetime] = None,
         accessed: Optional[datetime] = None,
+        display_name: Optional[str] = None,
     ):
         self.file_path = file_path
         self.size = size
@@ -41,6 +43,7 @@ class FileResult:
         self.rule_name = rule_name
         self.match = match
         self.context = context
+        self.display_name = display_name
 
     def match_haystack(self) -> str:
         """Build the search string used by --match filter."""

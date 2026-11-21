@@ -9,6 +9,7 @@ from concurrent.futures import CancelledError
 from impacket.smbconnection import SessionError
 
 from snaffler.config.configuration import SnafflerConfiguration
+from snaffler.discovery.sccm import is_contentlib_dir, walk_contentlib
 from snaffler.discovery.tree import TreeWalker
 from snaffler.transport.smb import SMBTransport
 from snaffler.utils.connection_cache import ThreadLocalConnectionCache
@@ -127,6 +128,9 @@ class SMBTreeWalker(TreeWalker):
             unc_full = f"//{server}/{share}{entry_path}"
 
             if entry.is_directory():
+                if is_contentlib_dir(name):
+                    walk_contentlib(smb, server, share, entry_path, on_file)
+                    continue
                 if self._should_scan_directory(unc_full):
                     subdir_paths.append(entry_path)
                     if on_dir:

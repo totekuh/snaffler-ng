@@ -70,6 +70,9 @@ FAST_MODE_EXCLUSIONS: List[str] = [
     "*/bower_components/*",
     "*/.cargo/registry/*",
     "*/.npm/*",
+    # SCCM ContentLib — deep scan is expensive (INI-to-FileLib resolution)
+    "*/SCCMContentLib/*",
+    "*/SCCMContentLib$/*",
 ]
 
 

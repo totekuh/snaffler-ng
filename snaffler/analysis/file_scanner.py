@@ -69,10 +69,11 @@ class FileScanner:
         mtime_epoch: float,
         ctime_epoch: float = 0.0,
         atime_epoch: float = 0.0,
+        display_name: str | None = None,
     ) -> FileCheckResult:
         """Phase 1 — evaluate file rules only (zero I/O)."""
         assert self.rule_evaluator is not None
-        ctx = FileContext.from_path(file_path, size, mtime_epoch, ctime_epoch, atime_epoch)
+        ctx = FileContext.from_path(file_path, size, mtime_epoch, ctime_epoch, atime_epoch, display_name=display_name)
 
         content_rule_names: set = set()
         best_result: Optional[FileResult] = None
@@ -128,6 +129,7 @@ class FileScanner:
                 triage=rule.triage,
                 rule_name=rule.rule_name,
                 match=decision.match,
+                display_name=ctx.display_name,
             )
             best_result = FileResult.pick_best(best_result, result)
 
@@ -223,9 +225,10 @@ class FileScanner:
         mtime_epoch: float,
         ctime_epoch: float = 0.0,
         atime_epoch: float = 0.0,
+        display_name: str | None = None,
     ) -> Optional[FileResult]:
         """Full scan: check_file, optional I/O, scan_with_data, filter."""
-        check = self.check_file(file_path, size, mtime_epoch, ctime_epoch, atime_epoch)
+        check = self.check_file(file_path, size, mtime_epoch, ctime_epoch, atime_epoch, display_name=display_name)
 
         if check.status == FileCheckStatus.DISCARD:
             return None
@@ -292,4 +295,5 @@ class FileScanner:
             rule_name="RelayCertByExtension",
             match=ctx.name,
             context=", ".join(reasons),
+            display_name=ctx.display_name,
         )

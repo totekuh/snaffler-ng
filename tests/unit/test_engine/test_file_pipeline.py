@@ -97,7 +97,7 @@ def test_file_pipeline_scan_file_called_with_tuple_args():
     pipeline.run(["//HOST/SHARE"])
 
     pipeline.file_scanner.scan_file.assert_called_once_with(
-        "//HOST/SHARE/a.txt", 100, 1700000000.0, 0.0, 0.0
+        "//HOST/SHARE/a.txt", 100, 1700000000.0, 0.0, 0.0, display_name=None,
     )
 
 
@@ -126,7 +126,7 @@ def test_file_pipeline_resume_skips_files():
 
     assert result == 0
     pipeline.file_scanner.scan_file.assert_called_once_with(
-        "//HOST/SHARE/b.txt", 200, 1700000001.0, 0.0, 0.0,
+        "//HOST/SHARE/b.txt", 200, 1700000001.0, 0.0, 0.0, display_name=None,
     )
 
 

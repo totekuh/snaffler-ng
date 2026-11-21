@@ -171,7 +171,7 @@ class FilePipeline:
         enqueued = set()
         enqueued_lock = threading.Lock()
 
-        def on_file(unc_path, size, mtime, ctime=0.0, atime=0.0):
+        def on_file(unc_path, size, mtime, ctime=0.0, atime=0.0, display_name=None):
             normalized = unc_path.lower()
             with enqueued_lock:
                 if normalized in enqueued:
@@ -189,9 +189,10 @@ class FilePipeline:
             if ctx.batch_writer:
                 share_unc = _extract_share_unc(unc_path)
                 ctx.batch_writer.put_file(unc_path, share_unc, size, mtime, ctime, atime)
+            item = (unc_path, size, mtime, ctime, atime, display_name)
             while not shutdown.is_set():
                 try:
-                    ctx.file_queue.put((unc_path, size, mtime, ctime, atime), timeout=1.0)
+                    ctx.file_queue.put(item, timeout=1.0)
                     return
                 except queue.Full:
                     continue
@@ -496,7 +497,7 @@ class FilePipeline:
                 self.progress.files_total += 1
             while not shutdown.is_set():
                 try:
-                    ctx.file_queue.put((unc_path, size or 0, mtime or 0.0, 0.0, 0.0), timeout=1.0)
+                    ctx.file_queue.put((unc_path, size or 0, mtime or 0.0, 0.0, 0.0, None), timeout=1.0)
                     break
                 except queue.Full:
                     continue
@@ -515,7 +516,7 @@ class FilePipeline:
             if item is _SENTINEL:
                 return
 
-            unc_path, size, mtime, ctime, atime = item
+            unc_path, size, mtime, ctime, atime, display_name = item
 
             if self.state and self.state.should_skip_file(unc_path):
                 if self.progress:
@@ -525,7 +526,7 @@ class FilePipeline:
             if self.progress:
                 self.progress.files_in_progress += 1
             try:
-                result = self.file_scanner.scan_file(unc_path, size, mtime, ctime, atime)
+                result = self.file_scanner.scan_file(unc_path, size, mtime, ctime, atime, display_name=display_name)
 
                 if self.state:
                     self.state.mark_file_done(unc_path)
@@ -533,9 +534,12 @@ class FilePipeline:
                         ctx.batch_writer.enqueue_checked(unc_path)
 
                 if result:
+                    log_path = result.file_path
+                    if result.display_name:
+                        log_path = f"{result.display_name} (via {result.file_path})"
                     log_file_result(
                         logger,
-                        result.file_path,
+                        log_path,
                         result.triage.label,
                         result.rule_name,
                         result.match,

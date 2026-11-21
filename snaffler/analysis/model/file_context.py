@@ -35,6 +35,7 @@ class FileContext:
     modified: Optional[datetime]
     created: Optional[datetime] = None
     accessed: Optional[datetime] = None
+    display_name: Optional[str] = None
 
     @classmethod
     def from_path(
@@ -44,18 +45,15 @@ class FileContext:
         mtime_epoch: float,
         ctime_epoch: float = 0.0,
         atime_epoch: float = 0.0,
+        display_name: Optional[str] = None,
     ) -> "FileContext":
         """Create a :class:`FileContext` from a file path and metadata.
 
-        Extracts basename and extension via :func:`os.path.basename` /
-        :func:`os.path.splitext`, and converts *mtime_epoch* / *ctime_epoch*
-        / *atime_epoch* to :class:`datetime` values via
-        :func:`_epoch_to_datetime`. Each timestamp is ``None`` when the
-        corresponding epoch is ``None``, ``0.0`` (both meaning "unknown"),
-        or out of range — applied uniformly to all three fields so a single
-        bad timestamp never aborts the file's scan.
+        When *display_name* is set (e.g. SCCM ContentLib original filename),
+        it overrides basename/extension derivation for rule matching while
+        *unc_path* stays as the real path for content reading.
         """
-        file_name = os.path.basename(file_path)
+        file_name = display_name if display_name else os.path.basename(file_path)
         file_ext = os.path.splitext(file_name)[1]
         modified = _epoch_to_datetime(mtime_epoch)
         created = _epoch_to_datetime(ctime_epoch)
@@ -68,4 +66,5 @@ class FileContext:
             modified=modified,
             created=created,
             accessed=accessed,
+            display_name=display_name,
         )

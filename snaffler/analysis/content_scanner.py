@@ -65,6 +65,7 @@ def evaluate_content(
             rule_name=rule.rule_name,
             match=match_text,
             context=text[start:end],
+            display_name=ctx.display_name,
         )
 
         best_result = FileResult.pick_best(best_result, result)
