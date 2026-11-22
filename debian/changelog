@@ -1,3 +1,17 @@
+snaffler-ng (1.7.0-0kali1) kali-dev; urgency=medium
+
+  * SCCM ContentLib deep scan — DataLib INI to FileLib blob resolution
+  * Add --netbios flag to override derived NetBIOS domain name
+  * DER private key detection (RSA, EC, encrypted) + .key CHECK_FOR_KEYS
+  * Fix ContentLib share-level detection and fast mode handling
+  * Fix ADDiscovery swallowing auth errors
+  * Replace click.Choice with StrEnum for CLI options
+  * Switch CI to uv lockfile, unpin deb build tools for Kali rolling
+  * Run all e2e tests against installed .deb package
+  * Add Windows VM e2e tests (29 tests via winbox)
+
+ -- totekuh <totekuh@protonmail.com>  Sat, 22 Nov 2026 15:00:00 +0000
+
 snaffler-ng (1.6.1-0kali1) kali-dev; urgency=medium
 
   * Fix Kerberos TGS-REQ against Samba AD DCs
