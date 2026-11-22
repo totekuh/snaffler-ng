@@ -1,4 +1,4 @@
-.PHONY: install uninstall lint test-all test-unit test-e2e test-e2e-ad test-e2e-socks test-e2e-full test-ad-scan test-windows setup-windows clean
+.PHONY: install uninstall lint test-all test-unit test-e2e test-e2e-ad test-e2e-socks test-e2e-full test-ad-scan setup-windows test-e2e-windows clean
 
 install:
 	pipx uninstall snaffler-ng || echo "Not installed, skipping uninstall"
@@ -12,7 +12,7 @@ lint:
 	uv run ruff format --check snaffler/
 	uv run mypy snaffler/
 
-test-all: test-unit test-e2e-full
+test-all: test-unit test-e2e-full test-e2e-windows
 
 test-unit:
 	python -m pytest tests/unit/ -v --tb=short --cov=snaffler --cov-fail-under=85
@@ -39,7 +39,7 @@ setup-windows:
 	uv pip install "mcp>=1.29.1,<2"
 	winbox up
 
-test-windows:
+test-e2e-windows: setup-windows
 	uv run pytest tests/windows/ -v --tb=short
 
 clean:
