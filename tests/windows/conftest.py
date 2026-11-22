@@ -285,6 +285,25 @@ def windows_env():
             source=str(_DATA_DIR / "test-inline-password.ps1"),
         )
 
+        # -- Seed DER private key + edge case cert files --
+        import tempfile as _tf
+        from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
+        from cryptography.hazmat.primitives import serialization as _ser
+        _der_key = _rsa.generate_private_key(65537, 2048)
+        _der_bytes = _der_key.private_bytes(_ser.Encoding.DER, _ser.PrivateFormat.PKCS8, _ser.NoEncryption())
+        share_mkdir(name="SnaffTest", path="certs")
+        with _tf.NamedTemporaryFile(suffix=".key", delete=False) as _f:
+            _f.write(_der_bytes)
+            _der_tmp = _f.name
+        share_write(name="SnaffTest", path="certs/server.key", source=_der_tmp)
+        Path(_der_tmp).unlink()
+        share_write(name="SnaffTest", path="certs/empty.key", content="")
+        with _tf.NamedTemporaryFile(suffix=".der", delete=False) as _f:
+            _f.write(os.urandom(64))
+            _garb_tmp = _f.name
+        share_write(name="SnaffTest", path="certs/garbage.der", source=_garb_tmp)
+        Path(_garb_tmp).unlink()
+
         # -- Seed SCCM ContentLib structure (case 1: share IS ContentLib) --
         share_mkdir(name="SCCMContentLib", path="DataLib")
         share_mkdir(name="SCCMContentLib", path="FileLib")

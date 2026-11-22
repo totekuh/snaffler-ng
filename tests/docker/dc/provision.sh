@@ -80,6 +80,17 @@ echo "DB_HOST=prod-db.corp.local" > /srv/shares/data/config.ini
 echo "password=s3cret" >> /srv/shares/data/config.ini
 echo "svc_sql credentials here" > /srv/shares/finance/passwords.txt
 echo "normal file content" > /srv/shares/it/readme.txt
+
+# DER private key + edge case cert files
+python3 -c "
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
+k = rsa.generate_private_key(65537, 2048)
+open('/srv/shares/data/server.key','wb').write(k.private_bytes(Encoding.DER, PrivateFormat.PKCS8, NoEncryption()))
+"
+touch /srv/shares/data/empty.key
+dd if=/dev/urandom bs=64 count=1 of=/srv/shares/data/garbage.der 2>/dev/null
+
 chmod -R 0777 /srv/shares
 
 echo "[*] Creating SCCM ContentLib test fixture"

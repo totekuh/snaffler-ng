@@ -220,3 +220,103 @@ def test_empty_custom_passwords_uses_empty():
     """BUG-K: empty list is a valid custom list, not treated as None."""
     checker = CertificateChecker(custom_passwords=[])
     assert checker.passwords == []
+
+
+# ---------- DER private key detection ----------
+
+
+def test_der_rsa_private_key_detected():
+    key = gen_key()
+    data = key.private_bytes(
+        serialization.Encoding.DER,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    checker = CertificateChecker()
+    res = checker.check_certificate(data, "server.key")
+    assert "HasPrivateKey" in res
+    assert "NoPasswordRequired" in res
+
+
+def test_der_ec_private_key_detected():
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    data = key.private_bytes(
+        serialization.Encoding.DER,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    checker = CertificateChecker()
+    res = checker.check_certificate(data, "ec.key")
+    assert "HasPrivateKey" in res
+
+
+def test_der_encrypted_private_key_detected():
+    key = gen_key()
+    data = key.private_bytes(
+        serialization.Encoding.DER,
+        serialization.PrivateFormat.PKCS8,
+        serialization.BestAvailableEncryption(b"password"),
+    )
+    checker = CertificateChecker()
+    res = checker.check_certificate(data, "encrypted.der")
+    assert "HasPrivateKey" in res
+    assert "PasswordCracked:password" in res
+
+
+def test_der_public_key_not_flagged():
+    key = gen_key()
+    data = key.public_key().public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    checker = CertificateChecker()
+    res = checker.check_certificate(data, "pubkey.der")
+    assert "HasPrivateKey" not in res
+
+
+def test_der_cert_only_no_private_key():
+    key = gen_key()
+    cert = gen_cert(key)
+    data = cert.public_bytes(serialization.Encoding.DER)
+    checker = CertificateChecker()
+    res = checker.check_certificate(data, "cert.der")
+    assert "HasPrivateKey" not in res
+
+
+def test_pem_private_key_still_works():
+    """Regression: PEM keys still detected after DER changes."""
+    key = gen_key()
+    data = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    checker = CertificateChecker()
+    res = checker.check_certificate(data, "key.pem")
+    assert "HasPrivateKey" in res
+
+
+def test_malformed_der_no_crash():
+    checker = CertificateChecker()
+    res = checker.check_certificate(b"\x30\x82\xff\xff" + b"\x00" * 96, "malformed.der")
+    assert "HasPrivateKey" not in res
+
+
+def test_empty_data_no_crash():
+    checker = CertificateChecker()
+    res = checker.check_certificate(b"", "empty.key")
+    assert res == []
+
+
+def test_truncated_der_no_crash():
+    key = gen_key()
+    full = key.private_bytes(
+        serialization.Encoding.DER,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    checker = CertificateChecker()
+    res = checker.check_certificate(full[:10], "truncated.der")
+    assert "HasPrivateKey" not in res

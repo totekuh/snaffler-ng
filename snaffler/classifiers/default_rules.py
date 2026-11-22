@@ -365,7 +365,7 @@ def get_key_and_cert_rules() -> List[ClassifierRule]:
             match_action=MatchAction.CHECK_FOR_KEYS,
             match_location=MatchLocation.FILE_EXTENSION,
             wordlist_type=MatchListType.EXACT,
-            wordlist=[".pem", ".der", ".pfx", ".pk12", ".p12", ".pkcs12"],
+            wordlist=[".pem", ".der", ".pfx", ".pk12", ".p12", ".pkcs12", ".key"],
             triage=Triage.RED,
             description="Files with these extensions will be parsed as x509 certificates to see if they have private keys.",
         ),

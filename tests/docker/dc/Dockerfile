@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnss-winbind \
     libpam-winbind \
     procps \
+    python3-cryptography \
     && rm -rf /var/lib/apt/lists/*
 
 COPY provision.sh /provision.sh

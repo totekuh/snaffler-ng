@@ -554,3 +554,45 @@ class TestSCCMContentLib:
             )
         finally:
             Path(db_path).unlink(missing_ok=True)
+
+
+class TestCertDetection:
+    """DER private key detection and cert edge cases against Samba DC."""
+
+    def test_der_private_key_found(self, ad_dc):
+        """server.key (DER RSA private key) produces RED finding."""
+        db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        db_path = db.name
+        db.close()
+        try:
+            cfg = _make_scan_cfg(unc_targets=[f"//{DC_HOST}/data"])
+            cfg.state.state_db = db_path
+            _, p = _run_scan(cfg)
+
+            store = SQLiteStateStore(db_path)
+            findings = store.load_findings()
+            store.close()
+
+            key_findings = [
+                f for f in findings
+                if "server.key" in f["file_path"].lower()
+                or "cert" in (f.get("rule_name") or "").lower()
+            ]
+            assert len(key_findings) > 0, (
+                f"No finding from DER private key server.key. "
+                f"All findings: {[(f['file_path'], f['rule_name']) for f in findings]}"
+            )
+        finally:
+            Path(db_path).unlink(missing_ok=True)
+
+    def test_empty_key_no_crash(self, ad_dc):
+        """empty.key (0 bytes) doesn't crash the scanner."""
+        cfg = _make_scan_cfg(unc_targets=[f"//{DC_HOST}/data"])
+        _, p = _run_scan(cfg)
+        assert p.scan_complete is True
+
+    def test_garbage_der_no_crash(self, ad_dc):
+        """garbage.der (random bytes) doesn't crash the scanner."""
+        cfg = _make_scan_cfg(unc_targets=[f"//{DC_HOST}/data"])
+        _, p = _run_scan(cfg)
+        assert p.scan_complete is True

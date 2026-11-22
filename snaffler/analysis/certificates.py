@@ -107,9 +107,9 @@ class CertificateChecker:
         if cert is not None or private_key is not None:
             return cert, private_key, password_used
 
-        # Try DER format
-        cert, private_key, password_used = self._try_parse_der(cert_data)
-        if cert is not None:
+        # Try DER format (private key + certificate)
+        cert, private_key, password_used = self._try_parse_der(cert_data, passwords)
+        if cert is not None or private_key is not None:
             return cert, private_key, password_used
 
         logger.debug(f"Could not parse certificate {filename} in any known format")
@@ -172,11 +172,28 @@ class CertificateChecker:
 
         return None, None, None
 
-    def _try_parse_der(self, cert_data: bytes):
-        """Try to parse as DER format (no private key support in DER alone)"""
+    def _try_parse_der(self, cert_data: bytes, passwords: List[str]):
+        """Try to parse as DER format (private key and/or certificate)."""
+        # Try DER private key (unencrypted)
+        try:
+            private_key = serialization.load_der_private_key(cert_data, password=None, backend=default_backend())
+            return None, private_key, None
+        except Exception:
+            pass
+
+        # Try DER private key (encrypted, brute-force passwords)
+        for pwd in passwords:
+            try:
+                private_key = serialization.load_der_private_key(
+                    cert_data, password=pwd.encode("utf-8"), backend=default_backend()
+                )
+                return None, private_key, pwd
+            except Exception:
+                continue
+
+        # Try DER x509 certificate
         try:
             cert = x509.load_der_x509_certificate(cert_data, default_backend())
-            # DER files typically don't contain private keys
             return cert, None, None
         except Exception as e:
             logger.debug(f"DER parsing failed: {e}")
