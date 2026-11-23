@@ -5,9 +5,7 @@ SMBTreeWalker, ShareFinder, FTPFileAccessor, and FTPTreeWalker.
 """
 
 import threading
-from typing import Callable, TypeVar
-
-T = TypeVar("T")
+from typing import Any, Callable
 
 
 class ThreadLocalConnectionCache:
@@ -26,23 +24,23 @@ class ThreadLocalConnectionCache:
 
     def __init__(
         self,
-        connect_fn: Callable,
-        health_check_fn: Callable,
-        disconnect_fn: Callable,
+        connect_fn: Callable[[Any], Any],
+        health_check_fn: Callable[[Any], None],
+        disconnect_fn: Callable[[Any], None],
         cache_attr: str = "cache",
-    ):
+    ) -> None:
         self._connect_fn = connect_fn
         self._health_check_fn = health_check_fn
         self._disconnect_fn = disconnect_fn
         self._cache_attr = cache_attr
 
         self._thread_local = threading.local()
-        self._all_connections: list = []
+        self._all_connections: list[Any] = []
         self._conn_lock = threading.Lock()
 
-    def get(self, key):
+    def get(self, key: Any) -> Any:
         """Return a cached connection for *key*, creating one if needed."""
-        cache = getattr(self._thread_local, self._cache_attr, None)
+        cache: dict[Any, Any] | None = getattr(self._thread_local, self._cache_attr, None)
         if cache is None:
             cache = {}
             setattr(self._thread_local, self._cache_attr, cache)
@@ -61,9 +59,9 @@ class ThreadLocalConnectionCache:
             self._all_connections.append(conn)
         return conn
 
-    def invalidate(self, key):
+    def invalidate(self, key: Any) -> None:
         """Disconnect and remove a cached connection for *key*."""
-        cache = getattr(self._thread_local, self._cache_attr, None)
+        cache: dict[Any, Any] | None = getattr(self._thread_local, self._cache_attr, None)
         if cache is None:
             return
         conn = cache.pop(key, None)
@@ -78,7 +76,7 @@ class ThreadLocalConnectionCache:
             except Exception:
                 pass
 
-    def close_all(self):
+    def close_all(self) -> None:
         """Close all cached connections across all threads."""
         with self._conn_lock:
             for conn in self._all_connections:
@@ -88,7 +86,7 @@ class ThreadLocalConnectionCache:
                     pass
             self._all_connections.clear()
 
-    def _evict(self, cache, key, conn):
+    def _evict(self, cache: dict[Any, Any], key: Any, conn: Any) -> None:
         """Remove a stale connection from the cache and global list."""
         with self._conn_lock:
             try:

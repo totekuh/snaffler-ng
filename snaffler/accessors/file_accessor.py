@@ -2,26 +2,24 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
+from pathlib import Path
 
 logger = logging.getLogger("snaffler")
 
 
 class FileAccessor(ABC):
     @abstractmethod
-    def read(self, file_path: str, max_bytes: Optional[int] = None) -> Optional[bytes]: ...
+    def read(self, file_path: str, max_bytes: int | None = None) -> bytes | None: ...
 
     @abstractmethod
-    def copy_to_local(self, file_path: str, dest_root) -> None: ...
+    def copy_to_local(self, file_path: str, dest_root: str) -> None: ...
 
-    def close(self):
+    def close(self) -> None:
         """Release resources. Override in subclasses with connections to clean up."""
         pass
 
-    def _safe_local_write(self, dest_root, relative_parts: list, data: bytes) -> bool:
+    def _safe_local_write(self, dest_root: str, relative_parts: list[str], data: bytes) -> bool:
         """Write data under dest_root with path traversal protection. Returns True on success."""
-        from pathlib import Path
-
         local = Path(dest_root).joinpath(*relative_parts).resolve()
         root = Path(dest_root).resolve()
         if not local.is_relative_to(root):

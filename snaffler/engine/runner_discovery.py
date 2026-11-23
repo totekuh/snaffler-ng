@@ -199,7 +199,7 @@ class DiscoveryMixin:
 
         return self._filter_paths_by_share(new_shares)
 
-    def _rescan_unreadable(self):
+    def _rescan_unreadable(self) -> None:
         """Re-test previously unreadable shares with current creds."""
         unreadable = self.state.load_unreadable_shares()
 

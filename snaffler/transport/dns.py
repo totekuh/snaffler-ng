@@ -53,7 +53,7 @@ def setup_custom_dns(nameserver: str, port: int = 53) -> None:
     resolver.nameservers = [nameserver]
     resolver.port = port
 
-    def custom_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    def custom_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):  # type: ignore[no-untyped-def]
         # Pass through non-hostname lookups
         if host is None:
             return _original_getaddrinfo(host, port, family, type, proto, flags)

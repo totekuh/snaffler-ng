@@ -15,7 +15,7 @@ def run_scan(
     *,
     socks_proxy: Optional[str] = None,
     nameserver: Optional[str] = None,
-):
+) -> None:
     import snaffler.cli.main as _cli
 
     setup_logging = _cli.setup_logging

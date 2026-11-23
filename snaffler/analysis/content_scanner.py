@@ -1,11 +1,11 @@
 """Content rule evaluation against raw file data."""
 
 import logging
-from typing import Optional
 
 from snaffler.analysis.model.file_context import FileContext
 from snaffler.analysis.model.file_result import FileResult
-from snaffler.classifiers.rules import Triage
+from snaffler.classifiers.evaluator import RuleEvaluator
+from snaffler.classifiers.rules import ClassifierRule, Triage
 
 logger = logging.getLogger("snaffler")
 
@@ -13,10 +13,10 @@ logger = logging.getLogger("snaffler")
 def evaluate_content(
     ctx: FileContext,
     data: bytes,
-    content_rules,
-    rule_evaluator,
+    content_rules: list[ClassifierRule],
+    rule_evaluator: RuleEvaluator,
     match_context_bytes: int,
-) -> Optional[FileResult]:
+) -> FileResult | None:
     if not data:
         return None
 
@@ -26,7 +26,7 @@ def evaluate_content(
         text = data.decode("latin-1", errors="ignore")
         logger.debug(f"Non-UTF-8 content in {ctx.unc_path}, decoded as Latin-1")
 
-    best_result: Optional[FileResult] = None
+    best_result: FileResult | None = None
 
     postmatch_checked = False
     postmatch_discard = False

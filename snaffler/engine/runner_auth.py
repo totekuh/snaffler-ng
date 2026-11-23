@@ -1,6 +1,7 @@
 """Credential validation mixin for SnafflerRunner."""
 
 import logging
+from typing import Any
 
 from snaffler.utils.path_utils import extract_unc_host
 
@@ -8,7 +9,10 @@ logger = logging.getLogger("snaffler")
 
 
 class AuthMixin:
-    def _validate_credentials(self):
+    cfg: Any
+    state: Any
+
+    def _validate_credentials(self) -> None:
         """Preflight auth check — try a single login before starting the scan.
 
         Hard-fails with a clear error if credentials are invalid so we don't
@@ -61,9 +65,9 @@ class AuthMixin:
             if not parsed:
                 return
             host, port, _ = parsed
-            transport = FTPTransport(cfg)
+            ftp_transport = FTPTransport(cfg)
             try:
-                ftp = transport.connect(host, port)
+                ftp = ftp_transport.connect(host, port)
                 try:
                     ftp.quit()
                 except Exception:
@@ -87,9 +91,9 @@ class AuthMixin:
                 target = extract_unc_host(unreadable[0])
         elif cfg.targets.unc_targets:
             for p in cfg.targets.unc_targets:
-                host = extract_unc_host(p)
-                if host is not None:
-                    target = host
+                unc_host = extract_unc_host(p)
+                if unc_host is not None:
+                    target = unc_host
                     break
         elif cfg.targets.computer_targets:
             target = cfg.targets.computer_targets[0]
@@ -99,9 +103,9 @@ class AuthMixin:
 
         from snaffler.transport.smb import SMBTransport
 
-        transport = SMBTransport(cfg)
+        smb_transport = SMBTransport(cfg)
         try:
-            smb = transport.connect(target)
+            smb = smb_transport.connect(target)
             try:
                 smb.close()
             except Exception:

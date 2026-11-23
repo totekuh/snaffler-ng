@@ -2,6 +2,7 @@
 
 import logging
 import re
+from typing import Any
 
 logger = logging.getLogger("snaffler")
 
@@ -24,7 +25,7 @@ def resolve_filelib_path(base_path: str, file_hash: str) -> str:
     return f"{base_path}/FileLib/{prefix}/{file_hash}"
 
 
-def walk_contentlib(smb, server: str, share: str, base_path: str, on_file) -> None:
+def walk_contentlib(smb: Any, server: str, share: str, base_path: str, on_file: Any) -> None:
     datalib_path = f"{base_path}/DataLib/"
     try:
         entries = smb.listPath(share, datalib_path + "*")

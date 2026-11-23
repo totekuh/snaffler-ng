@@ -3,7 +3,7 @@ Thread-safe progress counters for periodic status reporting.
 """
 
 import ctypes
-import os
+import sys
 import threading
 import time
 from datetime import datetime
@@ -11,7 +11,7 @@ from datetime import datetime
 
 def _get_rss_mb() -> int:
     """Return current RSS in MB, cross-platform."""
-    if os.name == "nt":
+    if sys.platform == "win32":
         # Windows: kernel32 GetProcessMemoryInfo via ctypes (no extra deps)
         class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
             _fields_ = [
@@ -29,9 +29,9 @@ def _get_rss_mb() -> int:
 
         pmc = PROCESS_MEMORY_COUNTERS()
         pmc.cb = ctypes.sizeof(pmc)
-        handle = ctypes.windll.kernel32.GetCurrentProcess()  # type: ignore[attr-defined]
-        if ctypes.windll.psapi.GetProcessMemoryInfo(handle, ctypes.byref(pmc), pmc.cb):  # type: ignore[attr-defined]
-            return pmc.WorkingSetSize // (1024 * 1024)
+        handle = ctypes.windll.kernel32.GetCurrentProcess()
+        if ctypes.windll.psapi.GetProcessMemoryInfo(handle, ctypes.byref(pmc), pmc.cb):
+            return int(pmc.WorkingSetSize) // (1024 * 1024)
         return 0
     else:
         import resource
@@ -42,7 +42,7 @@ def _get_rss_mb() -> int:
 class ProgressState:
     """Thread-safe progress counters for periodic status reporting."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._lock = threading.Lock()
         self.start_time = datetime.now()
 
@@ -50,13 +50,13 @@ class ProgressState:
         self.dns_total = 0
         self.dns_resolved = 0
         self.dns_filtered = 0
-        self.dns_start = None  # set when DNS phase begins
+        self.dns_start: float | None = None
 
         # Share discovery stage
         self.computers_total = 0
         self.computers_done = 0
         self.shares_found = 0
-        self.shares_start = None  # set when share discovery begins
+        self.shares_start: float | None = None
         self._shares_done_baseline: int = 0  # computers_done at start of resumed share discovery
 
         # Tree walking / file scanning stage
@@ -79,7 +79,7 @@ class ProgressState:
         # files_total while the tree walker is still discovering files.
         self.scan_complete = False
 
-    def snapshot(self) -> dict:
+    def snapshot(self) -> dict[str, int | bool | str]:
         """Return a point-in-time copy of all counters.
 
         Used by the web dashboard API to read a consistent set of values

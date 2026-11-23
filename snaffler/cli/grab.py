@@ -13,7 +13,7 @@ from snaffler.config.configuration import SnafflerConfiguration
 logger = logging.getLogger("snaffler")
 
 
-def run_grab(cfg: SnafflerConfiguration):
+def run_grab(cfg: SnafflerConfiguration) -> None:
     dest = cfg.scanning.snaffle_path
     assert dest is not None, "--snaffle-path is required for grab mode"
     Path(dest).mkdir(parents=True, exist_ok=True)
@@ -69,9 +69,9 @@ def run_grab(cfg: SnafflerConfiguration):
         elif file_path.startswith("//"):
             from snaffler.utils.path_utils import parse_unc_path
 
-            parsed = parse_unc_path(file_path)
-            if parsed:
-                server, share, smb_path, _name, _ext = parsed
+            unc_parsed = parse_unc_path(file_path)
+            if unc_parsed:
+                server, share, smb_path, _name, _ext = unc_parsed
                 clean = smb_path.lstrip("\\/").replace("\\", "/")
                 return (Path(dest) / server / share / clean).resolve()
         else:

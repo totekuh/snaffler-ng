@@ -4,7 +4,9 @@ SMB-based directory tree walking using impacket SMBConnection.
 
 import logging
 import threading
+from collections.abc import Callable
 from concurrent.futures import CancelledError
+from typing import Any
 
 from impacket.smbconnection import SessionError
 
@@ -32,12 +34,12 @@ class SMBTreeWalker(TreeWalker):
             cache_attr="connections",
         )
 
-    def close(self):
+    def close(self) -> None:
         """Close all cached SMB connections across all threads."""
         self._cache.close_all()
 
     @staticmethod
-    def _parse_unc(unc_path: str):
+    def _parse_unc(unc_path: str) -> tuple[str, str, str] | None:
         """Parse UNC path into (server, share, path) or None on invalid input."""
         normalized = unc_path.replace("\\", "/")
         parts = [p for p in normalized.split("/") if p]
@@ -50,7 +52,13 @@ class SMBTreeWalker(TreeWalker):
         path = "/" + "/".join(parts[2:]) if len(parts) > 2 else "/"
         return server, share, path
 
-    def walk_directory(self, unc_path: str, on_file=None, on_dir=None, cancel: threading.Event | None = None) -> list:
+    def walk_directory(
+        self,
+        unc_path: str,
+        on_file: Callable[..., object] | None = None,
+        on_dir: Callable[[str], object] | None = None,
+        cancel: threading.Event | None = None,
+    ) -> list[str]:
         """Walk a single directory (non-recursive) and return subdirectory UNC paths.
 
         Args:
@@ -97,14 +105,14 @@ class SMBTreeWalker(TreeWalker):
 
     def _list_directory(
         self,
-        smb,
+        smb: Any,
         server: str,
         share: str,
         path: str,
-        on_file,
-        on_dir,
+        on_file: Callable[..., object] | None,
+        on_dir: Callable[[str], object] | None,
         cancel: threading.Event | None = None,
-    ) -> list:
+    ) -> list[str]:
         """List one directory: call on_file for files, on_dir for subdirs.
 
         Returns list of relative subdirectory paths within the share

@@ -6,9 +6,11 @@ import logging
 import signal
 import threading
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
+from snaffler.accessors.file_accessor import FileAccessor
 from snaffler.config.configuration import SnafflerConfiguration
+from snaffler.discovery.tree import TreeWalker
 from snaffler.engine.domain_pipeline import DomainPipeline
 from snaffler.engine.file_pipeline import FilePipeline
 from snaffler.engine.runner_auth import AuthMixin
@@ -24,7 +26,7 @@ from snaffler.utils.progress import ProgressState
 logger = logging.getLogger("snaffler")
 
 
-def _deduplicate_paths(share_paths: List[str], dfs_paths: List[str]) -> List[str]:
+def _deduplicate_paths(share_paths: list[str], dfs_paths: list[str]) -> list[str]:
     """Merge share and DFS paths, deduplicating case-insensitively."""
     seen = {p.lower() for p in share_paths}
     merged = list(share_paths)
@@ -47,7 +49,7 @@ _SYNC_SCAN_MODE = "scan_mode"
 class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
     def __init__(self, cfg: SnafflerConfiguration):
         self.cfg = cfg
-        self.start_time = None
+        self.start_time: datetime | None = None
 
         # ---------- pre-computed exclusion set ----------
         self._exclusion_set = frozenset(e.upper() for e in (cfg.targets.exclusions or []))
@@ -55,7 +57,7 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
         # ---------- progress ----------
         self.progress = ProgressState()
         self._stop_event = threading.Event()
-        self._status_thread = None
+        self._status_thread: threading.Thread | None = None
 
         # ---------- state ----------
         self.state = ScanState(store=SQLiteStateStore(cfg.state.state_db))
@@ -88,8 +90,8 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
                     f"{_FTP_MAX_PER_BUCKET} file to avoid connection floods"
                 )
 
-            tree_walker = FTPTreeWalker(cfg)
-            file_accessor = FTPFileAccessor(cfg)
+            tree_walker: TreeWalker = FTPTreeWalker(cfg)
+            file_accessor: FileAccessor = FTPFileAccessor(cfg)
             self.file_pipeline = FilePipeline(
                 cfg=cfg,
                 state=self.state,
@@ -102,11 +104,11 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
             from snaffler.accessors.local_file_accessor import LocalFileAccessor
             from snaffler.discovery.local_tree_walker import LocalTreeWalker
 
-            tree_walker = LocalTreeWalker(  # type: ignore[assignment]
+            tree_walker = LocalTreeWalker(
                 dir_rules=cfg.rules.directory,
                 exclude_unc=cfg.targets.exclude_unc,
             )
-            file_accessor = LocalFileAccessor()  # type: ignore[assignment]
+            file_accessor = LocalFileAccessor()
             self.file_pipeline = FilePipeline(
                 cfg=cfg,
                 state=self.state,
@@ -117,17 +119,17 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
         else:
             self.file_pipeline = FilePipeline(cfg=cfg, state=self.state, progress=self.progress)
 
-    def _start_status_thread(self):
+    def _start_status_thread(self) -> None:
         self._stop_event.clear()
         self._status_thread = threading.Thread(target=self._status_loop, daemon=True)
         self._status_thread.start()
 
-    def _stop_status_thread(self):
+    def _stop_status_thread(self) -> None:
         self._stop_event.set()
         if self._status_thread is not None:
             self._status_thread.join(timeout=2)
 
-    def _status_loop(self):
+    def _status_loop(self) -> None:
         while not self._stop_event.wait(timeout=_STATUS_INTERVAL):
             try:
                 self._sync_progress_from_state()
@@ -135,7 +137,7 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
             except Exception:
                 pass
 
-    def _run_file_pipeline(self, paths: list):
+    def _run_file_pipeline(self, paths: list[str]) -> None:
         """Rebalance threads and run the file scanning pipeline."""
         if paths:
             self._rebalance_file_threads()
@@ -157,7 +159,7 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
             return "domain"
         return "unknown"
 
-    def _check_scan_mode_changed(self):
+    def _check_scan_mode_changed(self) -> None:
         """Reset phase flags if scan mode changed since last run."""
         if not self.state:
             return
@@ -170,7 +172,7 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
             self.state.clear_phase_flags()
         self.state.set_sync_value(_SYNC_SCAN_MODE, mode)
 
-    def execute(self):
+    def execute(self) -> None:
         self.start_time = datetime.now()
         logger.info(f"Starting Snaffler at {self.start_time:%Y-%m-%d %H:%M:%S}")
 
@@ -231,7 +233,7 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
                 # --max-hosts: keep only paths belonging to the first N hosts
                 limit = self.cfg.targets.max_hosts
                 if isinstance(limit, int):
-                    seen_hosts = {}
+                    seen_hosts: dict[str, bool] = {}
                     capped = []
                     for p in paths:
                         host = extract_unc_host(p)

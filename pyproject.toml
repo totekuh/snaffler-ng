@@ -103,16 +103,10 @@ quote-style = "double"
 
 [tool.mypy]
 python_version = "3.11"
+strict = true
 ignore_missing_imports = true
-check_untyped_defs = false
-warn_return_any = false
 warn_unused_configs = true
-
-[tool.pytest.ini_options]
-addopts = ["--import-mode=importlib"]
-markers = [
-    "windows: tests requiring a winbox Windows VM (skipped when VM unavailable)",
-]
+warn_unused_ignores = false
 
 [[tool.mypy.overrides]]
 module = [
@@ -124,3 +118,9 @@ module = [
     "snaffler.engine.runner_filters",
 ]
 ignore_errors = true
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
+markers = [
+    "windows: tests requiring a winbox Windows VM (skipped when VM unavailable)",
+]

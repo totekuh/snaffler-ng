@@ -56,12 +56,12 @@ class DirsFindingsMixin:
         file_path: str,
         triage: str,
         rule_name: str,
-        match_text: str = None,
-        context: str = None,
-        size: int = None,
-        mtime: str = None,
-        found_at: str = None,
-    ):
+        match_text: str | None = None,
+        context: str | None = None,
+        size: int | None = None,
+        mtime: str | None = None,
+        found_at: str | None = None,
+    ) -> None:
         from datetime import datetime
 
         if found_at is None:

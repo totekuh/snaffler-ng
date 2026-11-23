@@ -4,7 +4,7 @@ Detects certificates with private keys and extracts metadata
 """
 
 import logging
-from typing import ClassVar, List, Optional
+from typing import Any, ClassVar
 
 from cryptography import x509
 from cryptography.exceptions import UnsupportedAlgorithm
@@ -19,7 +19,7 @@ class CertificateChecker:
     """Check certificate files for private keys and extract metadata"""
 
     # Default password list for cracking protected certs
-    DEFAULT_PASSWORDS: ClassVar[List[str]] = [
+    DEFAULT_PASSWORDS: ClassVar[list[str]] = [
         "",  # Try blank password first
         "password",
         "Password",
@@ -32,7 +32,7 @@ class CertificateChecker:
         "password123",
     ]
 
-    def __init__(self, custom_passwords: Optional[List[str]] = None):
+    def __init__(self, custom_passwords: list[str] | None = None) -> None:
         """
         Initialize certificate checker
 
@@ -45,7 +45,7 @@ class CertificateChecker:
         else:
             self.passwords = self.DEFAULT_PASSWORDS.copy()
 
-    def check_certificate(self, cert_data: bytes, filename: str) -> List[str]:
+    def check_certificate(self, cert_data: bytes, filename: str) -> list[str]:
         """
         Check a certificate file for private keys and extract metadata
 
@@ -56,7 +56,7 @@ class CertificateChecker:
         Returns:
             List of match reasons describing what was found
         """
-        match_reasons: List[str] = []
+        match_reasons: list[str] = []
 
         # Add filename without extension as password candidate
         passwords_to_try = self.passwords.copy()
@@ -90,7 +90,7 @@ class CertificateChecker:
 
         return match_reasons
 
-    def _parse_certificate(self, cert_data: bytes, passwords: List[str], filename: str):
+    def _parse_certificate(self, cert_data: bytes, passwords: list[str], filename: str) -> tuple[Any, Any, str | None]:
         """
         Try to parse certificate with various methods
 
@@ -115,7 +115,7 @@ class CertificateChecker:
         logger.debug(f"Could not parse certificate {filename} in any known format")
         return None, None, None
 
-    def _try_parse_pem(self, cert_data: bytes, passwords: List[str]):
+    def _try_parse_pem(self, cert_data: bytes, passwords: list[str]) -> tuple[Any, Any, str | None]:
         """Try to parse as PEM format (certificate and/or private key)."""
         cert = None
         private_key = None
@@ -149,7 +149,7 @@ class CertificateChecker:
             return cert, private_key, password_used
         return None, None, None
 
-    def _try_parse_pkcs12(self, cert_data: bytes, passwords: List[str]):
+    def _try_parse_pkcs12(self, cert_data: bytes, passwords: list[str]) -> tuple[Any, Any, str | None]:
         """Try to parse as PKCS#12/PFX format"""
         # Try without password first
         try:
@@ -172,7 +172,7 @@ class CertificateChecker:
 
         return None, None, None
 
-    def _try_parse_der(self, cert_data: bytes, passwords: List[str]):
+    def _try_parse_der(self, cert_data: bytes, passwords: list[str]) -> tuple[Any, Any, str | None]:
         """Try to parse as DER format (private key and/or certificate)."""
         # Try DER private key (unencrypted)
         try:
@@ -199,7 +199,7 @@ class CertificateChecker:
             logger.debug(f"DER parsing failed: {e}")
             return None, None, None
 
-    def _extract_cert_info(self, cert: x509.Certificate) -> List[str]:
+    def _extract_cert_info(self, cert: x509.Certificate) -> list[str]:
         """Extract metadata from certificate"""
         info = []
 

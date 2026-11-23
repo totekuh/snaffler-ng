@@ -18,7 +18,7 @@ class DomainPipeline:
     Domain → computers pipeline
     """
 
-    def __init__(self, cfg: SnafflerConfiguration, exclusion_set: frozenset | None = None):
+    def __init__(self, cfg: SnafflerConfiguration, exclusion_set: frozenset[str] | None = None):
         self.cfg = cfg
 
         auth = cfg.auth

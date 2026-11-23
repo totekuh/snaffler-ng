@@ -2,11 +2,12 @@
 
 import ipaddress
 import logging
+from typing import Any
 
 from snaffler.transport.kerberos import get_tgt_and_tgs
 
 
-def _is_ip(host):
+def _is_ip(host: str) -> bool:
     try:
         ipaddress.ip_address(host)
         return True
@@ -17,7 +18,7 @@ def _is_ip(host):
 logger = logging.getLogger("snaffler")
 
 
-def authenticate_smb(smb, auth):
+def authenticate_smb(smb: Any, auth: Any) -> None:
     """Authenticate an SMBConnection using Kerberos or NTLM.
 
     Args:
@@ -60,7 +61,7 @@ def authenticate_smb(smb, auth):
         )
 
 
-def authenticate_ldap(ldap_conn, auth):
+def authenticate_ldap(ldap_conn: Any, auth: Any) -> None:
     """Authenticate an LDAPConnection using Kerberos or NTLM.
 
     Args:

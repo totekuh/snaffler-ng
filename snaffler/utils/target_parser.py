@@ -90,12 +90,12 @@ def _expand_full_range(left: str, right: str, original: str) -> List[str]:
         logger.error("Invalid IP range '%s': %s", original, exc)
         raise ValueError(f"Invalid IP range '{original}': {exc}") from exc
 
-    if end < start:  # type: ignore[operator]
+    if int(end) < int(start):
         raise ValueError(f"Invalid IP range '{original}': end address is before start")
 
     hosts = []
     current = start
-    while current <= end:  # type: ignore[operator]
+    while int(current) <= int(end):
         hosts.append(str(current))
         current += 1
 

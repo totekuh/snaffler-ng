@@ -7,14 +7,16 @@ from typing import List, Optional
 
 import typer
 
-from snaffler.classifiers.loader import RuleLoader  # noqa: F401 — used by run_scan via module
+from snaffler.classifiers.loader import RuleLoader
 from snaffler.cli.config_builder import build_config
 from snaffler.cli.grab import run_grab
 from snaffler.cli.results import results_app
 from snaffler.cli.run_scan import run_scan
-from snaffler.config.configuration import SnafflerConfiguration  # noqa: F401 — used by run_scan via module
-from snaffler.engine.runner import SnafflerRunner  # noqa: F401 — used by run_scan via module
-from snaffler.utils.logger import setup_logging  # noqa: F401 — used by run_scan via module
+from snaffler.config.configuration import SnafflerConfiguration
+from snaffler.engine.runner import SnafflerRunner
+from snaffler.utils.logger import setup_logging
+
+__all__ = ["RuleLoader", "SnafflerConfiguration", "SnafflerRunner", "setup_logging"]
 
 logger = logging.getLogger("snaffler")
 
@@ -26,7 +28,7 @@ def _get_version() -> str:
         return "1.5.11"  # fallback for PyInstaller/frozen builds — update on release
 
 
-def _version_callback(value: bool):
+def _version_callback(value: bool) -> None:
     if value:
         typer.echo(f"snaffler-ng {_get_version()}")
         raise typer.Exit()
@@ -67,7 +69,7 @@ class LogType(StrEnum):
     tsv = "tsv"
 
 
-def banner():
+def banner() -> None:
     typer.echo(r"""
    _____ _   _          ______ ______ _      ______ _____
   / ____| \ | |   /\   |  ____|  ____| |    |  ____|  __ \
@@ -463,7 +465,7 @@ def main(
         help="Port for web dashboard (default: 8080)",
         rich_help_panel="Web Dashboard",
     ),
-):
+) -> None:
     if ctx.invoked_subcommand is not None:
         return
 

@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from impacket.smb import FILE_READ_ATTRIBUTES, FILE_READ_DATA, FILE_SHARE_READ
 from impacket.smbconnection import SessionError
@@ -17,7 +17,7 @@ logger = logging.getLogger("snaffler")
 
 
 class SMBFileAccessor(FileAccessor):
-    def __init__(self, cfg):
+    def __init__(self, cfg: Any) -> None:
         self._transport = SMBTransport(cfg)
         self._max_file_bytes = cfg.scanning.max_file_bytes
         self._cache = ThreadLocalConnectionCache(
@@ -28,7 +28,7 @@ class SMBFileAccessor(FileAccessor):
         )
 
     @staticmethod
-    def _parse(file_path: str):
+    def _parse(file_path: str) -> tuple[str, str, str] | None:
         """Parse a UNC path into (server, share, smb_path) or None."""
         parsed = parse_unc_path(file_path)
         if not parsed:
@@ -36,7 +36,7 @@ class SMBFileAccessor(FileAccessor):
         server, share, smb_path, _name, _ext = parsed
         return server, share, smb_path
 
-    def read(self, file_path: str, max_bytes: Optional[int] = None) -> Optional[bytes]:
+    def read(self, file_path: str, max_bytes: int | None = None) -> bytes | None:
         parsed = self._parse(file_path)
         if not parsed:
             return None
@@ -73,11 +73,11 @@ class SMBFileAccessor(FileAccessor):
             self._cache.invalidate(server)
             raise
 
-    def close(self):
+    def close(self) -> None:
         """Close all cached SMB connections across all threads."""
         self._cache.close_all()
 
-    def copy_to_local(self, file_path: str, dest_root) -> None:
+    def copy_to_local(self, file_path: str, dest_root: str) -> None:
         parsed = self._parse(file_path)
         if not parsed:
             return

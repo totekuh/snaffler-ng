@@ -7,6 +7,7 @@ Samba 4.17+ enforces the checksum and rejects requests without it
 
 import datetime
 import random
+from typing import Any
 
 from impacket.krb5 import constants
 from impacket.krb5.asn1 import (
@@ -34,7 +35,7 @@ _KEY_USAGE_TGS_REQ_CKSUM = 6
 _KEY_USAGE_TGS_REQ_AUTH = 7
 
 
-def _strip_context_tag(encoded):
+def _strip_context_tag(encoded: bytes) -> bytes:
     """Strip DER context tag to get bare SEQUENCE bytes.
 
     The req-body in KDC-REQ is context-tagged [4] (0xa4), but RFC 4120
@@ -51,7 +52,9 @@ def _strip_context_tag(encoded):
     return encoded[idx:]
 
 
-def get_kerberos_tgs(server_name, domain, kdc_host, tgt, cipher, session_key):
+def get_kerberos_tgs(
+    server_name: Any, domain: str, kdc_host: str, tgt: bytes, cipher: Any, session_key: Any
+) -> tuple[bytes, Any, Any, Any]:
     """Request a TGS with a proper Authenticator checksum.
 
     Drop-in replacement for impacket's getKerberosTGS(). Returns the same
@@ -151,7 +154,7 @@ def get_kerberos_tgs(server_name, domain, kdc_host, tgt, cipher, session_key):
     return r, new_cipher_obj, session_key, new_session_key
 
 
-def get_tgt_and_tgs(auth, server_name_str, remote_host):
+def get_tgt_and_tgs(auth: Any, server_name_str: str, remote_host: str) -> tuple[dict[str, Any], dict[str, Any]]:
     """Get TGT via impacket, then TGS via our fixed function.
 
     Returns (TGT_dict, TGS_dict) in the format impacket's

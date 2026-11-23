@@ -6,7 +6,7 @@ _STATIC_DIR = Path(__file__).parent / "static"
 _TEMPLATE = None
 
 
-def _load_template():
+def _load_template() -> str:
     global _TEMPLATE
     if _TEMPLATE is None:
         _TEMPLATE = (_STATIC_DIR / "dashboard.html").read_text()

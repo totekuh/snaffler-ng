@@ -5,15 +5,17 @@ Configuration management for Snaffler Linux
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import tomlkit
+
+from snaffler.classifiers.rules import ClassifierRule
 
 _cfg_logger = logging.getLogger("snaffler")
 
 # Shared default cert passwords — used by both CLI (ScanningConfig) and
 # library API (Snaffler).  Keep in one place so they never diverge.
-DEFAULT_CERT_PASSWORDS: List[str] = [
+DEFAULT_CERT_PASSWORDS: list[str] = [
     "",
     "password",
     "mimikatz",
@@ -35,7 +37,7 @@ DEFAULT_CERT_PASSWORDS: List[str] = [
 
 # Directories skipped by --fast mode.  Massive file counts with near-zero
 # probability of containing credentials or secrets.
-FAST_MODE_EXCLUSIONS: List[str] = [
+FAST_MODE_EXCLUSIONS: list[str] = [
     # Windows OS internals
     "*/Windows/Installer/*",
     "*/Windows/SoftwareDistribution/*",
@@ -105,9 +107,9 @@ class AuthConfig:
 
 @dataclass
 class TargetingConfig:
-    unc_targets: List[str] = field(default_factory=list)
-    computer_targets: List[str] = field(default_factory=list)
-    local_targets: List[str] = field(default_factory=list)
+    unc_targets: list[str] = field(default_factory=list)
+    computer_targets: list[str] = field(default_factory=list)
+    local_targets: list[str] = field(default_factory=list)
 
     shares_only: bool = False
 
@@ -120,16 +122,16 @@ class TargetingConfig:
     check_writable: bool = True
 
     ldap_filter: str = "(objectClass=computer)"
-    exclusions: List[str] = field(default_factory=list)
+    exclusions: list[str] = field(default_factory=list)
 
     skip_disabled_computers: bool = True
     max_computer_staleness_months: int = 4
 
-    share_filter: List[str] = field(default_factory=list)
-    exclude_share: List[str] = field(default_factory=list)
-    exclude_unc: List[str] = field(default_factory=list)
+    share_filter: list[str] = field(default_factory=list)
+    exclude_share: list[str] = field(default_factory=list)
+    exclude_unc: list[str] = field(default_factory=list)
 
-    ftp_targets: List[str] = field(default_factory=list)
+    ftp_targets: list[str] = field(default_factory=list)
     ftp_tls: bool = False
 
     max_hosts: Optional[int] = None
@@ -138,7 +140,7 @@ class TargetingConfig:
 
     # Dynamic domain user rules
     domain_users: bool = False
-    user_match_strings: List[str] = field(default_factory=list)
+    user_match_strings: list[str] = field(default_factory=list)
     user_min_len: int = 6
 
 
@@ -156,7 +158,7 @@ class ScanningConfig:
     max_depth: Optional[int] = None  # Max directory recursion depth (None = unlimited)
     match_filter: Optional[str] = None  # Regex filter for findings (path/rule/match/context)
     skip_binary: bool = False
-    cert_passwords: List[str] = field(default_factory=lambda: list(DEFAULT_CERT_PASSWORDS))
+    cert_passwords: list[str] = field(default_factory=lambda: list(DEFAULT_CERT_PASSWORDS))
 
 
 # ---------------- OUTPUT ----------------
@@ -188,11 +190,11 @@ class AdvancedConfig:
 @dataclass
 class RulesConfig:
     rule_dir: Optional[str] = None
-    share: list = field(default_factory=list)
-    directory: list = field(default_factory=list)
-    file: list = field(default_factory=list)
-    content: list = field(default_factory=list)
-    postmatch: list = field(default_factory=list)
+    share: list[ClassifierRule] = field(default_factory=list)
+    directory: list[ClassifierRule] = field(default_factory=list)
+    file: list[ClassifierRule] = field(default_factory=list)
+    content: list[ClassifierRule] = field(default_factory=list)
+    postmatch: list[ClassifierRule] = field(default_factory=list)
 
 
 # ---------------- STATE ----------------
@@ -225,7 +227,7 @@ class SnafflerConfiguration:
     web: WebConfig = field(default_factory=WebConfig)
 
     # ---------- validation ----------
-    def validate(self):
+    def validate(self) -> None:
         # ---------- NUMERIC BOUNDS ----------
         if self.advanced.max_threads < 3:
             raise ValueError("--max-threads must be >= 3 (need at least 1 per bucket)")
@@ -278,7 +280,7 @@ class SnafflerConfiguration:
 
     # ---------- TOML ----------
 
-    def load_from_toml(self, path: str):
+    def load_from_toml(self, path: str) -> None:
         with open(path) as f:
             data = tomlkit.load(f)
 
