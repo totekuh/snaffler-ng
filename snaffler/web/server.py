@@ -5,14 +5,17 @@ import sqlite3
 import threading
 import time
 from datetime import datetime
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
+from typing import Any
+
+from snaffler.utils.progress import ProgressState
 
 logger = logging.getLogger("snaffler")
 
-_server_thread = None
+_server_thread: threading.Thread | None = None
 
 
-def _check_flask():
+def _check_flask() -> ModuleType:
     """Import guard — raises ImportError with install hint if Flask is missing."""
     try:
         import flask
@@ -22,7 +25,7 @@ def _check_flask():
         raise ImportError("Flask is required for --web support. Install it with: pip install snaffler-ng[web]")
 
 
-def _detect_phase(progress) -> str:
+def _detect_phase(progress: Any) -> str:
     """Determine the current scan phase from ProgressState counters."""
     p = progress
 
@@ -52,7 +55,7 @@ def _detect_phase(progress) -> str:
     return "idle"
 
 
-def _format_size(size):
+def _format_size(size: int | None) -> str:
     """Format file size for display."""
     if size is None:
         return ""
@@ -64,7 +67,7 @@ def _format_size(size):
         return f"{size / (1024 * 1024):.1f} MB"
 
 
-def create_app(progress, db_path, start_time, mode="live"):
+def create_app(progress: ProgressState, db_path: str, start_time: datetime, mode: str = "live") -> Any:
     """Create and configure the Flask app.
 
     Args:
@@ -84,14 +87,14 @@ def create_app(progress, db_path, start_time, mode="live"):
     # Suppress werkzeug request logging
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
-    @app.route("/")
-    def index():
+    @app.route("/")  # type: ignore[untyped-decorator]
+    def index() -> Any:
         resp = flask.make_response(render_dashboard(mode=mode))
         resp.headers["Cache-Control"] = "no-store"
         return resp
 
-    @app.route("/api/progress")
-    def api_progress():
+    @app.route("/api/progress")  # type: ignore[untyped-decorator]
+    def api_progress() -> Any:
         snap = progress.snapshot()
         elapsed = (datetime.now() - start_time).total_seconds()
         phase = _detect_phase(SimpleNamespace(**snap))
@@ -100,8 +103,8 @@ def create_app(progress, db_path, start_time, mode="live"):
         snap["elapsed_seconds"] = int(elapsed)
         return flask.jsonify(snap)
 
-    @app.route("/api/stats")
-    def api_stats():
+    @app.route("/api/stats")  # type: ignore[untyped-decorator]
+    def api_stats() -> Any:
         try:
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
@@ -116,8 +119,8 @@ def create_app(progress, db_path, start_time, mode="live"):
             logger.debug(f"/api/stats error: {exc}")
             return flask.jsonify({"error": "Internal server error"}), 500
 
-    @app.route("/api/findings")
-    def api_findings():
+    @app.route("/api/findings")  # type: ignore[untyped-decorator]
+    def api_findings() -> Any:
         min_interest = flask.request.args.get("min_interest", 0, type=int)
         since_rowid = flask.request.args.get("since_rowid", 0, type=int)
         limit = flask.request.args.get("limit", 0, type=int)
@@ -169,8 +172,8 @@ def create_app(progress, db_path, start_time, mode="live"):
                 {"error": "Internal server error", "findings": [], "max_rowid": since_rowid, "has_more": False}
             ), 500
 
-    @app.route("/api/export/csv")
-    def api_export_csv():
+    @app.route("/api/export/csv")  # type: ignore[untyped-decorator]
+    def api_export_csv() -> Any:
         min_interest = flask.request.args.get("min_interest", 0, type=int)
         triage_order = {"Black": 0, "Red": 1, "Yellow": 2, "Green": 3}
         threshold = 3 - min_interest
@@ -179,7 +182,7 @@ def create_app(progress, db_path, start_time, mode="live"):
         import csv
         import io
 
-        def generate():
+        def generate() -> Any:
             yield "triage,rule_name,file_path,size,mtime,match_text,context\n"
             if not allowed:
                 return
@@ -215,8 +218,8 @@ def create_app(progress, db_path, start_time, mode="live"):
             headers={"Content-Disposition": "attachment; filename=snaffler_findings.csv"},
         )
 
-    @app.route("/api/export/json")
-    def api_export_json():
+    @app.route("/api/export/json")  # type: ignore[untyped-decorator]
+    def api_export_json() -> Any:
         min_interest = flask.request.args.get("min_interest", 0, type=int)
         triage_order = {"Black": 0, "Red": 1, "Yellow": 2, "Green": 3}
         threshold = 3 - min_interest
@@ -248,7 +251,7 @@ def create_app(progress, db_path, start_time, mode="live"):
     return app
 
 
-def start_web_server(progress, db_path, start_time, port=8080):
+def start_web_server(progress: ProgressState, db_path: str, start_time: datetime, port: int = 8080) -> None:
     """Start the Flask web dashboard in a daemon thread.
 
     Args:
@@ -261,7 +264,7 @@ def start_web_server(progress, db_path, start_time, port=8080):
 
     app = create_app(progress, db_path, start_time)
 
-    def run():
+    def run() -> None:
         try:
             app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
         except OSError as exc:
@@ -278,13 +281,13 @@ def start_web_server(progress, db_path, start_time, port=8080):
         logger.warning(f"Web dashboard failed to start on port {port}")
 
 
-def stop_web_server():
+def stop_web_server() -> None:
     """Clear the server thread reference. The daemon thread dies with the process."""
     global _server_thread
     _server_thread = None
 
 
-def _make_results_progress(db_path):
+def _make_results_progress(db_path: str) -> ProgressState:
     """Build a frozen ProgressState from a completed scan DB."""
     from snaffler.cli.results import _query_stats
     from snaffler.utils.progress import ProgressState
@@ -317,7 +320,7 @@ def _make_results_progress(db_path):
     return p
 
 
-def serve_results(db_path, port=8080):
+def serve_results(db_path: str, port: int = 8080) -> None:
     """Serve a completed scan DB through the web dashboard (blocks until Ctrl+C)."""
     import os
 

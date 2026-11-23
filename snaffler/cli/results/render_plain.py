@@ -1,6 +1,7 @@
 """Plain-text and JSON renderers for scan results."""
 
 import json
+from typing import Any
 
 import typer
 
@@ -8,7 +9,7 @@ from snaffler.cli.results.queries import TRIAGE_COLORS
 from snaffler.utils.logger import Colors, format_size
 
 
-def _render_plain(stats: dict, findings: list, unreadable_shares: list, use_color: bool):
+def _render_plain(stats: dict[str, dict[str, int]], findings: list[dict[str, Any]], unreadable_shares: list[str], use_color: bool) -> None:
     lines = []
 
     lines.append(f"{'── Stats ':─<50}")
@@ -76,6 +77,6 @@ def _render_plain(stats: dict, findings: list, unreadable_shares: list, use_colo
     typer.echo("\n".join(lines))
 
 
-def _render_json(stats: dict, findings: list, unreadable_shares: list):
+def _render_json(stats: dict[str, dict[str, int]], findings: list[dict[str, Any]], unreadable_shares: list[str]) -> None:
     output = {"stats": stats, "findings": findings, "unreadable_shares": unreadable_shares}
     typer.echo(json.dumps(output, indent=2, default=str))

@@ -2,6 +2,7 @@
 
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 import typer
 
@@ -34,8 +35,8 @@ def _open_db(path: Path) -> sqlite3.Connection:
         raise typer.Exit(code=1)
 
 
-def _query_stats(conn: sqlite3.Connection) -> dict:
-    def _count(table, col=None, val=None):
+def _query_stats(conn: sqlite3.Connection) -> dict[str, dict[str, int]]:
+    def _count(table: str, col: str | None = None, val: int | None = None) -> dict[str, int]:
         if col:
             total = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             done = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE {col} = ?", (val,)).fetchone()[0]
@@ -82,7 +83,7 @@ def _query_stats(conn: sqlite3.Connection) -> dict:
     return stats
 
 
-def _query_unreadable_shares(conn: sqlite3.Connection) -> list:
+def _query_unreadable_shares(conn: sqlite3.Connection) -> list[str]:
     try:
         rows = conn.execute("SELECT unc_path FROM target_share WHERE readable = 0 ORDER BY unc_path").fetchall()
         return [row[0] for row in rows]
@@ -90,7 +91,7 @@ def _query_unreadable_shares(conn: sqlite3.Connection) -> list:
         return []
 
 
-def _query_findings(conn: sqlite3.Connection, min_interest: int) -> list:
+def _query_findings(conn: sqlite3.Connection, min_interest: int) -> list[dict[str, Any]]:
     # Map min_interest (0=Green+, 1=Yellow+, 2=Red+, 3=Black only) to triage names
     threshold = 3 - min_interest  # Green=0→3, Yellow=1→2, Red=2→1, Black=3→0
     allowed = [name for name, order in TRIAGE_ORDER.items() if order <= threshold]
@@ -112,7 +113,7 @@ def _query_findings(conn: sqlite3.Connection, min_interest: int) -> list:
     return findings
 
 
-def _query_rule_counts(conn: sqlite3.Connection, min_interest: int = 0) -> list:
+def _query_rule_counts(conn: sqlite3.Connection, min_interest: int = 0) -> list[tuple[str, str, int]]:
     """Return [(rule_name, triage, count)] sorted by count descending."""
     threshold = 3 - min_interest  # Green=0→3, Yellow=1→2, Red=2→1, Black=3→0
     allowed = [name for name, order in TRIAGE_ORDER.items() if order <= threshold]

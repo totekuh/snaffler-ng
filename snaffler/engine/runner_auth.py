@@ -91,9 +91,9 @@ class AuthMixin:
                 target = extract_unc_host(unreadable[0])
         elif cfg.targets.unc_targets:
             for p in cfg.targets.unc_targets:
-                host = extract_unc_host(p)
-                if host is not None:
-                    target = host
+                unc_host = extract_unc_host(p)
+                if unc_host is not None:
+                    target = unc_host
                     break
         elif cfg.targets.computer_targets:
             target = cfg.targets.computer_targets[0]

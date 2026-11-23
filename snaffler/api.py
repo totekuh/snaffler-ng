@@ -29,7 +29,7 @@ Low-level two-phase API::
 import logging
 import re
 from types import SimpleNamespace
-from typing import Generator, List, Optional
+from typing import Any, Generator, List, Optional
 
 from snaffler.analysis.file_scanner import (
     FileCheckResult,
@@ -87,8 +87,8 @@ class Snaffler:
 
     def __init__(
         self,
-        walker=None,
-        reader=None,
+        walker: Any = None,
+        reader: Any = None,
         rule_dir: Optional[str] = None,
         min_interest: int = 0,
         max_read_bytes: int = _DEFAULT_MAX_READ_BYTES,
@@ -167,7 +167,7 @@ class Snaffler:
 
     # ------------------------------------------------------------------ walk
 
-    def walk(self, root_dir: str, cancel=None) -> Generator[FileResult, None, None]:
+    def walk(self, root_dir: str, cancel: Any = None) -> Generator[FileResult, None, None]:
         """Walk a directory tree and yield findings.
 
         Single-threaded, depth-first traversal. Uses the configured walker
@@ -203,10 +203,10 @@ class Snaffler:
             files = []
             subdirs_from_cb = []
 
-            def _on_file(path, size, mtime, ctime=0.0, atime=0.0):
+            def _on_file(path: str, size: int, mtime: float, ctime: float = 0.0, atime: float = 0.0) -> None:
                 files.append((path, size, mtime, ctime, atime))  # noqa: B023
 
-            def _on_dir(path):
+            def _on_dir(path: str) -> None:
                 subdirs_from_cb.append(path)  # noqa: B023
 
             try:

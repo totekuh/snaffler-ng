@@ -10,7 +10,7 @@ logger = logging.getLogger("snaffler")
 
 
 class FilterMixin:
-    def _sync_progress_from_state(self):
+    def _sync_progress_from_state(self) -> None:
         """Refresh progress counters from resume database."""
         if not self.state:
             return
@@ -43,7 +43,7 @@ class FilterMixin:
         except Exception as e:
             logger.debug(f"Failed to sync progress from state DB: {e}")
 
-    def _rebalance_file_threads(self):
+    def _rebalance_file_threads(self) -> None:
         """Give the share thread budget to file scanning (shares are done)."""
         bonus = self.cfg.advanced.share_threads
         half = bonus // 2

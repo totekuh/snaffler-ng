@@ -12,7 +12,7 @@ from impacket.smb import FILE_READ_ATTRIBUTES, FILE_SHARE_READ, FILE_WRITE_DATA
 from impacket.smb3structs import FILE_DIRECTORY_FILE
 from impacket.smbconnection import SessionError
 
-from snaffler.classifiers.rules import MatchAction, MatchLocation
+from snaffler.classifiers.rules import ClassifierRule, MatchAction, MatchLocation
 from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.transport.smb import SMBTransport
 from snaffler.utils.connection_cache import ThreadLocalConnectionCache
@@ -57,7 +57,7 @@ class ShareInfo:
         self.readable = False
         self.writable = False
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"ShareInfo(name={self.name}, type={self.share_type}, remark={self.remark})"
 
 
@@ -99,7 +99,7 @@ class ShareFinder:
         self._sysvol_scanned = False
         self._netlogon_scanned = False
 
-    def close(self):
+    def close(self) -> None:
         """Close all cached SMB connections across all threads."""
         self._cache.close_all()
 
@@ -130,7 +130,7 @@ class ShareFinder:
             raise
         return shares
 
-    def _classify_share(self, unc_path: str):
+    def _classify_share(self, unc_path: str) -> str | ClassifierRule | None:
         """
         Apply share classifiers to determine if share should be discarded.
 
@@ -154,7 +154,7 @@ class ShareFinder:
                     logger.debug(f"Share {unc_path} matched DISCARD rule: {classifier.rule_name}")
                     return "discard"
                 elif classifier.match_action == MatchAction.SNAFFLE:
-                    return classifier
+                    return classifier  # type: ignore[no-any-return]
 
         return None
 
@@ -226,7 +226,7 @@ class ShareFinder:
                 if classification == "discard":
                     logger.debug(f"Share {unc_path} discarded by classifier")
                     continue
-                if classification is not None:
+                if isinstance(classification, ClassifierRule):
                     snaffle_rule = classification
 
             # --- Readability check ---

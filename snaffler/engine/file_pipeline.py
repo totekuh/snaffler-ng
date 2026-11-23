@@ -5,7 +5,7 @@ import threading
 from collections import deque
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
-from typing import Dict, List, Set
+from typing import Any
 
 from snaffler.accessors.file_accessor import FileAccessor
 from snaffler.accessors.smb_file_accessor import SMBFileAccessor
@@ -35,11 +35,11 @@ _SENTINEL = None
 
 @dataclass
 class PipelineContext:
-    file_queue: queue.Queue
-    walked_shares: list = field(default_factory=list)
-    producer_error: list = field(default_factory=list)
+    file_queue: queue.Queue[tuple[str, int, float, float, float, str | None] | None]
+    walked_shares: list[str] = field(default_factory=list)
+    producer_error: list[BaseException] = field(default_factory=list)
     batch_writer: _BatchWriter | None = None
-    consumer_results: list = field(default_factory=lambda: [0])
+    consumer_results: list[int] = field(default_factory=lambda: [0])
     consumer_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -74,7 +74,7 @@ class FilePipeline:
             rule_evaluator=rule_evaluator,
         )
 
-    def run(self, paths: List[str]) -> int:
+    def run(self, paths: list[str]) -> int:
         logger.info(f"Starting file discovery on {len(paths)} paths")
 
         paths, skipped_shares = self._resume_skip_shares(paths)
@@ -136,7 +136,7 @@ class FilePipeline:
         if ctx.producer_error:
             raise ctx.producer_error[0]
 
-        results_count = ctx.consumer_results[0]
+        results_count: int = ctx.consumer_results[0]
         self._mark_shares_done(ctx.walked_shares)
 
         if results_count:
@@ -152,7 +152,7 @@ class FilePipeline:
     # run() helpers
     # ------------------------------------------------------------------
 
-    def _resume_skip_shares(self, paths: List[str]) -> tuple:
+    def _resume_skip_shares(self, paths: list[str]) -> tuple[list[str], int]:
         skipped = 0
         if self.state:
             before = len(paths)
@@ -166,12 +166,12 @@ class FilePipeline:
     # Producer
     # ------------------------------------------------------------------
 
-    def _run_producer(self, paths: List[str], ctx: PipelineContext):
+    def _run_producer(self, paths: list[str], ctx: PipelineContext) -> None:
         shutdown = threading.Event()
         enqueued = set()
         enqueued_lock = threading.Lock()
 
-        def on_file(unc_path, size, mtime, ctime=0.0, atime=0.0, display_name=None):
+        def on_file(unc_path: str, size: int, mtime: float, ctime: float = 0.0, atime: float = 0.0, display_name: str | None = None) -> None:
             normalized = unc_path.lower()
             with enqueued_lock:
                 if normalized in enqueued:
@@ -197,7 +197,7 @@ class FilePipeline:
                 except queue.Full:
                     continue
 
-        def on_dir(unc_path):
+        def on_dir(unc_path: str) -> None:
             if ctx.batch_writer:
                 share_unc = _extract_share_unc(unc_path)
                 ctx.batch_writer.put_dir(unc_path, share_unc)
@@ -206,17 +206,17 @@ class FilePipeline:
             with ThreadPoolExecutor(max_workers=self.tree_threads) as executor:
                 dir_for_future = {}
                 share_for_future = {}
-                share_pending: Dict[str, int] = {}
-                shares_with_errors: Set[str] = set()
-                cancel_events: Dict[str, threading.Event] = {}
+                share_pending: dict[str, int] = {}
+                shares_with_errors: set[str] = set()
+                cancel_events: dict[str, threading.Event] = {}
                 pending = set()
                 submitted_dirs = set()
 
                 max_per_share = self.max_per_share
-                share_buffer = {}
-                share_root_map: Dict[str, str] = {}
+                share_buffer: dict[str, deque[str]] = {}
+                share_root_map: dict[str, str] = {}
 
-                def _submit_dir(subdir, share_root, cancel_ev):
+                def _submit_dir(subdir: str, share_root: str, cancel_ev: threading.Event) -> None:
                     key = share_root.lower()
                     if max_per_share and share_pending.get(key, 0) >= max_per_share:
                         if key not in share_buffer:
@@ -235,12 +235,12 @@ class FilePipeline:
                     share_pending[key] = share_pending.get(key, 0) + 1
                     pending.add(fut)
 
-                def _drain_buffer(key):
+                def _drain_buffer(key: str) -> None:
                     if key not in share_buffer:
                         return
                     buf = share_buffer[key]
                     cancel_ev = cancel_events.get(key, threading.Event())
-                    root = share_root_map.get(key)
+                    root = share_root_map.get(key, key)
                     while buf and (not max_per_share or share_pending.get(key, 0) < max_per_share):
                         subdir = buf.popleft()
                         fut = executor.submit(
@@ -335,8 +335,9 @@ class FilePipeline:
                                             self.state.store_dir(subdir, share_root)
                                         continue
                                 submitted_dirs.add(subdir.lower())
-                                cancel_ev = cancel_events.get(share_root.lower(), threading.Event())
-                                _submit_dir(subdir, share_root, cancel_ev)
+                                if share_root:
+                                    cancel_ev = cancel_events.get(share_root.lower(), threading.Event())
+                                    _submit_dir(subdir, share_root, cancel_ev)
 
                             if share_root:
                                 key = share_root.lower()
@@ -373,19 +374,19 @@ class FilePipeline:
 
     def _seed_share_roots(
         self,
-        paths,
-        executor,
-        on_file,
-        on_dir,
-        dir_for_future,
-        share_for_future,
-        share_pending,
-        cancel_events,
-        pending,
-        submitted_dirs,
-        share_root_map,
-        ctx,
-    ):
+        paths: list[str],
+        executor: ThreadPoolExecutor,
+        on_file: Any,
+        on_dir: Any,
+        dir_for_future: dict[Any, str],
+        share_for_future: dict[Any, str],
+        share_pending: dict[str, int],
+        cancel_events: dict[str, threading.Event],
+        pending: set[Any],
+        submitted_dirs: set[str],
+        share_root_map: dict[str, str],
+        ctx: PipelineContext,
+    ) -> None:
         for path in paths:
             exclude_patterns = getattr(self.tree_walker, "_exclude_unc", None) or self.cfg.targets.exclude_unc
             if exclude_patterns:
@@ -424,18 +425,18 @@ class FilePipeline:
 
     def _seed_unwalked_dirs(
         self,
-        submit_dir,
-        cancel_events,
-        share_root_map,
-        submitted_dirs,
-    ):
+        submit_dir: Any,
+        cancel_events: dict[str, threading.Event],
+        share_root_map: dict[str, str],
+        submitted_dirs: set[str],
+    ) -> None:
         if not self.state:
             return
         max_depth = self.cfg.scanning.max_depth
         for unwalked_dir in self.state.load_unwalked_dirs():
             dir_lower = unwalked_dir.lower()
             share_root_unc = _extract_share_unc(unwalked_dir)
-            key = share_root_unc.lower()
+            key: str | None = share_root_unc.lower()
             if key not in cancel_events:
                 key = None
                 for ck in cancel_events:
@@ -444,6 +445,7 @@ class FilePipeline:
                         break
                 if key is None:
                     continue
+            assert key is not None
             share_root = share_root_map.get(key, share_root_unc)
             if dir_lower in submitted_dirs:
                 continue
@@ -457,12 +459,12 @@ class FilePipeline:
 
     def _finalize_no_work_shares(
         self,
-        share_root_map,
-        share_pending,
-        share_buffer,
-        shares_with_errors,
-        ctx,
-    ):
+        share_root_map: dict[str, str],
+        share_pending: dict[str, int],
+        share_buffer: dict[str, deque[str]],
+        shares_with_errors: set[str],
+        ctx: PipelineContext,
+    ) -> None:
         for key in list(share_root_map):
             if share_pending.get(key, 0) == 0 and key not in share_buffer:
                 root = share_root_map[key]
@@ -471,7 +473,7 @@ class FilePipeline:
                 if key not in shares_with_errors:
                     ctx.walked_shares.append(root)
 
-    def _seed_unchecked_files(self, ctx, enqueued, enqueued_lock, shutdown):
+    def _seed_unchecked_files(self, ctx: PipelineContext, enqueued: set[str], enqueued_lock: threading.Lock, shutdown: threading.Event) -> None:
         if not self.state:
             return
         include_filter = self.cfg.targets.share_filter
@@ -506,7 +508,7 @@ class FilePipeline:
     # Consumer
     # ------------------------------------------------------------------
 
-    def _run_consumer(self, ctx: PipelineContext):
+    def _run_consumer(self, ctx: PipelineContext) -> None:
         while True:
             try:
                 item = ctx.file_queue.get(timeout=0.1)
@@ -577,12 +579,12 @@ class FilePipeline:
     # Shared helpers
     # ------------------------------------------------------------------
 
-    def _mark_shares_done(self, walked_shares: list):
+    def _mark_shares_done(self, walked_shares: list[str]) -> None:
         if self.state:
             for share_path in walked_shares:
                 self.state.mark_share_done(share_path)
 
-    def close(self):
+    def close(self) -> None:
         try:
             self.tree_walker.close()
         except Exception:
@@ -592,8 +594,9 @@ class FilePipeline:
         except Exception:
             pass
 
-    def _count_severity(self, result):
+    def _count_severity(self, result: Any) -> None:
         triage = result.triage
+        assert self.progress is not None
         if triage == Triage.BLACK:
             self.progress.severity_black += 1
         elif triage == Triage.RED:

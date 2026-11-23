@@ -80,7 +80,7 @@ class ADDiscovery:
     # Computers
     # ------------------------------------------------------------------
 
-    def _computer_callback(self, item):
+    def _computer_callback(self, item: object) -> None:
         if not isinstance(item, ldapasn1.SearchResultEntry):
             return
 
@@ -187,7 +187,7 @@ class ADDiscovery:
     # Users
     # ------------------------------------------------------------------
 
-    def _user_callback(self, item, match_strings, min_len):
+    def _user_callback(self, item: object, match_strings: list[str], min_len: int) -> None:
         if not isinstance(item, ldapasn1.SearchResultEntry):
             return
 
@@ -284,7 +284,7 @@ class ADDiscovery:
             return None
         return f"//{parts[0]}/{parts[1]}"
 
-    def _dfs_v1_callback(self, item):
+    def _dfs_v1_callback(self, item: object) -> None:
         """Process an ``fTDfs`` LDAP entry (DFS v1)."""
         if not isinstance(item, ldapasn1.SearchResultEntry):
             return
@@ -296,7 +296,7 @@ class ADDiscovery:
                 if parsed:
                     self._dfs_targets.add(parsed)
 
-    def _dfs_v2_callback(self, item):
+    def _dfs_v2_callback(self, item: object) -> None:
         """Process an ``msDFS-Namespacev2`` / ``msDFS-Linkv2`` entry (DFS v2)."""
         if not isinstance(item, ldapasn1.SearchResultEntry):
             return
@@ -319,7 +319,7 @@ class ADDiscovery:
 
     def get_dfs_targets(self) -> List[str]:
         """Query AD for DFS namespace objects and return deduplicated UNC paths."""
-        self._dfs_targets: set = set()
+        self._dfs_targets: set[str] = set()
 
         # --- DFS v1: fTDfs ---
         ldap = self.ldap_transport.connect()

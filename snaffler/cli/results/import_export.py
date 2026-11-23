@@ -28,7 +28,7 @@ def _detect_format(output_path: str, explicit_format: str | None) -> str:
     raise typer.Exit(code=1)
 
 
-def _export_db(state_file: str, output: str):
+def _export_db(state_file: str, output: str) -> None:
     """Export state DB as a gzip-compressed, clean SQLite file (no WAL sidecar)."""
     import gzip
     import shutil
@@ -117,7 +117,7 @@ def _export_json(state_file: str, output: str) -> int:
     finally:
         conn.close()
 
-    return stats["findings"]
+    return int(stats["findings"])
 
 
 def _is_gzip(path: str) -> bool:
@@ -223,7 +223,7 @@ def _import_json(input_path: str, state_file: str) -> int:
     return imported
 
 
-def _ensure_state_db(state_file: str):
+def _ensure_state_db(state_file: str) -> None:
     """Create the state DB with schema if it doesn't exist (for imports)."""
     from snaffler.resume.scan_state import SQLiteStateStore
 

@@ -104,7 +104,7 @@ def results(
         help="Port for web dashboard (default: 8080)",
         rich_help_panel="Web Dashboard",
     ),
-):
+) -> None:
     # Store shared options for subcommands
     ctx.ensure_object(dict)
     ctx.obj["state"] = state
@@ -171,7 +171,7 @@ def rules(
         help="Output format",
         case_sensitive=False,
     ),
-):
+) -> None:
     """List all matching rules and their finding counts."""
     obj = ctx.ensure_object(dict)
     state = obj.get("state", Path("snaffler.db"))
@@ -212,8 +212,8 @@ def export_results(
     output: str = typer.Argument(..., help="Output file path (.db or .json)"),
     state_file: str = typer.Option("snaffler.db", "--state-file", "-s", help="State DB to export from"),
     format: str = typer.Option(None, "--format", "-f", help="Output format (db/json). Auto-detected from extension."),
-):
-    """Export scan results as a gzip-compressed DB or JSON file."""
+) -> None:
+    """Export scan results."""
     if not Path(state_file).exists():
         typer.echo(f"Error: state database not found: {state_file}", err=True)
         raise typer.Exit(code=1)
@@ -232,7 +232,7 @@ def export_results(
 def import_results(
     input_path: str = typer.Argument(..., help="State DB or JSON file to import from"),
     state_file: str = typer.Option("snaffler.db", "--state-file", "-s", help="Target state DB to merge into"),
-):
+) -> None:
     """Import and merge findings from another scan DB or JSON export."""
     if not Path(input_path).exists():
         typer.echo(f"Error: input file not found: {input_path}", err=True)

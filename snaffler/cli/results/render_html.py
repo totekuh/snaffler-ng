@@ -3,6 +3,7 @@
 import html
 import json
 from datetime import UTC, datetime
+from typing import Any
 
 from snaffler.cli.results.render_html_assets import CSS_STYLES, JS_SCRIPT
 from snaffler.utils.logger import format_size
@@ -16,7 +17,7 @@ TRIAGE_HTML_COLORS = {
 }
 
 
-def _render_unreadable_html(shares: list) -> str:
+def _render_unreadable_html(shares: list[str]) -> str:
     if not shares:
         return ""
     esc = html.escape
@@ -28,7 +29,7 @@ def _render_unreadable_html(shares: list) -> str:
     )
 
 
-def _render_html(stats: dict, findings: list, unreadable_shares: list | None = None) -> str:
+def _render_html(stats: dict[str, dict[str, int]], findings: list[dict[str, Any]], unreadable_shares: list[str] | None = None) -> str:
     esc = html.escape
     timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
@@ -38,7 +39,7 @@ def _render_html(stats: dict, findings: list, unreadable_shares: list | None = N
     f = stats["files"]
     fc = stats["findings"]
 
-    def _stat_card(label, done, total):
+    def _stat_card(label: str, done: int, total: int) -> str:
         return (
             f'<div class="card">'
             f'<div class="card-value">{done:,} / {total:,}</div>'
@@ -46,14 +47,14 @@ def _render_html(stats: dict, findings: list, unreadable_shares: list | None = N
             f"</div>"
         )
 
-    def _badge(triage, clickable=False):
+    def _badge(triage: str, clickable: bool = False) -> str:
         color = TRIAGE_HTML_COLORS.get(triage, "#888")
         data = f' data-triage="{esc(triage)}"' if clickable else ""
         return f'<span class="badge"{data} style="background:{color}">{esc(triage)}</span>'
 
-    def _stat_card_sub(label, done, total, sub_label=None, sub_value=None):
+    def _stat_card_sub(label: str, done: int, total: int, sub_label: str | None = None, sub_value: int | None = None) -> str:
         sub = ""
-        if sub_value:
+        if sub_value and sub_label:
             sub = f'<div class="card-sub">{sub_value:,} {esc(sub_label)}</div>'
         return (
             f'<div class="card">'

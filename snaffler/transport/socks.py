@@ -82,4 +82,4 @@ def setup_socks_proxy(proxy_url: str) -> None:
         username=username,
         password=password,
     )
-    socket.socket = socks.socksocket  # type: ignore[assignment,misc]
+    socket.socket = socks.socksocket  # type: ignore[misc]

@@ -2,7 +2,9 @@
 
 import logging
 import threading
+from collections.abc import Callable
 from datetime import UTC
+from typing import Any
 from urllib.parse import urlparse
 
 from snaffler.config.configuration import SnafflerConfiguration
@@ -14,7 +16,7 @@ from snaffler.utils.fatal import check_fatal_os_error
 logger = logging.getLogger("snaffler")
 
 
-def parse_ftp_url(ftp_url: str):
+def parse_ftp_url(ftp_url: str) -> tuple[str, int, str] | None:
     """Parse ftp://host:port/path into (host, port, remote_path) or None."""
     if not ftp_url.startswith("ftp://"):
         return None
@@ -59,11 +61,11 @@ class FTPTreeWalker(TreeWalker):
             cache_attr="connections",
         )
 
-    def close(self):
+    def close(self) -> None:
         """Close all cached FTP connections across all threads."""
         self._cache.close_all()
 
-    def walk_directory(self, ftp_path: str, on_file=None, on_dir=None, cancel: threading.Event | None = None) -> list:
+    def walk_directory(self, ftp_path: str, on_file: Callable[..., object] | None = None, on_dir: Callable[[str], object] | None = None, cancel: threading.Event | None = None) -> list[str]:
         """Walk a single FTP directory (non-recursive) and return subdirectory paths.
 
         Args:
@@ -103,7 +105,7 @@ class FTPTreeWalker(TreeWalker):
             logger.debug(f"Error walking FTP directory {ftp_path}: {e}")
             raise
 
-    def _list_directory(self, ftp, host, port, remote_path, on_file, on_dir):
+    def _list_directory(self, ftp: Any, host: str, port: int, remote_path: str, on_file: Callable[..., object] | None, on_dir: Callable[[str], object] | None) -> list[str]:
         """List one FTP directory using MLSD, with fallback to NLST."""
         subdir_paths = []
 
@@ -147,7 +149,7 @@ class FTPTreeWalker(TreeWalker):
 
         return subdir_paths
 
-    def _list_directory_nlst(self, ftp, host, port, remote_path, on_file, on_dir):
+    def _list_directory_nlst(self, ftp: Any, host: str, port: int, remote_path: str, on_file: Callable[..., object] | None, on_dir: Callable[[str], object] | None) -> list[str]:
         """Fallback directory listing using NLST + SIZE/MDTM per entry."""
         subdir_paths = []
         names = ftp.nlst(remote_path)
@@ -201,7 +203,7 @@ class FTPTreeWalker(TreeWalker):
             return 0.0
 
     @staticmethod
-    def _get_mdtm(ftp, path: str) -> float:
+    def _get_mdtm(ftp: Any, path: str) -> float:
         """Get file modification time via MDTM command, return epoch float."""
         try:
             resp = ftp.sendcmd(f"MDTM {path}")

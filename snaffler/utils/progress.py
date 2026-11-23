@@ -79,7 +79,7 @@ class ProgressState:
         # files_total while the tree walker is still discovering files.
         self.scan_complete = False
 
-    def snapshot(self) -> dict[str, int | bool]:
+    def snapshot(self) -> dict[str, int | bool | str]:
         """Return a point-in-time copy of all counters.
 
         Used by the web dashboard API to read a consistent set of values
