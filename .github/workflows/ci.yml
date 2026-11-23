@@ -37,6 +37,22 @@ jobs:
       - name: Dependency vulnerability check
         run: uv run --with pip-audit pip-audit
 
+  test-e2e:
+    needs: lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version: "3.14"
+
+      - name: Run base e2e suite
+        run: python tests/docker/run.py
+
   test-build:
     needs: lint
     runs-on: ubuntu-latest
@@ -299,7 +315,7 @@ jobs:
           fi
 
   release:
-    needs: [version-check, test-build, build-binary, build-binary-arm64, build-binary-windows, build-deb]
+    needs: [version-check, test-build, test-e2e, build-binary, build-binary-arm64, build-binary-windows, build-deb]
     if: github.ref == 'refs/heads/master' && needs.version-check.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
