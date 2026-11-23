@@ -179,9 +179,9 @@ def load_rules_from_toml(toml_path: str) -> list[ClassifierRule]:
 
     rules = []
     if "ClassifierRules" in data:
-        for rule_data in data["ClassifierRules"]:
+        for rule_data in data["ClassifierRules"]:  # type: ignore[union-attr]
             try:
-                rule = ClassifierRule.from_toml(rule_data)
+                rule = ClassifierRule.from_toml(rule_data)  # type: ignore[arg-type]
                 rules.append(rule)
             except Exception as e:
                 logger.warning(f"Error loading rule: {e}")
