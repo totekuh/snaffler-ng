@@ -8,13 +8,14 @@ import logging
 import select
 import sys
 import threading
+import typing
 
 _thread: threading.Thread | None = None
 _stop_event: threading.Event | None = None
 _original_termios = None
 
 
-def _get_console_handler() -> logging.StreamHandler | None:  # type: ignore[type-arg]
+def _get_console_handler() -> logging.StreamHandler[typing.TextIO] | None:
     """Return the first StreamHandler on the 'snaffler' logger."""
     for h in logging.getLogger("snaffler").handlers:
         if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):

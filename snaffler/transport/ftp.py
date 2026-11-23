@@ -30,8 +30,8 @@ class FTPTransport:
             password = self.auth.password or ""
             ftp.login(username, password)
 
-            if self.cfg.targets.ftp_tls:
-                ftp.prot_p()  # type: ignore[attr-defined]  # FTP_TLS method
+            if self.cfg.targets.ftp_tls and hasattr(ftp, "prot_p"):
+                ftp.prot_p()
 
             ftp.set_pasv(True)
             # Binary mode for consistent transfers

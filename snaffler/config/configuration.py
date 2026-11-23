@@ -9,6 +9,8 @@ from typing import Optional
 
 import tomlkit
 
+from snaffler.classifiers.rules import ClassifierRule
+
 _cfg_logger = logging.getLogger("snaffler")
 
 # Shared default cert passwords — used by both CLI (ScanningConfig) and
@@ -188,11 +190,11 @@ class AdvancedConfig:
 @dataclass
 class RulesConfig:
     rule_dir: Optional[str] = None
-    share: list = field(default_factory=list)  # type: ignore[type-arg]
-    directory: list = field(default_factory=list)  # type: ignore[type-arg]
-    file: list = field(default_factory=list)  # type: ignore[type-arg]
-    content: list = field(default_factory=list)  # type: ignore[type-arg]
-    postmatch: list = field(default_factory=list)  # type: ignore[type-arg]
+    share: list[ClassifierRule] = field(default_factory=list)
+    directory: list[ClassifierRule] = field(default_factory=list)
+    file: list[ClassifierRule] = field(default_factory=list)
+    content: list[ClassifierRule] = field(default_factory=list)
+    postmatch: list[ClassifierRule] = field(default_factory=list)
 
 
 # ---------------- STATE ----------------

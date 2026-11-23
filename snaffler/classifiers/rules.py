@@ -178,10 +178,11 @@ def load_rules_from_toml(toml_path: str) -> list[ClassifierRule]:
         data = tomlkit.load(f)
 
     rules = []
-    if "ClassifierRules" in data:
-        for rule_data in data["ClassifierRules"]:  # type: ignore[union-attr]
+    rules_list = data.get("ClassifierRules")
+    if isinstance(rules_list, list):
+        for rule_data in rules_list:
             try:
-                rule = ClassifierRule.from_toml(rule_data)  # type: ignore[arg-type]
+                rule = ClassifierRule.from_toml(dict(rule_data))
                 rules.append(rule)
             except Exception as e:
                 logger.warning(f"Error loading rule: {e}")

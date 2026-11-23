@@ -4,6 +4,7 @@ Thread-safe progress counters for periodic status reporting.
 
 import ctypes
 import os
+import sys
 import threading
 import time
 from datetime import datetime
@@ -11,7 +12,7 @@ from datetime import datetime
 
 def _get_rss_mb() -> int:
     """Return current RSS in MB, cross-platform."""
-    if os.name == "nt":
+    if sys.platform == "win32":
         # Windows: kernel32 GetProcessMemoryInfo via ctypes (no extra deps)
         class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
             _fields_ = [
@@ -29,8 +30,8 @@ def _get_rss_mb() -> int:
 
         pmc = PROCESS_MEMORY_COUNTERS()
         pmc.cb = ctypes.sizeof(pmc)
-        handle = ctypes.windll.kernel32.GetCurrentProcess()  # type: ignore[attr-defined]
-        if ctypes.windll.psapi.GetProcessMemoryInfo(handle, ctypes.byref(pmc), pmc.cb):  # type: ignore[attr-defined]
+        handle = ctypes.windll.kernel32.GetCurrentProcess()
+        if ctypes.windll.psapi.GetProcessMemoryInfo(handle, ctypes.byref(pmc), pmc.cb):
             return int(pmc.WorkingSetSize) // (1024 * 1024)
         return 0
     else:

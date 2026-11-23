@@ -154,7 +154,7 @@ class ShareFinder:
                     logger.debug(f"Share {unc_path} matched DISCARD rule: {classifier.rule_name}")
                     return "discard"
                 elif classifier.match_action == MatchAction.SNAFFLE:
-                    return classifier  # type: ignore[no-any-return]
+                    return classifier
 
         return None
 

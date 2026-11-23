@@ -8,7 +8,9 @@ import threading
 from datetime import datetime
 from typing import Optional
 
+from snaffler.accessors.file_accessor import FileAccessor
 from snaffler.config.configuration import SnafflerConfiguration
+from snaffler.discovery.tree import TreeWalker
 from snaffler.engine.domain_pipeline import DomainPipeline
 from snaffler.engine.file_pipeline import FilePipeline
 from snaffler.engine.runner_auth import AuthMixin
@@ -88,8 +90,8 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
                     f"{_FTP_MAX_PER_BUCKET} file to avoid connection floods"
                 )
 
-            tree_walker = FTPTreeWalker(cfg)
-            file_accessor = FTPFileAccessor(cfg)
+            tree_walker: TreeWalker = FTPTreeWalker(cfg)
+            file_accessor: FileAccessor = FTPFileAccessor(cfg)
             self.file_pipeline = FilePipeline(
                 cfg=cfg,
                 state=self.state,
@@ -102,11 +104,11 @@ class SnafflerRunner(FilterMixin, DiscoveryMixin, AuthMixin):
             from snaffler.accessors.local_file_accessor import LocalFileAccessor
             from snaffler.discovery.local_tree_walker import LocalTreeWalker
 
-            tree_walker = LocalTreeWalker(  # type: ignore[assignment]
+            tree_walker = LocalTreeWalker(
                 dir_rules=cfg.rules.directory,
                 exclude_unc=cfg.targets.exclude_unc,
             )
-            file_accessor = LocalFileAccessor()  # type: ignore[assignment]
+            file_accessor = LocalFileAccessor()
             self.file_pipeline = FilePipeline(
                 cfg=cfg,
                 state=self.state,
