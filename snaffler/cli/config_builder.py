@@ -16,7 +16,7 @@ def _is_explicit(ctx: typer.Context, param: str) -> bool:
     return src is not None and src.name not in ("DEFAULT", "DEFAULT_MAP")
 
 
-def build_config(  # noqa: C901
+def build_config(
     ctx: typer.Context,
     *,
     config_file: Any,

@@ -24,7 +24,7 @@ MAX_ARCHIVE_MEMBERS = 10_000
 def evaluate_archive(
     ctx: FileContext,
     data: bytes,
-    rule_evaluator: "RuleEvaluator",
+    rule_evaluator: RuleEvaluator,
 ) -> FileResult | None:
     try:
         with io.BytesIO(data) as bio:

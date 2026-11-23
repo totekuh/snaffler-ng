@@ -51,7 +51,9 @@ class _BatchWriter:
     def put_dir(self, unc_path: str, share: str) -> None:
         self._queue.put(("dir", unc_path, share))
 
-    def put_file(self, unc_path: str, share: str, size: int, mtime: float, ctime: float = 0.0, atime: float = 0.0) -> None:
+    def put_file(
+        self, unc_path: str, share: str, size: int, mtime: float, ctime: float = 0.0, atime: float = 0.0
+    ) -> None:
         self._queue.put(("file", unc_path, share, size, mtime, ctime, atime))
 
     def enqueue_checked(self, unc_path: str) -> None:

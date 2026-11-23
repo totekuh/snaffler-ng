@@ -3,7 +3,6 @@ Thread-safe progress counters for periodic status reporting.
 """
 
 import ctypes
-import os
 import sys
 import threading
 import time

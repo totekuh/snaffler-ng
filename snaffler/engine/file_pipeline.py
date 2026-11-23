@@ -171,7 +171,14 @@ class FilePipeline:
         enqueued = set()
         enqueued_lock = threading.Lock()
 
-        def on_file(unc_path: str, size: int, mtime: float, ctime: float = 0.0, atime: float = 0.0, display_name: str | None = None) -> None:
+        def on_file(
+            unc_path: str,
+            size: int,
+            mtime: float,
+            ctime: float = 0.0,
+            atime: float = 0.0,
+            display_name: str | None = None,
+        ) -> None:
             normalized = unc_path.lower()
             with enqueued_lock:
                 if normalized in enqueued:
@@ -473,7 +480,9 @@ class FilePipeline:
                 if key not in shares_with_errors:
                     ctx.walked_shares.append(root)
 
-    def _seed_unchecked_files(self, ctx: PipelineContext, enqueued: set[str], enqueued_lock: threading.Lock, shutdown: threading.Event) -> None:
+    def _seed_unchecked_files(
+        self, ctx: PipelineContext, enqueued: set[str], enqueued_lock: threading.Lock, shutdown: threading.Event
+    ) -> None:
         if not self.state:
             return
         include_filter = self.cfg.targets.share_filter

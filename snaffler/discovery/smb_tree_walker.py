@@ -52,7 +52,13 @@ class SMBTreeWalker(TreeWalker):
         path = "/" + "/".join(parts[2:]) if len(parts) > 2 else "/"
         return server, share, path
 
-    def walk_directory(self, unc_path: str, on_file: Callable[..., object] | None = None, on_dir: Callable[[str], object] | None = None, cancel: threading.Event | None = None) -> list[str]:
+    def walk_directory(
+        self,
+        unc_path: str,
+        on_file: Callable[..., object] | None = None,
+        on_dir: Callable[[str], object] | None = None,
+        cancel: threading.Event | None = None,
+    ) -> list[str]:
         """Walk a single directory (non-recursive) and return subdirectory UNC paths.
 
         Args:

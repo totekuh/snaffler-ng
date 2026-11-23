@@ -9,7 +9,9 @@ from snaffler.cli.results.queries import TRIAGE_COLORS
 from snaffler.utils.logger import Colors, format_size
 
 
-def _render_plain(stats: dict[str, dict[str, int]], findings: list[dict[str, Any]], unreadable_shares: list[str], use_color: bool) -> None:
+def _render_plain(
+    stats: dict[str, dict[str, int]], findings: list[dict[str, Any]], unreadable_shares: list[str], use_color: bool
+) -> None:
     lines = []
 
     lines.append(f"{'── Stats ':─<50}")
@@ -77,6 +79,8 @@ def _render_plain(stats: dict[str, dict[str, int]], findings: list[dict[str, Any
     typer.echo("\n".join(lines))
 
 
-def _render_json(stats: dict[str, dict[str, int]], findings: list[dict[str, Any]], unreadable_shares: list[str]) -> None:
+def _render_json(
+    stats: dict[str, dict[str, int]], findings: list[dict[str, Any]], unreadable_shares: list[str]
+) -> None:
     output = {"stats": stats, "findings": findings, "unreadable_shares": unreadable_shares}
     typer.echo(json.dumps(output, indent=2, default=str))

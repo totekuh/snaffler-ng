@@ -65,7 +65,13 @@ class FTPTreeWalker(TreeWalker):
         """Close all cached FTP connections across all threads."""
         self._cache.close_all()
 
-    def walk_directory(self, ftp_path: str, on_file: Callable[..., object] | None = None, on_dir: Callable[[str], object] | None = None, cancel: threading.Event | None = None) -> list[str]:
+    def walk_directory(
+        self,
+        ftp_path: str,
+        on_file: Callable[..., object] | None = None,
+        on_dir: Callable[[str], object] | None = None,
+        cancel: threading.Event | None = None,
+    ) -> list[str]:
         """Walk a single FTP directory (non-recursive) and return subdirectory paths.
 
         Args:
@@ -105,7 +111,15 @@ class FTPTreeWalker(TreeWalker):
             logger.debug(f"Error walking FTP directory {ftp_path}: {e}")
             raise
 
-    def _list_directory(self, ftp: Any, host: str, port: int, remote_path: str, on_file: Callable[..., object] | None, on_dir: Callable[[str], object] | None) -> list[str]:
+    def _list_directory(
+        self,
+        ftp: Any,
+        host: str,
+        port: int,
+        remote_path: str,
+        on_file: Callable[..., object] | None,
+        on_dir: Callable[[str], object] | None,
+    ) -> list[str]:
         """List one FTP directory using MLSD, with fallback to NLST."""
         subdir_paths = []
 
@@ -149,7 +163,15 @@ class FTPTreeWalker(TreeWalker):
 
         return subdir_paths
 
-    def _list_directory_nlst(self, ftp: Any, host: str, port: int, remote_path: str, on_file: Callable[..., object] | None, on_dir: Callable[[str], object] | None) -> list[str]:
+    def _list_directory_nlst(
+        self,
+        ftp: Any,
+        host: str,
+        port: int,
+        remote_path: str,
+        on_file: Callable[..., object] | None,
+        on_dir: Callable[[str], object] | None,
+    ) -> list[str]:
         """Fallback directory listing using NLST + SIZE/MDTM per entry."""
         subdir_paths = []
         names = ftp.nlst(remote_path)

@@ -29,7 +29,9 @@ def _render_unreadable_html(shares: list[str]) -> str:
     )
 
 
-def _render_html(stats: dict[str, dict[str, int]], findings: list[dict[str, Any]], unreadable_shares: list[str] | None = None) -> str:
+def _render_html(
+    stats: dict[str, dict[str, int]], findings: list[dict[str, Any]], unreadable_shares: list[str] | None = None
+) -> str:
     esc = html.escape
     timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
@@ -52,7 +54,9 @@ def _render_html(stats: dict[str, dict[str, int]], findings: list[dict[str, Any]
         data = f' data-triage="{esc(triage)}"' if clickable else ""
         return f'<span class="badge"{data} style="background:{color}">{esc(triage)}</span>'
 
-    def _stat_card_sub(label: str, done: int, total: int, sub_label: str | None = None, sub_value: int | None = None) -> str:
+    def _stat_card_sub(
+        label: str, done: int, total: int, sub_label: str | None = None, sub_value: int | None = None
+    ) -> str:
         sub = ""
         if sub_value and sub_label:
             sub = f'<div class="card-sub">{sub_value:,} {esc(sub_label)}</div>'

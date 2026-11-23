@@ -13,7 +13,12 @@ class RuleDecision:
 
 
 class RuleEvaluator:
-    def __init__(self, file_rules: list[ClassifierRule], content_rules: list[ClassifierRule], postmatch_rules: list[ClassifierRule]) -> None:
+    def __init__(
+        self,
+        file_rules: list[ClassifierRule],
+        content_rules: list[ClassifierRule],
+        postmatch_rules: list[ClassifierRule],
+    ) -> None:
         self.file_rules = file_rules
         # Sort content rules by descending triage severity so Black (3)
         # rules are checked before Red (2), Yellow (1), Green (0).

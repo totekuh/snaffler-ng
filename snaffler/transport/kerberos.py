@@ -52,7 +52,9 @@ def _strip_context_tag(encoded: bytes) -> bytes:
     return encoded[idx:]
 
 
-def get_kerberos_tgs(server_name: Any, domain: str, kdc_host: str, tgt: bytes, cipher: Any, session_key: Any) -> tuple[bytes, Any, Any, Any]:
+def get_kerberos_tgs(
+    server_name: Any, domain: str, kdc_host: str, tgt: bytes, cipher: Any, session_key: Any
+) -> tuple[bytes, Any, Any, Any]:
     """Request a TGS with a proper Authenticator checksum.
 
     Drop-in replacement for impacket's getKerberosTGS(). Returns the same

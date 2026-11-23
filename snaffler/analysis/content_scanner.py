@@ -1,6 +1,7 @@
 """Content rule evaluation against raw file data."""
 
 import logging
+
 from snaffler.analysis.model.file_context import FileContext
 from snaffler.analysis.model.file_result import FileResult
 from snaffler.classifiers.evaluator import RuleEvaluator
