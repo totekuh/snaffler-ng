@@ -14,7 +14,7 @@ class BloomFilter:
         self._bits = bytearray(self._size // 8 + 1)
         self._count = 0
 
-    def add(self, item: str):
+    def add(self, item: str) -> None:
         for i in range(self._hash_count):
             idx = self._hash(item, i) % self._size
             self._bits[idx // 8] |= 1 << (idx % 8)
@@ -27,7 +27,7 @@ class BloomFilter:
                 return False
         return True  # probably in the set (may be false positive)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._count
 
     @staticmethod

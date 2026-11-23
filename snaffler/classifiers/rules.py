@@ -6,7 +6,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Optional
 
 import tomlkit
 
@@ -91,15 +91,15 @@ class ClassifierRule:
     match_action: MatchAction
     match_location: MatchLocation
     wordlist_type: MatchListType
-    wordlist: List[str] = field(default_factory=list)
+    wordlist: list[str] = field(default_factory=list)
     triage: Triage = Triage.GREEN
     description: str = ""
-    content_rule_names: List[str] = field(default_factory=list)
+    content_rule_names: list[str] = field(default_factory=list)
     match_length: int = 0
     match_md5: Optional[str] = None
-    regexes: List[re.Pattern] = field(default_factory=list)
+    regexes: list[re.Pattern[str]] = field(default_factory=list)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Compile regexes from wordlist if needed"""
         if self.wordlist_type == MatchListType.EXACT:
             # Plain upper() comparison — no regex needed
@@ -121,7 +121,7 @@ class ClassifierRule:
 
             self.regexes = [re.compile(pattern, re.IGNORECASE) for pattern in patterns]
 
-    def matches(self, text: str):
+    def matches(self, text: str) -> str | re.Match[str] | None:
         """
         Check if text matches any of the rule's patterns
 
@@ -147,7 +147,7 @@ class ClassifierRule:
         return None
 
     @classmethod
-    def from_toml(cls, toml_data: dict) -> "ClassifierRule":
+    def from_toml(cls, toml_data: dict[str, Any]) -> "ClassifierRule":
         """Create a ClassifierRule from TOML data"""
         return cls(
             rule_name=toml_data.get("RuleName", "Unknown"),
@@ -164,7 +164,7 @@ class ClassifierRule:
         )
 
 
-def load_rules_from_toml(toml_path: str) -> List[ClassifierRule]:
+def load_rules_from_toml(toml_path: str) -> list[ClassifierRule]:
     """
     Load classifier rules from a TOML file
 
@@ -190,7 +190,7 @@ def load_rules_from_toml(toml_path: str) -> List[ClassifierRule]:
     return rules
 
 
-def load_rules_from_directory(rules_dir: str) -> List[ClassifierRule]:
+def load_rules_from_directory(rules_dir: str) -> list[ClassifierRule]:
     """
     Load all TOML rule files from a directory
 

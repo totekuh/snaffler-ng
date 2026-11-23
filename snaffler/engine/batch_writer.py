@@ -1,9 +1,15 @@
 """Daemon thread that batches dir/file inserts and file-checked marks into SQLite."""
 
+from __future__ import annotations
+
 import logging
 import queue
 import threading
 import time
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from snaffler.resume.scan_state.state_facade import ScanState
 
 logger = logging.getLogger("snaffler")
 
@@ -22,12 +28,12 @@ def _extract_share_unc(unc_path: str) -> str:
 class _BatchWriter:
     """Daemon thread that batches dir/file inserts and file-checked marks into SQLite."""
 
-    def __init__(self, state):
+    def __init__(self, state: ScanState) -> None:
         self._state = state
-        self._queue = queue.Queue()
-        self._thread = None
+        self._queue: queue.Queue[Any] = queue.Queue()
+        self._thread: threading.Thread | None = None
 
-    def start(self):
+    def start(self) -> None:
         self._thread = threading.Thread(
             target=self._run,
             name="batch-writer",
@@ -35,26 +41,26 @@ class _BatchWriter:
         )
         self._thread.start()
 
-    def stop(self, timeout=30):
+    def stop(self, timeout: int = 30) -> None:
         self._queue.put(None)
         if self._thread is not None:
             self._thread.join(timeout=timeout)
             if self._thread.is_alive():
                 logger.warning(f"Batch writer did not finish within {timeout}s")
 
-    def put_dir(self, unc_path: str, share: str):
+    def put_dir(self, unc_path: str, share: str) -> None:
         self._queue.put(("dir", unc_path, share))
 
-    def put_file(self, unc_path: str, share: str, size: int, mtime: float, ctime: float = 0.0, atime: float = 0.0):
+    def put_file(self, unc_path: str, share: str, size: int, mtime: float, ctime: float = 0.0, atime: float = 0.0) -> None:
         self._queue.put(("file", unc_path, share, size, mtime, ctime, atime))
 
-    def enqueue_checked(self, unc_path: str):
+    def enqueue_checked(self, unc_path: str) -> None:
         self._queue.put(("checked", unc_path))
 
-    def _run(self):
-        dir_buf = []
-        file_buf = []
-        checked_buf = []
+    def _run(self) -> None:
+        dir_buf: list[tuple[str, str]] = []
+        file_buf: list[tuple[str, str, int, float]] = []
+        checked_buf: list[str] = []
         deadline = time.monotonic() + _BATCH_INTERVAL
 
         while True:
@@ -105,7 +111,12 @@ class _BatchWriter:
                 checked_buf.clear()
                 deadline = time.monotonic() + _BATCH_INTERVAL
 
-    def _flush(self, dir_buf, file_buf, checked_buf=None):
+    def _flush(
+        self,
+        dir_buf: list[tuple[str, str]],
+        file_buf: list[tuple[str, str, int, float]],
+        checked_buf: list[str] | None = None,
+    ) -> None:
         try:
             if dir_buf:
                 self._state.store_dirs(dir_buf)

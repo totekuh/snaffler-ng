@@ -14,7 +14,7 @@ _stop_event: threading.Event | None = None
 _original_termios = None
 
 
-def _get_console_handler() -> logging.StreamHandler | None:
+def _get_console_handler() -> logging.StreamHandler | None:  # type: ignore[type-arg]
     """Return the first StreamHandler on the 'snaffler' logger."""
     for h in logging.getLogger("snaffler").handlers:
         if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):

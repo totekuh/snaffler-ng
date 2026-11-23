@@ -3,7 +3,7 @@
 
 import logging
 import re
-from typing import Optional
+from typing import Any, Optional
 
 from snaffler.analysis.archive_scanner import MAX_ARCHIVE_MEMBERS, evaluate_archive, list_archive_members
 from snaffler.analysis.binary_detect import read_magic
@@ -28,10 +28,10 @@ class FileScanner:
 
     def __init__(
         self,
-        cfg,
-        file_accessor=None,
-        rule_evaluator: Optional[RuleEvaluator] = None,
-    ):
+        cfg: Any,
+        file_accessor: Any = None,
+        rule_evaluator: RuleEvaluator | None = None,
+    ) -> None:
         self.cfg = cfg
         self.file_accessor = file_accessor
         self.rule_evaluator = rule_evaluator
@@ -75,7 +75,7 @@ class FileScanner:
         assert self.rule_evaluator is not None
         ctx = FileContext.from_path(file_path, size, mtime_epoch, ctime_epoch, atime_epoch, display_name=display_name)
 
-        content_rule_names: set = set()
+        content_rule_names: set[str] = set()
         best_result: Optional[FileResult] = None
         needs_cert_check = False
         needs_archive_peek = False
@@ -261,10 +261,12 @@ class FileScanner:
             logger.warning(f"Classification error scanning {file_path}: {e}")
             return None
 
-    def _evaluate_archive(self, ctx, data):
+    def _evaluate_archive(self, ctx: FileContext, data: bytes) -> FileResult | None:
+        assert self.rule_evaluator is not None
         return evaluate_archive(ctx, data, self.rule_evaluator)
 
-    def _evaluate_content(self, ctx, data, content_rules):
+    def _evaluate_content(self, ctx: FileContext, data: bytes, content_rules: list[Any]) -> FileResult | None:
+        assert self.rule_evaluator is not None
         return evaluate_content(
             ctx,
             data,

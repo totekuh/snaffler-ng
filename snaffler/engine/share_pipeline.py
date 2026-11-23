@@ -37,7 +37,7 @@ class SharePipeline:
         if self.max_workers < 1:
             raise ValueError("Invalid share_threads configuration")
 
-    def close(self):
+    def close(self) -> None:
         """Close all cached connections held by the share finder."""
         try:
             self.share_finder.close()

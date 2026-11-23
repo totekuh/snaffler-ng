@@ -6,7 +6,7 @@ import sys
 _FATAL_ERRNOS = frozenset({errno.EMFILE, errno.ENFILE})
 
 
-def check_fatal_os_error(exc=None):
+def check_fatal_os_error(exc: BaseException | None = None) -> None:
     """Abort if *exc* is an EMFILE / ENFILE OSError.
 
     Call at the top of any ``except Exception`` block on an I/O path.

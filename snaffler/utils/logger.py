@@ -8,21 +8,21 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import ClassVar, Dict, Optional
+from typing import Any, Callable, ClassVar
 
 NO_COLOR = False
 
-_finding_store = None
+_finding_store: Callable[..., Any] | None = None
 _finding_store_warned = False
 
 
-def set_finding_store(fn):
+def set_finding_store(fn: Callable[..., Any] | None) -> None:
     global _finding_store
     _finding_store = fn
 
 
 class FindingsOnlyFilter(logging.Filter):
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> bool:
         return bool(getattr(record, "is_data", False))
 
 
@@ -41,7 +41,7 @@ def _logger_has_file_handler(logger: logging.Logger) -> bool:
 
 
 class SnafflerFormatter(logging.Formatter):
-    LEVEL_COLORS: ClassVar[Dict[str, str]] = {
+    LEVEL_COLORS: ClassVar[dict[str, str]] = {
         "DEBUG": Colors.GRAY,
         "INFO": Colors.GREEN,
         "WARNING": Colors.YELLOW,
@@ -130,7 +130,7 @@ class SnafflerTSVFormatter(logging.Formatter):
 def setup_logging(
     log_level: str = "info",
     log_to_file: bool = False,
-    log_file_path: Optional[str] = None,
+    log_file_path: str | None = None,
     log_to_console: bool = True,
     log_type: str = "plain",
 ) -> logging.Logger:
@@ -205,14 +205,14 @@ def log_file_result(
     file_path: str,
     triage: str,
     rule_name: str,
-    match: Optional[str] = None,
-    context: Optional[str] = None,
-    size: Optional[int] = None,
-    modified: Optional[str] = None,
+    match: str | None = None,
+    context: str | None = None,
+    size: int | None = None,
+    modified: str | None = None,
     suppress_log: bool = False,
-    created: Optional[str] = None,
-    accessed: Optional[str] = None,
-):
+    created: str | None = None,
+    accessed: str | None = None,
+) -> None:
 
     use_colors = not NO_COLOR and sys.stdout.isatty() and not _logger_has_file_handler(logger)
 
@@ -251,7 +251,7 @@ def log_file_result(
 
     message = "file_match" if is_json else " ".join(parts)
 
-    extra = {
+    extra: dict[str, Any] = {
         "file_path": file_path,
         "triage": triage,
         "rule_name": rule_name,
@@ -292,7 +292,7 @@ def log_file_result(
                     _finding_store_warned = True
 
 
-def print_completion_stats(start_time, progress=None):
+def print_completion_stats(start_time: datetime | None, progress: Any = None) -> None:
     if not start_time:
         return
 

@@ -7,7 +7,7 @@ from snaffler.config.configuration import SnafflerConfiguration
 from snaffler.transport.auth import authenticate_ldap
 
 
-def _is_ip(host):
+def _is_ip(host: str) -> bool:
     try:
         ipaddress.ip_address(host)
         return True
@@ -15,7 +15,7 @@ def _is_ip(host):
         return False
 
 
-def _resolve_or_self(host):
+def _resolve_or_self(host: str) -> str:
     try:
         return socket.gethostbyname(host)
     except socket.gaierror:

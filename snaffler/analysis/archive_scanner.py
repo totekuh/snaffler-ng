@@ -1,15 +1,20 @@
 """Archive member evaluation against file rules."""
 
+from __future__ import annotations
+
 import io
 import logging
 import os
 import zipfile
-from typing import List, Optional
+from typing import TYPE_CHECKING
 
 from snaffler.analysis.model.file_context import FileContext
 from snaffler.analysis.model.file_result import FileResult
 from snaffler.classifiers.rules import MatchAction, Triage
 from snaffler.utils.fatal import check_fatal_os_error
+
+if TYPE_CHECKING:
+    from snaffler.classifiers.evaluator import RuleEvaluator
 
 logger = logging.getLogger("snaffler")
 
@@ -19,15 +24,15 @@ MAX_ARCHIVE_MEMBERS = 10_000
 def evaluate_archive(
     ctx: FileContext,
     data: bytes,
-    rule_evaluator,
-) -> Optional[FileResult]:
+    rule_evaluator: "RuleEvaluator",
+) -> FileResult | None:
     try:
         with io.BytesIO(data) as bio:
             members = list_archive_members(ctx.ext, bio)
         if not members:
             return None
 
-        best_result: Optional[FileResult] = None
+        best_result: FileResult | None = None
         for member_name, member_size in members:
             member_name = member_name.replace("\\", "/")
             basename = os.path.basename(member_name)
@@ -80,7 +85,7 @@ def evaluate_archive(
         return None
 
 
-def list_archive_members(ext: str, bio: io.BytesIO) -> Optional[List[tuple]]:
+def list_archive_members(ext: str, bio: io.BytesIO) -> list[tuple[str, int]] | None:
     ext_lower = ext.lower()
     cap = MAX_ARCHIVE_MEMBERS
 

@@ -16,7 +16,7 @@ class StoreBase:
         self.lock = threading.Lock()
         self._init()
 
-    def _init(self):
+    def _init(self) -> None:
         self.conn.execute("PRAGMA page_size=8192;")
         try:
             mode = self.conn.execute("PRAGMA journal_mode=WAL;").fetchone()[0]
@@ -96,7 +96,7 @@ class StoreBase:
             cur = self.conn.execute("SELECT 1 FROM sync WHERE key = ?", (key,))
             return cur.fetchone() is not None
 
-    def set_sync_flag(self, key: str):
+    def set_sync_flag(self, key: str) -> None:
         with self.lock:
             self.conn.execute("INSERT OR IGNORE INTO sync VALUES (?, '1')", (key,))
             self.conn.commit()
@@ -107,12 +107,12 @@ class StoreBase:
             row = cur.fetchone()
             return row[0] if row else None
 
-    def set_sync_value(self, key: str, value: str):
+    def set_sync_value(self, key: str, value: str) -> None:
         with self.lock:
             self.conn.execute("INSERT OR REPLACE INTO sync VALUES (?, ?)", (key, value))
             self.conn.commit()
 
-    def clear_phase_flags(self):
+    def clear_phase_flags(self) -> None:
         with self.lock:
             self.conn.execute(
                 "DELETE FROM sync WHERE key IN "
@@ -123,7 +123,7 @@ class StoreBase:
 
     # ---------- close ----------
 
-    def close(self):
+    def close(self) -> None:
         with self.lock:
             try:
                 self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")

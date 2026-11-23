@@ -14,7 +14,7 @@ SOCKS4 = 1
 SOCKS5 = 2
 
 
-def parse_socks_url(url: str) -> tuple:
+def parse_socks_url(url: str) -> tuple[int, str, int, str | None, str | None]:
     """Parse a SOCKS proxy URL into (proxy_type, host, port, username, password).
 
     Accepted formats:

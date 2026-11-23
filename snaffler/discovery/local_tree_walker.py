@@ -2,7 +2,10 @@
 
 import logging
 import os
+import threading
+from collections.abc import Callable
 
+from snaffler.classifiers.rules import ClassifierRule
 from snaffler.discovery.tree import TreeWalker
 from snaffler.utils.fatal import check_fatal_os_error
 
@@ -16,15 +19,21 @@ class LocalTreeWalker(TreeWalker):
     is shared with SMBTreeWalker — both branches use the same code.
     """
 
-    def __init__(self, dir_rules=None, exclude_unc=None):
+    def __init__(self, dir_rules: list[ClassifierRule] | None = None, exclude_unc: list[str] | None = None) -> None:
         super().__init__(dir_rules=dir_rules, exclude_unc=exclude_unc)
 
-    def walk_directory(self, dir_path, on_file=None, on_dir=None, cancel=None):
+    def walk_directory(
+        self,
+        dir_path: str,
+        on_file: Callable[..., object] | None = None,
+        on_dir: Callable[[str], object] | None = None,
+        cancel: threading.Event | None = None,
+    ) -> list[str]:
         """List one directory, call callbacks, return list of subdirectory paths."""
         if cancel and cancel.is_set():
             return []
 
-        subdirs = []
+        subdirs: list[str] = []
         try:
             entries = os.scandir(dir_path)
         except OSError as e:

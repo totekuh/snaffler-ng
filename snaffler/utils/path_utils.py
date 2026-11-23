@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 
-def parse_unc_path(unc_path: str):
+def parse_unc_path(unc_path: str) -> tuple[str, str, str, str, str] | None:
     parts = [p for p in unc_path.split("/") if p]
     if len(parts) < 3:
         return None
@@ -60,7 +60,7 @@ def extract_share_root(path: str) -> str:
     return path
 
 
-def get_modified_time(file_info) -> Optional[datetime]:
+def get_modified_time(file_info: Any) -> Optional[datetime]:
     try:
         return datetime.fromtimestamp(file_info.get_mtime_epoch())
     except Exception:

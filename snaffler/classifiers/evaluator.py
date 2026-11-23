@@ -1,20 +1,19 @@
 import re
 from dataclasses import dataclass
-from typing import List, Optional
 
 from snaffler.analysis.model.file_context import FileContext
-from snaffler.classifiers.rules import MatchAction, MatchLocation
+from snaffler.classifiers.rules import ClassifierRule, MatchAction, MatchLocation
 
 
 @dataclass
 class RuleDecision:
     action: MatchAction
-    match: Optional[str] = None
-    content_rule_names: Optional[List[str]] = None
+    match: str | None = None
+    content_rule_names: list[str] | None = None
 
 
 class RuleEvaluator:
-    def __init__(self, file_rules, content_rules, postmatch_rules):
+    def __init__(self, file_rules: list[ClassifierRule], content_rules: list[ClassifierRule], postmatch_rules: list[ClassifierRule]) -> None:
         self.file_rules = file_rules
         # Sort content rules by descending triage severity so Black (3)
         # rules are checked before Red (2), Yellow (1), Green (0).
@@ -25,9 +24,9 @@ class RuleEvaluator:
         )
         self.postmatch_rules = postmatch_rules
 
-        self.content_rules_by_name = {r.rule_name: r for r in content_rules}
+        self.content_rules_by_name: dict[str, ClassifierRule] = {r.rule_name: r for r in content_rules}
 
-    def evaluate_file_rule(self, rule, ctx: FileContext) -> Optional[RuleDecision]:
+    def evaluate_file_rule(self, rule: ClassifierRule, ctx: FileContext) -> RuleDecision | None:
         if rule.match_location == MatchLocation.FILE_PATH:
             match = rule.matches(ctx.unc_path)
         elif rule.match_location == MatchLocation.FILE_NAME:

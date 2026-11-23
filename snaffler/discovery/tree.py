@@ -11,7 +11,7 @@ import fnmatch
 import logging
 import threading
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from collections.abc import Callable
 
 from snaffler.classifiers.rules import (
     ClassifierRule,
@@ -24,8 +24,8 @@ logger = logging.getLogger("snaffler")
 
 def should_scan_directory(
     dir_path: str,
-    dir_rules: List[ClassifierRule],
-    exclude_unc: List[str],
+    dir_rules: list[ClassifierRule],
+    exclude_unc: list[str],
 ) -> bool:
     """Check whether a directory should be walked.
 
@@ -69,14 +69,20 @@ def should_scan_directory(
 class TreeWalker(ABC):
     def __init__(
         self,
-        dir_rules: Optional[List[ClassifierRule]] = None,
-        exclude_unc: Optional[List[str]] = None,
-    ):
+        dir_rules: list[ClassifierRule] | None = None,
+        exclude_unc: list[str] | None = None,
+    ) -> None:
         self.dir_classifiers = dir_rules or []
         self._exclude_unc = exclude_unc or []
 
     @abstractmethod
-    def walk_directory(self, unc_path: str, on_file=None, on_dir=None, cancel: threading.Event | None = None) -> list:
+    def walk_directory(
+        self,
+        unc_path: str,
+        on_file: Callable[..., object] | None = None,
+        on_dir: Callable[[str], object] | None = None,
+        cancel: threading.Event | None = None,
+    ) -> list[str]:
         """Walk a single directory (non-recursive) and return subdirectory paths.
 
         Args:
@@ -90,7 +96,7 @@ class TreeWalker(ABC):
         """
         ...
 
-    def close(self):
+    def close(self) -> None:
         """Release resources. Override in subclasses with connections to clean up."""
         pass
 

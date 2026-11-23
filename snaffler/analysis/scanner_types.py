@@ -30,7 +30,7 @@ class FileCheckResult:
 
     status: FileCheckStatus
     result: Optional[FileResult] = None
-    content_rule_names: list = field(default_factory=list)
+    content_rule_names: list[str] = field(default_factory=list)
     _ctx: Optional[FileContext] = None
     _best_result: Optional[FileResult] = None
     _needs_cert_check: bool = False

@@ -17,7 +17,7 @@ class LocalFileAccessor(FileAccessor):
     same interface contract.
     """
 
-    def read(self, file_path, max_bytes=None):
+    def read(self, file_path: str, max_bytes: int | None = None) -> bytes | None:
         """Read up to *max_bytes* from *file_path*. Returns bytes or None on error."""
         try:
             with open(file_path, "rb") as f:
@@ -27,7 +27,7 @@ class LocalFileAccessor(FileAccessor):
             logger.debug(f"Cannot read {file_path}: {e}")
             return None
 
-    def copy_to_local(self, file_path, dest_root):
+    def copy_to_local(self, file_path: str, dest_root: str) -> None:
         """Copy *file_path* into *dest_root*, preserving directory structure."""
         try:
             # Strip leading separator to make path relative under dest_root

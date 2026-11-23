@@ -3,7 +3,7 @@
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from snaffler.accessors.file_accessor import FileAccessor
 from snaffler.discovery.ftp_tree_walker import parse_ftp_url
@@ -21,7 +21,7 @@ class _TransferAborted(Exception):
 
 
 class FTPFileAccessor(FileAccessor):
-    def __init__(self, cfg):
+    def __init__(self, cfg: Any) -> None:
         self._transport = FTPTransport(cfg)
         self._max_file_bytes = cfg.scanning.max_file_bytes
         self._cache = ThreadLocalConnectionCache(
@@ -31,11 +31,11 @@ class FTPFileAccessor(FileAccessor):
             cache_attr="ftp_cache",
         )
 
-    def close(self):
+    def close(self) -> None:
         """Close all cached FTP connections across all threads."""
         self._cache.close_all()
 
-    def read(self, file_path: str, max_bytes: Optional[int] = None) -> Optional[bytes]:
+    def read(self, file_path: str, max_bytes: int | None = None) -> bytes | None:
         parsed = parse_ftp_url(file_path)
         if not parsed:
             return None
@@ -49,7 +49,7 @@ class FTPFileAccessor(FileAccessor):
             buf = BytesIO()
             bytes_read = [0]
 
-            def callback(data):
+            def callback(data: bytes) -> None:
                 remaining = read_size - bytes_read[0]
                 if remaining <= 0:
                     # Abort the transfer — raising inside the callback
@@ -77,7 +77,7 @@ class FTPFileAccessor(FileAccessor):
             self._cache.invalidate(key)
             raise
 
-    def copy_to_local(self, file_path: str, dest_root) -> None:
+    def copy_to_local(self, file_path: str, dest_root: str) -> None:
         parsed = parse_ftp_url(file_path)
         if not parsed:
             return
