@@ -304,11 +304,11 @@ class ADDiscovery:
             if str(attr["type"]).lower() != "msdfs-targetlistv2":
                 continue
             for val in attr["vals"]:
-                xml_text = str(val)
+                xml_raw = bytes(val)
                 try:
-                    root = ET.fromstring(xml_text)
+                    root = ET.fromstring(xml_raw)
                 except ET.ParseError:
-                    logger.debug(f"Malformed msDFS-TargetListv2 XML: {xml_text[:120]}")
+                    logger.debug(f"Malformed msDFS-TargetListv2 XML: {xml_raw[:120]}")
                     continue
                 ns = "{http://schemas.microsoft.com/dfs/2007/03}"
                 for target_el in root.iter(f"{ns}target"):
