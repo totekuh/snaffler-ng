@@ -123,4 +123,5 @@ ignore_errors = true
 addopts = ["--import-mode=importlib"]
 markers = [
     "windows: tests requiring a winbox Windows VM (skipped when VM unavailable)",
+    "windows_ad: tests requiring a winbox Windows AD DC (skipped when VM unavailable)",
 ]
