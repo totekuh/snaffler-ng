@@ -1,4 +1,4 @@
-.PHONY: install uninstall lint test-all test-unit test-e2e test-e2e-ad test-e2e-socks test-e2e-full test-ad-scan setup-windows test-e2e-windows clean
+.PHONY: install uninstall lint test-all test-unit test-e2e test-e2e-ad test-e2e-socks test-e2e-full test-ad-scan setup-windows test-e2e-windows test-e2e-windows-ad clean
 
 install:
 	pipx uninstall snaffler-ng || echo "Not installed, skipping uninstall"
@@ -41,6 +41,9 @@ setup-windows:
 
 test-e2e-windows: setup-windows
 	uv run pytest tests/windows/ -v --tb=short
+
+test-e2e-windows-ad: setup-windows
+	uv run pytest tests/windows_ad/ -v --tb=short
 
 clean:
 	rm -rf build/ dist/ *.egg-info .pytest_cache .ruff_cache .mypy_cache .coverage

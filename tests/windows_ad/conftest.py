@@ -109,15 +109,29 @@ def _admin_password():
 
 
 def _validate_ad_services(ip):
-    """Verify LDAP bind and SYSVOL share are healthy."""
+    """Verify LDAP bind and SYSVOL share are healthy.
+
+    AD services accept TCP connections before authentication works,
+    so retry both LDAP bind and SMB share listing with generous timeouts.
+    """
     from impacket.ldap.ldap import LDAPConnection
     from impacket.smbconnection import SMBConnection
 
     password = _admin_password()
 
-    ldap = LDAPConnection(f"ldap://{ip}", _DOMAIN.lower())
-    ldap.login("Administrator", password, _DOMAIN)
-    ldap.close()
+    deadline = time.monotonic() + 90
+    last_exc = None
+    while time.monotonic() < deadline:
+        try:
+            ldap = LDAPConnection(f"ldap://{ip}", _DOMAIN.lower())
+            ldap.login("Administrator", password, _DOMAIN)
+            ldap.close()
+            break
+        except Exception as exc:
+            last_exc = exc
+            time.sleep(5)
+    else:
+        pytest.fail(f"LDAP bind not ready after 90s: {last_exc}")
 
     deadline = time.monotonic() + 60
     last_exc = None
@@ -132,7 +146,7 @@ def _validate_ad_services(ip):
         except Exception as exc:
             last_exc = exc
             time.sleep(3)
-    pytest.fail(f"AD services not ready after 60s: {last_exc}")
+    pytest.fail(f"SMB services not ready after 60s: {last_exc}")
 
 
 # ---------------------------------------------------------------------------
