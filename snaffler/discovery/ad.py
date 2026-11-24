@@ -308,7 +308,7 @@ class ADDiscovery:
                 try:
                     root = ET.fromstring(xml_raw)
                 except ET.ParseError:
-                    logger.debug(f"Malformed msDFS-TargetListv2 XML: {xml_raw[:120]}")
+                    logger.debug(f"Malformed msDFS-TargetListv2 XML: {xml_raw[:120]!r}")
                     continue
                 ns = "{http://schemas.microsoft.com/dfs/2007/03}"
                 for target_el in root.iter(f"{ns}target"):
