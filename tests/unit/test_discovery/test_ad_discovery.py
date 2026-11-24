@@ -251,8 +251,25 @@ def fake_dfs_v1_entry(remote_server_names):
     return FakeEntry([FakeAttr("remoteServerName", remote_server_names)])
 
 
+class FakeLdapBytes:
+    """Mimic Impacket ASN.1 value: bytes() returns raw octets, str() decodes."""
+
+    def __init__(self, data: bytes):
+        self._data = data
+
+    def __bytes__(self):
+        return self._data
+
+    def __str__(self):
+        return self._data.decode("utf-8")
+
+
 def fake_dfs_v2_entry(xml_blob):
     """Create a fake msDFS-Linkv2 entry with msDFS-TargetListv2 XML."""
+    if isinstance(xml_blob, str):
+        xml_blob = FakeLdapBytes(xml_blob.encode("utf-8"))
+    elif isinstance(xml_blob, bytes):
+        xml_blob = FakeLdapBytes(xml_blob)
     return FakeEntry([FakeAttr("msDFS-TargetListv2", [xml_blob])])
 
 
@@ -329,6 +346,27 @@ def test_dfs_v2_callback_malformed_xml():
         discovery._dfs_v2_callback(entry)
 
     assert discovery._dfs_targets == set()
+
+
+def test_dfs_v2_callback_utf16_bom():
+    """Real AD encodes msDFS-TargetListv2 as UTF-16 with BOM."""
+    cfg = _make_cfg()
+    discovery = ADDiscovery(cfg)
+    discovery._dfs_targets = set()
+
+    xml_utf16 = (
+        '<?xml version="1.0" encoding="UTF-16"?>'
+        '<targets xmlns="http://schemas.microsoft.com/dfs/2007/03">'
+        '<target state="online">\\\\fs01.corp.local\\Abteilungen</target>'
+        '</targets>'
+    ).encode("utf-16")
+
+    entry = fake_dfs_v2_entry(xml_utf16)
+
+    with patch("snaffler.discovery.ad.ldapasn1.SearchResultEntry", AcceptAll()):
+        discovery._dfs_v2_callback(entry)
+
+    assert discovery._dfs_targets == {"//fs01.corp.local/Abteilungen"}
 
 
 def test_get_dfs_targets_mixed_v1_v2():
