@@ -1,3 +1,13 @@
+snaffler-ng (1.7.1-0kali1) kali-dev; urgency=medium
+
+  * Fix UTF-16 msDFS-TargetListv2 decoding in DFS v2 discovery
+  * Fix FTP e2e test IOLoop race condition
+  * Add Windows AD DC e2e test suite with lazy snapshot provisioning
+  * Complete mypy strict compliance
+  * Add base, AD, and SOCKS e2e suites to CI
+
+ -- totekuh <totekuh@protonmail.com>  Sun, 24 Nov 2026 12:00:00 +0000
+
 snaffler-ng (1.7.0-0kali1) kali-dev; urgency=medium
 
   * SCCM ContentLib deep scan — DataLib INI to FileLib blob resolution
