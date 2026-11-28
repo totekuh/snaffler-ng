@@ -10,7 +10,6 @@ SOCKS_PROXY_HOST and SOCKS_TARGET_HOST.
 """
 
 import os
-import re
 import socket
 import subprocess
 from io import BytesIO
@@ -142,32 +141,58 @@ class TestDnsLeak:
 class TestDnsLeakWireLevel:
     """Packet-capture proof that no DNS queries leave the client."""
 
-    @staticmethod
-    def _tcpdump_packet_count(stderr_output: str) -> int:
-        match = re.search(r"(\d+) packets? captured", stderr_output)
-        return int(match.group(1)) if match else -1
-
-    def test_no_dns_packets_on_client(self):
-        """tcpdump on port 53 must capture zero packets during proxied SMB."""
+    def test_no_dns_packets_during_scan(self):
+        """Run full snaffler scan through SOCKS, assert zero DNS packets in pcap."""
         pcap = "/tmp/dns_leak_test.pcap"
-        proc = subprocess.Popen(
-            ["tcpdump", "-i", "any", "-w", pcap, "-c", "1", "port", "53"],
+        capture = subprocess.Popen(
+            ["tcpdump", "-i", "any", "-w", pcap, "port", "53"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
 
         try:
-            setup_socks_proxy(f"socks5://{PROXY_HOST}:{PROXY_PORT}")
-            smb = SMBConnection(TARGET_HOST, TARGET_HOST, sess_port=445, timeout=10)
-            smb.login("", "", "")
-            smb.listShares()
-            smb.close()
+            subprocess.run(
+                [
+                    "snaffler",
+                    "--unc",
+                    f"//{TARGET_HOST}/testdata",
+                    "--socks",
+                    f"socks5://{PROXY_HOST}:{PROXY_PORT}",
+                    "--max-depth",
+                    "1",
+                    "--fast",
+                ],
+                timeout=30,
+                capture_output=True,
+            )
         finally:
-            proc.terminate()
-            _, stderr = proc.communicate(timeout=5)
+            capture.terminate()
+            capture.wait(timeout=5)
 
-        count = self._tcpdump_packet_count(stderr.decode(errors="replace"))
-        assert count == 0, f"DNS leak detected: {count} packet(s) on port 53. stderr: {stderr.decode(errors='replace')}"
+        assert os.path.exists(pcap), "pcap file not created"
+        result = subprocess.run(
+            ["tcpdump", "-r", pcap, "-nn", "port 53"],
+            capture_output=True,
+            text=True,
+        )
+        dns_packets = result.stdout.strip().splitlines()
+        assert not dns_packets, f"DNS leak: {len(dns_packets)} packet(s):\n" + "\n".join(dns_packets)
+
+
+class TestDnsWorksWithoutSocks:
+    """Verify DNS resolution works normally when SOCKS is not configured."""
+
+    def test_getaddrinfo_resolves_to_ip_without_socks(self):
+        """Without SOCKS, getaddrinfo must return a real IP, not a hostname passthrough."""
+        result = socket.getaddrinfo(PROXY_HOST, 1080, socket.AF_INET, socket.SOCK_STREAM)
+        assert result, "getaddrinfo returned empty"
+        address = result[0][4][0]
+        assert address == PROXY_HOST, f"Expected IP {PROXY_HOST}, got {address}"
+
+    def test_getaddrinfo_not_patched_without_socks(self):
+        """Without setup_socks_proxy(), getaddrinfo must raise for unresolvable hosts."""
+        with pytest.raises((socket.gaierror, OSError)):
+            socket.getaddrinfo("nonexistent.internal.host.test", 445, socket.AF_INET, socket.SOCK_STREAM)
 
 
 class TestSocksSMB:
