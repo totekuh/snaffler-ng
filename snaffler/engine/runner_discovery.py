@@ -51,9 +51,7 @@ class DiscoveryMixin:
         # SOCKS mode: pass all hosts through without probing.
         # Hundreds of TCP probes through an SSH tunnel will kill it.
         if getattr(self.cfg.auth, "socks_proxy", None):
-            logger.info(
-                f"SOCKS active: skipping DNS pre-resolution for {len(computers)} hosts"
-            )
+            logger.info(f"SOCKS active: skipping DNS pre-resolution for {len(computers)} hosts")
             self.progress.dns_total = len(computers)
             self.progress.dns_resolved = len(computers)
             return list(computers)
