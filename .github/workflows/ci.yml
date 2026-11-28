@@ -123,7 +123,6 @@ jobs:
 
   build-binary:
     needs: test-build
-    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
 
     steps:
@@ -176,7 +175,6 @@ jobs:
 
   build-binary-arm64:
     needs: test-build
-    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04-arm
 
     steps:
@@ -229,7 +227,6 @@ jobs:
 
   build-binary-windows:
     needs: test-build
-    if: github.ref == 'refs/heads/master'
     runs-on: windows-latest
 
     steps:
@@ -282,7 +279,6 @@ jobs:
 
   build-deb:
     needs: test-build
-    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     container: kalilinux/kali-rolling@sha256:8913de4b58eeeff681a1e62653c0f4369520f65fb419932cca0acac162f3509e
 
