@@ -21,7 +21,9 @@ def _resolve_or_self(host: str) -> str:
         if not results:
             return host
         _family, _type, _proto, _canon, sockaddr = results[0]
-        address: str = sockaddr[0]
+        address = sockaddr[0]
+        if not isinstance(address, str):
+            return host
         return address
     except (socket.gaierror, OSError):
         return host

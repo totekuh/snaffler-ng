@@ -8,6 +8,7 @@ at startup before any connections are made.
 
 import ipaddress
 import socket
+from collections.abc import Sequence
 from urllib.parse import urlparse
 
 # PySocks proxy type constants (avoids importing socks at module level)
@@ -91,16 +92,27 @@ def setup_socks_proxy(proxy_url: str) -> None:
     # reach internal AD hostnames behind the proxy.
     _original_getaddrinfo = socket.getaddrinfo
 
+    _GaiResult = Sequence[
+        tuple[socket.AddressFamily, socket.SocketKind, int, str, tuple[str, int]]
+        | tuple[socket.AddressFamily, socket.SocketKind, int, str, tuple[str, int, int, int] | tuple[int, bytes]]
+    ]
+
     def _socks_getaddrinfo(
-        host: str | None, port: int | str | None, family: int = 0, type: int = 0, proto: int = 0, flags: int = 0
-    ) -> list[tuple[int, int, int, str, tuple[str, int]]]:
+        host: bytes | str | None,
+        port: bytes | str | int | None,
+        family: int = 0,
+        type: int = 0,
+        proto: int = 0,
+        flags: int = 0,
+    ) -> _GaiResult:
         if host is None:
             return _original_getaddrinfo(host, port, family, type, proto, flags)
         try:
             ipaddress.ip_address(host)
             return _original_getaddrinfo(host, port, family, type, proto, flags)
         except ValueError:
+            hostname = host.decode() if isinstance(host, bytes) else host
             port_num = port if isinstance(port, int) and port is not None else 0
-            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (host, port_num))]
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (hostname, port_num))]
 
-    socket.getaddrinfo = _socks_getaddrinfo
+    socket.getaddrinfo = _socks_getaddrinfo  # type: ignore[assignment]
