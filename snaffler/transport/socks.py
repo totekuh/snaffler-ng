@@ -91,7 +91,7 @@ def setup_socks_proxy(proxy_url: str) -> None:
     # reach internal AD hostnames behind the proxy.
     _original_getaddrinfo = socket.getaddrinfo
 
-    def _socks_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    def _socks_getaddrinfo(host: str | None, port: int | str | None, family: int = 0, type: int = 0, proto: int = 0, flags: int = 0) -> list[tuple[int, int, int, str, tuple[str, int]]]:
         if host is None:
             return _original_getaddrinfo(host, port, family, type, proto, flags)
         try:
