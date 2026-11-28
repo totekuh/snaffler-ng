@@ -57,6 +57,8 @@ services:
     build:
       context: ../../
       dockerfile: tests/docker/testrunner/Dockerfile
+    cap_add:
+      - NET_RAW
     depends_on:
       socks5-proxy:
         condition: service_healthy

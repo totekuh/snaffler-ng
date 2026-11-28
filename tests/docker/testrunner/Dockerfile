@@ -25,9 +25,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pyftpdlib \
     python3-dnslib \
     smbclient \
+    tcpdump \
     procps \
     sqlite3 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && setcap cap_net_raw+ep /usr/bin/tcpdump
 
 # Playwright + headless chromium (pinned)
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright

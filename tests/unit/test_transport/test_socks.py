@@ -82,3 +82,57 @@ class TestSetupSocksProxy:
         with patch.dict("sys.modules", {"socks": None}):
             with pytest.raises(ImportError, match="PySocks is required"):
                 setup_socks_proxy("socks5://127.0.0.1:1080")
+
+
+# ---------- getaddrinfo passthrough ----------
+
+class TestGetaddrinfoPassthrough:
+
+    @pytest.fixture(autouse=True)
+    def _restore_socket(self):
+        original_socket = socket.socket
+        original_getaddrinfo = socket.getaddrinfo
+        yield
+        socket.socket = original_socket
+        socket.getaddrinfo = original_getaddrinfo
+
+    def _setup_with_sentinel(self):
+        sentinel = MagicMock()
+        socket.getaddrinfo = sentinel
+        mock_socks = MagicMock()
+        with patch.dict("sys.modules", {"socks": mock_socks}):
+            setup_socks_proxy("socks5://127.0.0.1:1080")
+        return sentinel
+
+    def test_hostname_passes_through_without_resolving(self):
+        sentinel = self._setup_with_sentinel()
+        result = socket.getaddrinfo("fake.internal.host", 389)
+        assert sentinel.call_count == 0
+        assert result == [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("fake.internal.host", 389))]
+
+    def test_ip_delegates_to_original(self):
+        sentinel = self._setup_with_sentinel()
+        sentinel.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.2.3.4", 389))]
+        result = socket.getaddrinfo("1.2.3.4", 389)
+        assert sentinel.call_count == 1
+        assert sentinel.call_args[0][0] == "1.2.3.4"
+        assert result == [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.2.3.4", 389))]
+
+    def test_none_host_delegates_to_original(self):
+        sentinel = self._setup_with_sentinel()
+        sentinel.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("0.0.0.0", 389))]
+        socket.getaddrinfo(None, 389)
+        assert sentinel.call_count == 1
+        assert sentinel.call_args[0][0] is None
+
+    def test_bytes_hostname_decoded(self):
+        sentinel = self._setup_with_sentinel()
+        result = socket.getaddrinfo(b"fake.internal.host", 389)
+        assert sentinel.call_count == 0
+        assert result[0][4][0] == "fake.internal.host"
+
+    def test_string_port_becomes_zero(self):
+        sentinel = self._setup_with_sentinel()
+        result = socket.getaddrinfo("fake.internal.host", "ldap")
+        assert sentinel.call_count == 0
+        assert result[0][4][1] == 0

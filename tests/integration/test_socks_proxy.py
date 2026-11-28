@@ -10,8 +10,11 @@ SOCKS_PROXY_HOST and SOCKS_TARGET_HOST.
 """
 
 import os
+import re
 import socket
+import subprocess
 from io import BytesIO
+from unittest.mock import MagicMock
 
 import pytest
 import socks as pysocks
@@ -100,6 +103,71 @@ class TestNetworkIsolation:
         s.settimeout(5)
         s.connect((TARGET_HOST, 445))
         s.close()
+
+
+class TestDnsLeak:
+    def test_no_dns_leak_to_system_resolver(self):
+        """System resolver must never be called with the target hostname."""
+        real_getaddrinfo = socket.getaddrinfo
+        spy = MagicMock(wraps=real_getaddrinfo)
+        socket.getaddrinfo = spy
+
+        setup_socks_proxy(f"socks5://{PROXY_HOST}:{PROXY_PORT}")
+
+        smb = SMBConnection(TARGET_HOST, TARGET_HOST, sess_port=445, timeout=10)
+        smb.login("", "", "")
+        smb.listShares()
+        smb.close()
+
+        leaked_hosts = [call.args[0] for call in spy.call_args_list if call.args and call.args[0] == TARGET_HOST]
+        assert leaked_hosts == [], f"DNS leaked TARGET_HOST to system resolver: {spy.call_args_list}"
+
+    def test_production_patch_enables_proxy_connection(self):
+        """Production getaddrinfo patch alone (no test shim) must enable SMB through proxy."""
+        setup_socks_proxy(f"socks5://{PROXY_HOST}:{PROXY_PORT}")
+        smb = SMBConnection(TARGET_HOST, TARGET_HOST, sess_port=445, timeout=10)
+        smb.login("", "", "")
+        shares = [s["shi1_netname"][:-1].lower() for s in smb.listShares()]
+        assert "testdata" in shares
+        smb.close()
+
+    def test_hostname_passthrough_tuple_format(self):
+        """After setup_socks_proxy(), getaddrinfo must return hostname passthrough, not an IP."""
+        setup_socks_proxy(f"socks5://{PROXY_HOST}:{PROXY_PORT}")
+        result = socket.getaddrinfo(TARGET_HOST, 445)
+        assert len(result) == 1
+        assert result[0] == (socket.AF_INET, socket.SOCK_STREAM, 6, "", (TARGET_HOST, 445))
+
+
+class TestDnsLeakWireLevel:
+    """Packet-capture proof that no DNS queries leave the client."""
+
+    @staticmethod
+    def _tcpdump_packet_count(stderr_output: str) -> int:
+        match = re.search(r"(\d+) packets? captured", stderr_output)
+        return int(match.group(1)) if match else -1
+
+    def test_no_dns_packets_on_client(self):
+        """tcpdump on port 53 must capture zero packets during proxied SMB."""
+        pcap = "/tmp/dns_leak_test.pcap"
+        proc = subprocess.Popen(
+            ["tcpdump", "-i", "any", "-w", pcap, "-c", "1", "port", "53"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        try:
+            setup_socks_proxy(f"socks5://{PROXY_HOST}:{PROXY_PORT}")
+            smb = SMBConnection(TARGET_HOST, TARGET_HOST, sess_port=445, timeout=10)
+            smb.login("", "", "")
+            smb.listShares()
+            smb.close()
+        finally:
+            proc.terminate()
+            _, stderr = proc.communicate(timeout=5)
+
+        count = self._tcpdump_packet_count(stderr.decode(errors="replace"))
+        assert count == 0, f"DNS leak detected: {count} packet(s) on port 53. stderr: {stderr.decode(errors='replace')}"
 
 
 class TestSocksSMB:
