@@ -6,6 +6,7 @@ Uses PySocks to monkey-patch socket.socket globally so all TCP connections
 at startup before any connections are made.
 """
 
+import ipaddress
 import socket
 from urllib.parse import urlparse
 
@@ -83,3 +84,21 @@ def setup_socks_proxy(proxy_url: str) -> None:
         password=password,
     )
     socket.socket = socks.socksocket  # type: ignore[misc,assignment]
+
+    # Patch getaddrinfo so hostnames pass through unresolved to
+    # socksocket.connect(), where rdns=True handles remote resolution.
+    # Without this, getaddrinfo hits the local resolver which can't
+    # reach internal AD hostnames behind the proxy.
+    _original_getaddrinfo = socket.getaddrinfo
+
+    def _socks_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        if host is None:
+            return _original_getaddrinfo(host, port, family, type, proto, flags)
+        try:
+            ipaddress.ip_address(host)
+            return _original_getaddrinfo(host, port, family, type, proto, flags)
+        except ValueError:
+            port_num = port if isinstance(port, int) and port is not None else 0
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (host, port_num))]
+
+    socket.getaddrinfo = _socks_getaddrinfo
