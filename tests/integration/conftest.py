@@ -6,7 +6,6 @@
 """
 
 import os
-import select
 import signal
 import sqlite3
 import subprocess
@@ -23,45 +22,38 @@ except ImportError:
 # ── Packet capture ───────────────────────────────────────────────
 
 
-def start_tcpdump(pcap_path: str, bpf_filter: str = "port 53") -> subprocess.Popen:
+def start_tcpdump(pcap_path: str) -> subprocess.Popen:
     """Start tcpdump and block until it is actively capturing.
 
-    Waits for the ``listening on`` banner on stderr which proves the BPF
-    filter is compiled and the capture socket is open.  Fails fast with a
-    clear message if tcpdump is missing, lacks CAP_NET_RAW, or never
-    becomes ready.
+    Captures all traffic (no BPF capture filter) because Docker's
+    iptables DNAT rewrites port numbers before the kernel BPF sees
+    them, making ``port 53`` miss DNS packets whose destination was
+    rewritten.  Filtering happens at read time via ``read_pcap_packets``.
+
+    Uses ``--immediate-mode`` so packets are delivered to userspace
+    without buffering delay, and polls a sentinel pcap file to confirm
+    readiness instead of reading stderr.
 
     Returns the Popen handle — caller must ``terminate()`` + ``wait()``
     when done.
     """
     proc = subprocess.Popen(
-        ["tcpdump", "-i", "any", "-w", pcap_path, bpf_filter],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        ["tcpdump", "-i", "any", "--immediate-mode", "-U", "-w", pcap_path],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     deadline = time.monotonic() + 5
-    buf = b""
     while time.monotonic() < deadline:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            break
-        ready, _, _ = select.select([proc.stderr], [], [], min(remaining, 0.1))
-        if ready:
-            chunk = proc.stderr.read1(4096) if hasattr(proc.stderr, "read1") else proc.stderr.read(4096)
-            if not chunk:
-                break
-            buf += chunk
-            if b"listening on" in buf:
-                return proc
-
         if proc.poll() is not None:
             break
+        if os.path.exists(pcap_path) and os.path.getsize(pcap_path) >= 24:
+            return proc
+        time.sleep(0.1)
 
-    stderr_text = buf.decode(errors="replace")
     proc.kill()
     proc.wait()
-    pytest.fail(f"tcpdump did not start capturing within 5s. stderr:\n{stderr_text}")
+    pytest.fail("tcpdump did not start capturing within 5s")
 
 
 def read_pcap_packets(pcap_path: str, bpf_filter: str = "port 53") -> list[str]:
