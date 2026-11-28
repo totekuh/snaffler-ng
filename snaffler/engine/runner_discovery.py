@@ -42,8 +42,8 @@ class DiscoveryMixin:
         """DNS pre-resolution: filter out hosts with no A record.
 
         When a SOCKS proxy is active, skip DNS+TCP probing entirely —
-        all resolution happens remotely through the proxy, and blasting
-        hundreds of probe connections through an SSH tunnel will kill it.
+        all resolution happens remotely through the proxy, and concurrent
+        probe connections will overwhelm the tunnel.
         """
         if not computers:
             return []
