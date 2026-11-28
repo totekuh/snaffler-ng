@@ -54,33 +54,10 @@ class TestDnsNormalWithoutSocks:
             capture.wait(timeout=5)
 
         assert os.path.exists(pcap), "pcap file not created"
-
-        # Diagnostic: dump all captured packets and iptables nat rules
-        all_pkts = subprocess.run(
-            ["tcpdump", "-r", pcap, "-nn"],
-            capture_output=True,
-            text=True,
-        )
-        iptables = subprocess.run(
-            ["iptables", "-t", "nat", "-L", "OUTPUT", "-n"],
-            capture_output=True,
-            text=True,
-        )
-        resolv = subprocess.run(
-            ["cat", "/etc/resolv.conf"],
-            capture_output=True,
-            text=True,
-        )
-
         result = subprocess.run(
             ["tcpdump", "-r", pcap, "-nn", "port 53"],
             capture_output=True,
             text=True,
         )
         dns_packets = result.stdout.strip().splitlines()
-        diag = (
-            f"\n--- all packets ---\n{all_pkts.stdout or '(none)'}"
-            f"\n--- iptables nat OUTPUT ---\n{iptables.stdout or iptables.stderr}"
-            f"\n--- resolv.conf ---\n{resolv.stdout}"
-        )
-        assert dns_packets, f"No DNS packets on port 53.{diag}"
+        assert dns_packets, "No DNS packets — without SOCKS, snaffler should generate real DNS traffic"
