@@ -11,7 +11,9 @@ SOCKS_PROXY_HOST and SOCKS_TARGET_HOST.
 
 import os
 import socket
+import subprocess
 from io import BytesIO
+from unittest.mock import MagicMock
 
 import pytest
 import socks as pysocks
@@ -100,6 +102,89 @@ class TestNetworkIsolation:
         s.settimeout(5)
         s.connect((TARGET_HOST, 445))
         s.close()
+
+
+class TestDnsLeak:
+    def test_no_dns_leak_to_system_resolver(self):
+        """System resolver must never be called with the target hostname."""
+        real_getaddrinfo = socket.getaddrinfo
+        spy = MagicMock(wraps=real_getaddrinfo)
+        socket.getaddrinfo = spy
+
+        setup_socks_proxy(f"socks5://{PROXY_HOST}:{PROXY_PORT}")
+
+        smb = SMBConnection(TARGET_HOST, TARGET_HOST, sess_port=445, timeout=10)
+        smb.login("", "", "")
+        smb.listShares()
+        smb.close()
+
+        leaked_hosts = [call.args[0] for call in spy.call_args_list if call.args and call.args[0] == TARGET_HOST]
+        assert leaked_hosts == [], f"DNS leaked TARGET_HOST to system resolver: {spy.call_args_list}"
+
+    def test_production_patch_enables_proxy_connection(self):
+        """Production getaddrinfo patch alone (no test shim) must enable SMB through proxy."""
+        setup_socks_proxy(f"socks5://{PROXY_HOST}:{PROXY_PORT}")
+        smb = SMBConnection(TARGET_HOST, TARGET_HOST, sess_port=445, timeout=10)
+        smb.login("", "", "")
+        shares = [s["shi1_netname"][:-1].lower() for s in smb.listShares()]
+        assert "testdata" in shares
+        smb.close()
+
+    def test_hostname_passthrough_tuple_format(self):
+        """After setup_socks_proxy(), getaddrinfo must return hostname passthrough, not an IP."""
+        setup_socks_proxy(f"socks5://{PROXY_HOST}:{PROXY_PORT}")
+        result = socket.getaddrinfo(TARGET_HOST, 445)
+        assert len(result) == 1
+        assert result[0] == (socket.AF_INET, socket.SOCK_STREAM, 6, "", (TARGET_HOST, 445))
+
+
+class TestDnsLeakWireLevel:
+    """Packet-capture proof that no DNS queries leave the client."""
+
+    def test_no_dns_packets_during_scan(self):
+        """Run full snaffler scan through SOCKS, assert zero DNS packets in pcap."""
+        from tests.integration.conftest import read_pcap_packets, start_tcpdump
+
+        pcap = "/tmp/dns_leak_test.pcap"
+        capture = start_tcpdump(pcap)
+
+        try:
+            subprocess.run(
+                [
+                    "snaffler",
+                    "--unc",
+                    f"//{TARGET_HOST}/testdata",
+                    "--socks",
+                    f"socks5://{PROXY_HOST}:{PROXY_PORT}",
+                    "--max-depth",
+                    "1",
+                    "--fast",
+                ],
+                timeout=30,
+                capture_output=True,
+            )
+        finally:
+            capture.terminate()
+            capture.wait(timeout=5)
+
+        dns_packets = read_pcap_packets(pcap)
+        assert not dns_packets, f"DNS leak: {len(dns_packets)} packet(s):\n" + "\n".join(dns_packets)
+
+
+class TestDnsWorksWithoutSocks:
+    """Verify DNS resolution works normally when SOCKS is not configured."""
+
+    def test_getaddrinfo_resolves_to_ip_without_socks(self):
+        """Without SOCKS, getaddrinfo must return a real IP, not a hostname passthrough."""
+        result = socket.getaddrinfo(PROXY_HOST, 1080, socket.AF_INET, socket.SOCK_STREAM)
+        assert result, "getaddrinfo returned empty"
+        address = result[0][4][0]
+        assert address == PROXY_HOST, f"Expected IP {PROXY_HOST}, got {address}"
+
+    def test_getaddrinfo_not_patched_without_socks(self):
+        """Without setup_socks_proxy(), getaddrinfo must raise for unresolvable hosts."""
+        with pytest.raises((socket.gaierror, OSError)):
+            socket.getaddrinfo("nonexistent.internal.host.test", 445, socket.AF_INET, socket.SOCK_STREAM)
 
 
 class TestSocksSMB:

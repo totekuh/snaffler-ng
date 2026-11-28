@@ -39,9 +39,21 @@ class DiscoveryMixin:
         return computers
 
     def _resolve_computers(self, computers: List[str]) -> List[str]:
-        """DNS pre-resolution: filter out hosts with no A record."""
+        """DNS pre-resolution: filter out hosts with no A record.
+
+        When a SOCKS proxy is active, skip DNS+TCP probing entirely —
+        all resolution happens remotely through the proxy, and concurrent
+        probe connections will overwhelm the tunnel.
+        """
         if not computers:
             return []
+
+        # SOCKS mode: pass all hosts through without probing.
+        if self.cfg.auth.socks_proxy:
+            logger.info(f"SOCKS active: skipping DNS pre-resolution for {len(computers)} hosts")
+            self.progress.dns_total = len(computers)
+            self.progress.dns_resolved = len(computers)
+            return list(computers)
 
         # Resume: DNS phase already complete → load from state
         if self.state and self.state.is_phase_done(_PHASE_DNS):

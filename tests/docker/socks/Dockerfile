@@ -10,7 +10,7 @@ RUN git clone --depth 1 --branch 0.9.4 https://github.com/3proxy/3proxy.git /bui
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    microsocks netcat-openbsd \
+    microsocks netcat-openbsd tcpdump \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/bin/3proxy /usr/local/bin/3proxy

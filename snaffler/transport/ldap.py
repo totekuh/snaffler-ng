@@ -17,8 +17,15 @@ def _is_ip(host: str) -> bool:
 
 def _resolve_or_self(host: str) -> str:
     try:
-        return socket.gethostbyname(host)
-    except socket.gaierror:
+        results = socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_STREAM)
+        if not results:
+            return host
+        _family, _type, _proto, _canon, sockaddr = results[0]
+        address = sockaddr[0]
+        if not isinstance(address, str):
+            return host
+        return address
+    except (socket.gaierror, OSError):
         return host
 
 

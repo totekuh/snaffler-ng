@@ -41,6 +41,7 @@ def make_engine_cfg(**overrides):
 
     # ---------- auth ----------
     cfg.auth.domain = None
+    cfg.auth.socks_proxy = None
 
     # ---------- advanced ----------
     cfg.advanced.share_threads = 2

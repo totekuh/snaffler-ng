@@ -2,6 +2,7 @@
 
 - AD fixtures: imported from tests.ad_env when available
 - Scan fixtures: run snaffler against SMB_HOST inside Docker
+- Packet capture: start_tcpdump() for DNS leak tests
 """
 
 import os
@@ -14,9 +15,56 @@ import pytest
 
 # AD fixtures (skip gracefully if not available)
 try:
-    from tests.ad_env.conftest import ad_dc, ad_cfg  # noqa: F401
+    from tests.ad_env.conftest import ad_cfg, ad_dc  # noqa: F401
 except ImportError:
     pass
+
+# ── Packet capture ───────────────────────────────────────────────
+
+
+def start_tcpdump(pcap_path: str) -> subprocess.Popen:
+    """Start tcpdump and block until it is actively capturing.
+
+    Captures all traffic (no BPF capture filter) because Docker's
+    iptables DNAT rewrites port numbers before the kernel BPF sees
+    them, making ``port 53`` miss DNS packets whose destination was
+    rewritten.  Filtering happens at read time via ``read_pcap_packets``.
+
+    Uses ``--immediate-mode`` so packets are delivered to userspace
+    without buffering delay, and polls a sentinel pcap file to confirm
+    readiness instead of reading stderr.
+
+    Returns the Popen handle — caller must ``terminate()`` + ``wait()``
+    when done.
+    """
+    proc = subprocess.Popen(
+        ["tcpdump", "-i", "any", "--immediate-mode", "-U", "-w", pcap_path],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            break
+        if os.path.exists(pcap_path) and os.path.getsize(pcap_path) >= 24:
+            return proc
+        time.sleep(0.1)
+
+    proc.kill()
+    proc.wait()
+    pytest.fail("tcpdump did not start capturing within 5s")
+
+
+def read_pcap_packets(pcap_path: str, bpf_filter: str = "port 53") -> list[str]:
+    """Read a pcap file with tcpdump and return matching packet lines."""
+    result = subprocess.run(
+        ["tcpdump", "-r", pcap_path, "-nn", bpf_filter],
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip().splitlines()
+
 
 # ── Docker detection ──────────────────────────────────────────────
 

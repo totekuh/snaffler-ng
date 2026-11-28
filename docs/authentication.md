@@ -26,7 +26,22 @@ Requires `pip install snaffler-ng[socks]`. Accepted `--socks` formats:
 
 Works with Chisel, Ligolo, `ssh -D`, and other standard SOCKS servers.
 
+DNS resolution is routed through the proxy automatically (`rdns`), so
+internal hostnames resolve on the remote side without `--ns`. Use
+`--dc-host` when the domain name does not point to a domain controller:
+
+```bash
+snaffler -u USER -p PASS -d DOMAIN.LOCAL \
+  --socks socks5://127.0.0.1:1080 --dc-host DC01.DOMAIN.LOCAL
+```
+
+DNS pre-resolution and TCP port probing are skipped in SOCKS mode to
+avoid overwhelming the tunnel with concurrent connections.
+
 ## SOCKS + Custom DNS
+
+When you need a specific nameserver (split DNS, lab environments), add
+`--ns`. DNS queries use TCP so they also route through the tunnel:
 
 ```bash
 snaffler -u USER -p PASS -d DOMAIN.LOCAL \

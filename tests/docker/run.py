@@ -30,6 +30,10 @@ SUITES = {
         "profiles": ["socks"],
         "runner": "socks-runner",
     },
+    "socks-ad": {
+        "profiles": ["socks-ad"],
+        "runner": "socks-ad-runner",
+    },
 }
 
 
@@ -68,6 +72,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run e2e tests against installed .deb")
     parser.add_argument("--ad", action="store_true", help="Include Samba AD DC")
     parser.add_argument("--socks", action="store_true", help="Include SOCKS proxy")
+    parser.add_argument("--socks-ad", action="store_true", help="SOCKS proxy + AD DC")
     parser.add_argument("--all", action="store_true", help="All suites")
     parser.add_argument("--no-base", action="store_true", help="Skip base suite")
     parser.add_argument("pytest_args", nargs="*", help="Extra pytest arguments (after --)")
@@ -75,7 +80,7 @@ def main():
 
     suites: list[str] = []
     if args.all:
-        suites = ["base", "ad", "socks"]
+        suites = ["base", "ad", "socks", "socks-ad"]
     else:
         if not args.no_base and not args.socks:
             suites.append("base")
@@ -85,6 +90,8 @@ def main():
             suites.append("ad")
         if args.socks:
             suites.append("socks")
+        if args.socks_ad:
+            suites.append("socks-ad")
 
     if not suites:
         suites = ["base"]
