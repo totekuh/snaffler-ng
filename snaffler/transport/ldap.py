@@ -18,8 +18,12 @@ def _is_ip(host: str) -> bool:
 def _resolve_or_self(host: str) -> str:
     try:
         results = socket.getaddrinfo(host, None, socket.AF_INET, socket.SOCK_STREAM)
-        return str(results[0][4][0])
-    except socket.gaierror:
+        if not results:
+            return host
+        _family, _type, _proto, _canon, sockaddr = results[0]
+        address: str = sockaddr[0]
+        return address
+    except (socket.gaierror, OSError):
         return host
 
 
