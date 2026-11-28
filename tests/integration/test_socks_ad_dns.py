@@ -11,7 +11,6 @@ import subprocess
 from unittest.mock import MagicMock
 
 import pytest
-from impacket.smbconnection import SMBConnection
 
 from snaffler.transport.socks import setup_socks_proxy
 
@@ -44,12 +43,10 @@ def restore_socket():
 class TestSocksAdDnsLeak:
     def test_ad_scan_no_dns_leak(self):
         """Full snaffler AD scan through SOCKS must produce zero DNS packets."""
+        from tests.integration.conftest import read_pcap_packets, start_tcpdump
+
         pcap = "/tmp/ad_dns_leak.pcap"
-        capture = subprocess.Popen(
-            ["tcpdump", "-i", "any", "-w", pcap, "port", "53"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        capture = start_tcpdump(pcap)
 
         try:
             subprocess.run(
@@ -76,13 +73,7 @@ class TestSocksAdDnsLeak:
             capture.terminate()
             capture.wait(timeout=5)
 
-        assert os.path.exists(pcap), "pcap file not created"
-        result = subprocess.run(
-            ["tcpdump", "-r", pcap, "-nn", "port 53"],
-            capture_output=True,
-            text=True,
-        )
-        dns_packets = result.stdout.strip().splitlines()
+        dns_packets = read_pcap_packets(pcap)
         assert not dns_packets, f"DNS leak: {len(dns_packets)} packet(s):\n" + "\n".join(dns_packets)
 
     def test_ad_ldap_discovery_through_socks(self):
@@ -129,5 +120,3 @@ class TestSocksAdDnsLeak:
 
         leaked = [call.args[0] for call in spy.call_args_list if call.args and call.args[0] == DC_HOST]
         assert not leaked, f"DNS leaked DC hostname to system resolver: {spy.call_args_list}"
-
-

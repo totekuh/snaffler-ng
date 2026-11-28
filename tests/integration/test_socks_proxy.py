@@ -143,12 +143,10 @@ class TestDnsLeakWireLevel:
 
     def test_no_dns_packets_during_scan(self):
         """Run full snaffler scan through SOCKS, assert zero DNS packets in pcap."""
+        from tests.integration.conftest import read_pcap_packets, start_tcpdump
+
         pcap = "/tmp/dns_leak_test.pcap"
-        capture = subprocess.Popen(
-            ["tcpdump", "-i", "any", "-w", pcap, "port", "53"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        capture = start_tcpdump(pcap)
 
         try:
             subprocess.run(
@@ -169,13 +167,7 @@ class TestDnsLeakWireLevel:
             capture.terminate()
             capture.wait(timeout=5)
 
-        assert os.path.exists(pcap), "pcap file not created"
-        result = subprocess.run(
-            ["tcpdump", "-r", pcap, "-nn", "port 53"],
-            capture_output=True,
-            text=True,
-        )
-        dns_packets = result.stdout.strip().splitlines()
+        dns_packets = read_pcap_packets(pcap)
         assert not dns_packets, f"DNS leak: {len(dns_packets)} packet(s):\n" + "\n".join(dns_packets)
 
 

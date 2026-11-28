@@ -2,9 +2,11 @@
 
 - AD fixtures: imported from tests.ad_env when available
 - Scan fixtures: run snaffler against SMB_HOST inside Docker
+- Packet capture: start_tcpdump() for DNS leak tests
 """
 
 import os
+import select
 import signal
 import sqlite3
 import subprocess
@@ -14,9 +16,63 @@ import pytest
 
 # AD fixtures (skip gracefully if not available)
 try:
-    from tests.ad_env.conftest import ad_dc, ad_cfg  # noqa: F401
+    from tests.ad_env.conftest import ad_cfg, ad_dc  # noqa: F401
 except ImportError:
     pass
+
+# ── Packet capture ───────────────────────────────────────────────
+
+
+def start_tcpdump(pcap_path: str, bpf_filter: str = "port 53") -> subprocess.Popen:
+    """Start tcpdump and block until it is actively capturing.
+
+    Waits for the ``listening on`` banner on stderr which proves the BPF
+    filter is compiled and the capture socket is open.  Fails fast with a
+    clear message if tcpdump is missing, lacks CAP_NET_RAW, or never
+    becomes ready.
+
+    Returns the Popen handle — caller must ``terminate()`` + ``wait()``
+    when done.
+    """
+    proc = subprocess.Popen(
+        ["tcpdump", "-i", "any", "-w", pcap_path, bpf_filter],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    deadline = time.monotonic() + 5
+    buf = b""
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        ready, _, _ = select.select([proc.stderr], [], [], min(remaining, 0.1))
+        if ready:
+            chunk = proc.stderr.read1(4096) if hasattr(proc.stderr, "read1") else proc.stderr.read(4096)
+            if not chunk:
+                break
+            buf += chunk
+            if b"listening on" in buf:
+                return proc
+
+        if proc.poll() is not None:
+            break
+
+    stderr_text = buf.decode(errors="replace")
+    proc.kill()
+    proc.wait()
+    pytest.fail(f"tcpdump did not start capturing within 5s. stderr:\n{stderr_text}")
+
+
+def read_pcap_packets(pcap_path: str, bpf_filter: str = "port 53") -> list[str]:
+    """Read a pcap file with tcpdump and return matching packet lines."""
+    result = subprocess.run(
+        ["tcpdump", "-r", pcap_path, "-nn", bpf_filter],
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip().splitlines()
+
 
 # ── Docker detection ──────────────────────────────────────────────
 
